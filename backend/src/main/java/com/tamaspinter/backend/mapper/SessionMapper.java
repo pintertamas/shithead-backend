@@ -18,7 +18,12 @@ public class SessionMapper {
         GameSessionEntity e = new GameSessionEntity();
         e.setSessionId(s.getSessionId());
         e.setStarted(s.isStarted());
-        e.setCurrentPlayerId(s.getCurrentPlayerId());
+        List<Player> players = s.getPlayers();
+        if (players.isEmpty()) {
+            e.setCurrentPlayerId(null);
+        } else {
+            e.setCurrentPlayerId(s.getCurrentPlayerId());
+        }
         e.setDiscardPile(cardsToEntities(s.getDiscardPile()));
         e.setPlayers(statesToEntities(s.getPlayers()));
         return e;
@@ -100,4 +105,5 @@ public class SessionMapper {
                 })
                 .collect(Collectors.toList());
     }
+
 }

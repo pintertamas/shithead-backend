@@ -2,10 +2,13 @@ package com.tamaspinter.backend.game;
 
 import com.tamaspinter.backend.model.CardRule;
 import lombok.Getter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Configuration
 public class GameConfig {
     @Getter
     private int faceDownCount;
@@ -47,6 +50,11 @@ public class GameConfig {
 
     public boolean canPlayAgain(int value) {
         return canPlayAgain.getOrDefault(value, false);
+    }
+
+    @Bean
+    public GameManager gameManager() {
+        return new GameManager();
     }
 
     // TODO : Function to fetch config from somewhere

@@ -145,10 +145,24 @@ public class GameSession {
     }
 
     public String getCurrentPlayerId() {
+        if (players.isEmpty() || currentIndex < 0 || currentIndex >= players.size()) return null;
         return players.get(currentIndex).getPlayerId();
     }
 
     public GameSessionEntity toEntity() {
         return SessionMapper.toEntity(this);
+    }
+
+    @Override
+    public String toString() {
+        return "GameSession{" +
+                "sessionId='" + sessionId + '\'' +
+                ", number of players=" + players.size() +
+                ", discardPile=" + discardPile +
+                ", deck=" + deck +
+                ", currentIndex=" + currentIndex +
+                ", config=" + config +
+                ", started=" + started +
+                '}';
     }
 }
