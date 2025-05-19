@@ -5,5 +5,6 @@ public enum CardRule {
     JOKER,
     SMALLER,
     TRANSPARENT,
+    REVERSE,
     BURNER
 }
