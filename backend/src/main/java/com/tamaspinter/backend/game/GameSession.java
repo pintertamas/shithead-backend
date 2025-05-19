@@ -1,15 +1,21 @@
 package com.tamaspinter.backend.game;
 
+import com.tamaspinter.backend.entity.GameSessionEntity;
+import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.Deck;
 import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.rules.RuleEngine;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
+@Getter
+@Setter
 public class GameSession {
     private final String sessionId;
     private final List<Player> players = new ArrayList<>();
@@ -140,5 +146,9 @@ public class GameSession {
 
     public String getCurrentPlayerId() {
         return players.get(currentIndex).getPlayerId();
+    }
+
+    public GameSessionEntity toEntity() {
+        return SessionMapper.toEntity(this);
     }
 }
