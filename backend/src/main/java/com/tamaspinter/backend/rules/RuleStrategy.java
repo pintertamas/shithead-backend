@@ -4,6 +4,12 @@ import com.tamaspinter.backend.model.Card;
 
 import java.util.Deque;
 
+// DEFAULT: newCard.value >= previous.value
 interface RuleStrategy {
-    boolean canPlay(Card newCard, Deque<Card> pile);
+    default boolean canPlay(Card newCard, Deque<Card> pile) {
+        if (newCard.isAlwaysPlayable()) return true;
+        if (pile.isEmpty()) return true;
+        Card prev = pile.peekLast();
+        return newCard.getValue() >= prev.getValue();
+    };
 }

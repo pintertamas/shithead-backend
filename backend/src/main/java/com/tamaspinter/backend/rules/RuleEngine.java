@@ -2,8 +2,10 @@ package com.tamaspinter.backend.rules;
 
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.CardRule;
+import com.tamaspinter.backend.model.Player;
 
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 
 public class RuleEngine {
@@ -12,6 +14,7 @@ public class RuleEngine {
         CardRule.JOKER, new JokerRuleStrategy(),
         CardRule.SMALLER, new SmallerRuleStrategy(),
         CardRule.TRANSPARENT, new TransparentRuleStrategy(),
+        CardRule.REVERSE, new ReverseRuleStrategy(),
         CardRule.BURNER, new BurnerRuleStrategy()
     );
 
@@ -33,5 +36,13 @@ public class RuleEngine {
                          .filter(c -> c.getValue() == topValue)
                          .count();
         return count >= n;
+    }
+
+    public static void playAfterEffect(Card lastCard, Deque<Card> pile, Player currentPlayer, List<Player> players) {
+        CardRule rule = lastCard.getRule();
+        RuleStrategy strategy = getStrategy(rule);
+        if (strategy instanceof AfterEffect) {
+            ((AfterEffect) strategy).afterEffect(pile, players, currentPlayer);
+        }
     }
 }

@@ -9,6 +9,7 @@ import java.util.Iterator;
 // For TRANSPARENT: delegate to the rule of the last non-transparent card
 public class TransparentRuleStrategy implements RuleStrategy {
     public boolean canPlay(Card newCard, Deque<Card> pile) {
+        if (newCard.isAlwaysPlayable()) return true;
         Iterator<Card> desc = pile.descendingIterator();
         while (desc.hasNext()) {
             Card top = desc.next();
