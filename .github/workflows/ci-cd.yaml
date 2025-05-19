@@ -11,7 +11,6 @@ on:
       - dev
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
   SESSIONS_TABLE: ${{ secrets.SESSIONS_TABLE }}
   USERS_TABLE: ${{ secrets.USERS_TABLE }}
   LAMBDA_BUCKET: ${{ secrets.LAMBDA_BUCKET }}
@@ -102,7 +101,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
