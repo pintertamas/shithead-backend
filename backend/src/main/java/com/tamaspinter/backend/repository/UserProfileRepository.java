@@ -1,5 +1,7 @@
 package com.tamaspinter.backend.repository;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.enhanced.dynamodb.*;
 import com.tamaspinter.backend.model.*;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchGetItemEnhancedRequest;
@@ -10,13 +12,24 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+@Repository
 public class UserProfileRepository {
-    private final DynamoDbTable<UserProfile> table =
-            DynamoDbClientProvider.client()
-                    .table("Users", TableSchema.fromBean(UserProfile.class));
 
-    public void save(UserProfile u) {
-        table.putItem(u);
+    private final DynamoDbTable<UserProfile> table;
+    private final DynamoDbEnhancedClient enhancedClient;
+
+    public UserProfileRepository(
+            DynamoDbEnhancedClient enhancedClient,
+            @Value("${USERS_TABLE}") String tableName) {
+        this.enhancedClient = enhancedClient;
+        this.table = enhancedClient.table(
+                tableName,
+                TableSchema.fromBean(UserProfile.class)
+        );
+    }
+
+    public void save(UserProfile user) {
+        table.putItem(user);
     }
 
     public UserProfile get(String userId) {
@@ -40,14 +53,11 @@ public class UserProfileRepository {
                 .build();
 
         Iterator<BatchGetResultPage> pages =
-                DynamoDbClientProvider.client().batchGetItem(batchRequest).iterator();
+                enhancedClient.batchGetItem(batchRequest).iterator();
 
         // Collect and return all retrieved items
         List<UserProfile> result = new ArrayList<>();
-        while (pages.hasNext()) {
-            BatchGetResultPage page = pages.next();
-            result.addAll(page.resultsForTable(table));
-        }
+        pages.forEachRemaining(page -> result.addAll(page.resultsForTable(table)));
         return result;
     }
 }
