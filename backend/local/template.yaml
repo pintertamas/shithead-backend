@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Shithead card-game backend (REST + WebSocket)
+
+Globals:
+  Function:
+    Runtime: java17
+    MemorySize: 512
+    Timeout: 30
+    Environment:
+      Variables:
+        USERS_TABLE: !Ref UsersTable
+        SESSIONS_TABLE: !Ref SessionsTable
+
+Resources:
+
+  ## DynamoDB Tables ##
+  UsersTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: Users
+
+  SessionsTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: GameSessions
+
+  ## REST API (HTTP) ##
+  RestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+      Cors: "'*'"    # Single-string CORS origin :contentReference[oaicite:4]{index=4}
+
+  ### REST Lambdas ###
+  CreateGameFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.tamaspinter.backend.handler.GameFunctions::createGame
+      CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Events:
+        CreateGame:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /createGame
+            Method: post       # HTTP method for REST :contentReference[oaicite:5]{index=5}
+
+  JoinGameFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.tamaspinter.backend.handler.GameFunctions::joinGame
+      CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Events:
+        JoinGame:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /joinGame
+            Method: post
+
+  StartGameFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.tamaspinter.backend.handler.GameFunctions::startGame
+      CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Events:
+        StartGame:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /startGame
+            Method: post
+
+  GetStateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.tamaspinter.backend.handler.GameFunctions::getState
+      CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Events:
+        GetState:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /getState/{sessionId}
+            Method: get
+
+  PlayCardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.tamaspinter.backend.handler.GameFunctions::playCard
+      CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Events:
+        PlayCard:
+          Type: Api
+          Properties:
+            RestApiId: !Ref RestApi
+            Path: /playCard
+            Method: post
+
+  ## WebSocket API (v2) ##
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api              # CloudFormation v2 API :contentReference[oaicite:6]{index=6}
+    Properties:
+      Name: ShitheadWebSocketApi
+      ProtocolType: WEBSOCKET                  # Only supported in ApiGatewayV2 :contentReference[oaicite:7]{index=7}
+      RouteSelectionExpression: "$request.body.action"
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2
