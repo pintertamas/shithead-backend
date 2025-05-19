@@ -13,6 +13,8 @@ import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Suit;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.service.EloService;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -118,7 +120,7 @@ public class GameFunctions {
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> playCard() {
         return req -> {
-            Map data = null;
+            Map data;
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
             } catch (JsonProcessingException e) {
@@ -202,24 +204,20 @@ public class GameFunctions {
     }
 
     /** Message payload for WS playCard route */
+    @Setter
+    @Getter
     public static class PlayMessage {
         private String sessionId;
         private List<Card> cards;
 
-        public String getSessionId() { return sessionId; }
-        public void setSessionId(String sessionId) { this.sessionId = sessionId; }
-        public List<Card> getCards() { return cards; }
-        public void setCards(List<Card> cards) { this.cards = cards; }
     }
 
     /** SNS payload when a game ends */
+    @Setter
+    @Getter
     public static class GameEnded {
         private List<String> playerIds;
         private Map<String, Double> results; // mapping playerId -> score (1 or 0)
 
-        public List<String> getPlayerIds() { return playerIds; }
-        public void setPlayerIds(List<String> playerIds) { this.playerIds = playerIds; }
-        public Map<String, Double> getResults() { return results; }
-        public void setResults(Map<String, Double> results) { this.results = results; }
     }
 }
