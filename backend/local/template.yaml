@@ -9,8 +9,13 @@ Globals:
     Timeout: 30
     Environment:
       Variables:
-        USERS_TABLE: !Ref UsersTable
-        SESSIONS_TABLE: !Ref SessionsTable
+        DYNAMODB_ENDPOINT: "http://host.docker.internal:8000"
+        AWS_REGION: "us-east-1"
+        AWS_ACCESS_KEY_ID: "local"
+        AWS_SECRET_ACCESS_KEY: "local"
+        USERS_TABLE: "Users"
+        SESSIONS_TABLE: "GameSessions"
+        MAIN_CLASS: com.tamaspinter.backend.BackendApplication
 
 Resources:
 
@@ -36,8 +41,11 @@ Resources:
   CreateGameFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: com.tamaspinter.backend.handler.GameFunctions::createGame
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
       CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Environment:
+        Variables:
+          SPRING_CLOUD_FUNCTION_DEFINITION: createGame
       Events:
         CreateGame:
           Type: Api
@@ -49,8 +57,11 @@ Resources:
   JoinGameFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: com.tamaspinter.backend.handler.GameFunctions::joinGame
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
       CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Environment:
+        Variables:
+          SPRING_CLOUD_FUNCTION_DEFINITION: joinGame
       Events:
         JoinGame:
           Type: Api
@@ -62,8 +73,11 @@ Resources:
   StartGameFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: com.tamaspinter.backend.handler.GameFunctions::startGame
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
       CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Environment:
+        Variables:
+          SPRING_CLOUD_FUNCTION_DEFINITION: startGame
       Events:
         StartGame:
           Type: Api
@@ -75,8 +89,11 @@ Resources:
   GetStateFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: com.tamaspinter.backend.handler.GameFunctions::getState
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
       CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Environment:
+        Variables:
+          SPRING_CLOUD_FUNCTION_DEFINITION: getState
       Events:
         GetState:
           Type: Api
@@ -88,8 +105,11 @@ Resources:
   PlayCardFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: com.tamaspinter.backend.handler.GameFunctions::playCard
+      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
       CodeUri: ../target/backend-0.0.1-SNAPSHOT.jar
+      Environment:
+        Variables:
+          SPRING_CLOUD_FUNCTION_DEFINITION: playCard
       Events:
         PlayCard:
           Type: Api

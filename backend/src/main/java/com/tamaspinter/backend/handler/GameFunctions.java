@@ -7,11 +7,13 @@ import com.amazonaws.services.lambda.runtime.events.SNSEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tamaspinter.backend.entity.GameSessionEntity;
+import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Suit;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.service.EloService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,26 +26,40 @@ import com.tamaspinter.backend.game.GameManager;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.repository.*;
 
+@Slf4j
 @Configuration
 public class GameFunctions {
-    private final GameManager gameManager = new GameManager();
-    private final GameSessionRepository sessionRepo = new GameSessionRepository();
-    private final UserProfileRepository userRepo = new UserProfileRepository();
-    private final ObjectMapper mapper = new ObjectMapper();
+
+    private final GameManager gameManager;
+    private final GameSessionRepository sessionRepo;
+    private final UserProfileRepository userRepo;
+    private final ObjectMapper mapper;
+
+    public GameFunctions(GameManager gameManager,
+                         GameSessionRepository sessionRepo,
+                         UserProfileRepository userRepo,
+                         ObjectMapper mapper) {
+        this.gameManager = gameManager;
+        this.sessionRepo = sessionRepo;
+        this.userRepo = userRepo;
+        this.mapper = mapper;
+    }
 
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> createGame() {
         return req -> {
             String sessionId = UUID.randomUUID().toString();
+            log.info("Creating game session with ID: {}", sessionId);
             GameSession session = gameManager.createSession(sessionId);
-            sessionRepo.save(session.toEntity());
+            sessionRepo.save(SessionMapper.toEntity(session));
             Map<String,String> body = Map.of("sessionId", sessionId);
             try {
                 return new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
                         .withBody(mapper.writeValueAsString(body));
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+            } catch (Exception e) {
+                log.error("createGame failed", e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(500);
             }
         };
     }
