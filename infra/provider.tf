@@ -16,6 +16,5 @@ terraform {
 }
 
 provider "aws" {
-  profile = "shithead-project"
   region  = var.aws_region
 }
