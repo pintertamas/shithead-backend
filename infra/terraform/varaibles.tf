@@ -25,25 +25,12 @@ variable "project_name" {
   default     = "shithead"
 }
 
-########################################################
-# Cognito
-########################################################
-variable "user_pool_name" {
-  type    = string
-  default = "shithead-users"
+variable "google_client_id" {
+  description = "Google Client ID for authentication"
+  type        = string
 }
 
-variable "user_pool_domain_prefix" {
-  type    = string
-  default = "shithead-tamaspinter"
+variable "google_client_secret" {
+  description = "Google Client Secret for authentication"
+  type        = string
 }
-
-variable "app_url" {
-  type    = string
-  description = "The app's base URL (e.g. https://app.example.com)"
-  default   = "https://shithead.tamaspinter.com"
-}
-
-# OAuth provider credentials
-variable "google_client_id"      { type = string }
-variable "google_client_secret"  { type = string }

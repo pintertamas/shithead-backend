@@ -1,13 +1,12 @@
 resource "aws_cognito_user_pool" "users" {
-  tags = { project = var.project_name }
-  name = var.user_pool_name
+  name = "${var.project_name}-${var.user_pool_name}"
 
   # Allow users to sign in with email/password
   username_attributes = ["email"]
   auto_verified_attributes = ["email"]
 
   lambda_config {
-    post_confirmation = aws_lambda_function.post_confirmation.arn
+    post_confirmation = var.post_confirmation_lambda_arn
   }
 
   password_policy {
@@ -86,7 +85,7 @@ resource "aws_cognito_user_pool_domain" "hosted_ui" {
 resource "aws_lambda_permission" "allow_cognito" {
   statement_id  = "AllowCognitoInvoke"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.post_confirmation.function_name
+  function_name = var.post_confirmation_function_name
   principal     = "cognito-idp.amazonaws.com"
   source_arn    = aws_cognito_user_pool.users.arn
 }
