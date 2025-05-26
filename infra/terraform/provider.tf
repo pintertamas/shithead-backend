@@ -10,8 +10,9 @@ terraform {
 
   backend "s3" {
     bucket = "shithead-game-state-bucket"
-    key    = "shithead-backend/terraform.tfstate"
+    key    = "shithead/terraform.tfstate"
     region = "eu-central-1"
+    tags = { project = var.project_name }
   }
 }
 
