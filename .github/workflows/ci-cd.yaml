@@ -1,121 +1,38 @@
-name: CI/CD Pipeline
+name: Build and Push Docker Image to ECR
 
 on:
   push:
     branches:
-      - main
-      - dev
-  pull_request:
-    branches:
-      - main
       - dev
 
 env:
-  SESSIONS_TABLE: ${{ secrets.SESSIONS_TABLE }}
-  USERS_TABLE: ${{ secrets.USERS_TABLE }}
-  LAMBDA_BUCKET: ${{ secrets.LAMBDA_BUCKET }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  IMAGE_TAG: latest
 
 jobs:
-  build-and-test:
+  build-and-push:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'corretto'
-          java-version: '17'
-
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('backend/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Build and Test
-        run: |
-          cd backend
-          mvn -B clean verify
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-jar
-          path: backend/target/backend-*.jar
-          retention-days: 1
-
-  terraform:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-    steps:
-      - name: Checkout infra code
-        uses: actions/checkout@v4
-
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: '1.5.0'
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.1.0
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Debug AWS Credentials
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          aws sts get-caller-identity
-        working-directory: infra
-
-      - name: Terraform Init
-        working-directory: infra
-        run: terraform init -input=false
-
-      - name: Terraform Workspace
-        working-directory: infra
-        run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            terraform workspace select prod || terraform workspace new prod
-          else
-            terraform workspace select dev || terraform workspace new dev
-          fi
-
-      - name: Terraform Plan
-        working-directory: infra
-        run: terraform plan -out=tfplan -input=false
-
-      - name: Terraform Apply
-        if: github.event_name == 'push'
-        working-directory: infra
-        run: terraform apply -auto-approve tfplan
-
-  deploy:
-    needs: [build-and-test, terraform]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
-    steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.1.0
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-jar
-          path: backend/target
-
-      - name: Upload JAR to S3
-        run: |
-          ENVIRONMENT="${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}"
-          aws s3 cp backend/target/backend-*.jar \
-            s3://${{ env.LAMBDA_BUCKET }}/${ENVIRONMENT}/${{ github.sha }}/backend.jar
+          cd backend/
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
