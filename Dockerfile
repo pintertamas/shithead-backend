@@ -7,6 +7,6 @@ RUN mvn -pl backend clean package -DskipTests
 # Run stage
 FROM amazoncorretto:17
 WORKDIR /app
-COPY --from=build /app/target/backend-0.0.1-SNAPSHOT.jar shithead.jar
+COPY --from=build /app/backend/target/backend-0.0.1-SNAPSHOT.jar shithead.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "shithead.jar"]
