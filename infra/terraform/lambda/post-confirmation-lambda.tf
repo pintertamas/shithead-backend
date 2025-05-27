@@ -4,7 +4,7 @@
 data "archive_file" "post_confirmation_zip" {
   type = "zip"
   source {
-    filename = "lambda_function.py"
+    filename = "user_initializer_lambda_function.py"
     content  = <<EOF
 import boto3
 from datetime import datetime
@@ -16,14 +16,14 @@ def handler(event, context):
     return event
 EOF
   }
-  output_path = "${path.module}/artifacts/post_confirmation.zip"
+  output_path = "${path.module}/artifacts/user_initializer_lambda_function.zip"
 }
 
 resource "aws_lambda_function" "post_confirmation" {
   tags = { project = var.project_name }
   function_name = "cognito-post-confirmation"
   runtime       = "python3.9"
-  handler       = "lambda_function.handler"
+  handler       = "user_initializer_lambda_function.handler"
   role          = aws_iam_role.lambda_exec.arn
   filename      = data.archive_file.post_confirmation_zip.output_path
   source_code_hash = data.archive_file.post_confirmation_zip.output_base64sha256

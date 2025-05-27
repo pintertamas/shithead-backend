@@ -22,3 +22,13 @@ output "user_pool_domain" {
   description = "Hosted UI domain prefix for Cognito"
   value       = aws_cognito_user_pool_domain.hosted_ui.domain
 }
+
+output "cognito_user_pool_arn" {
+    description = "Cognito User Pool ARN"
+    value       = aws_cognito_user_pool.users.arn
+}
+
+output "cognito_authorizer_id" {
+    description = "Cognito Authorizer ID for API Gateway"
+    value       = aws_api_gateway_authorizer.cognito_auth.id
+}

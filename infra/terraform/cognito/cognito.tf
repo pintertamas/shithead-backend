@@ -21,6 +21,14 @@ resource "aws_cognito_user_pool" "users" {
   mfa_configuration = "OFF" # Disable MFA for simplicity, can be enabled later TODO
 }
 
+resource "aws_api_gateway_authorizer" "cognito_auth" {
+  name          = "CognitoAuthorizer"
+  rest_api_id   = var.api_gateway_game_api_id
+  identity_source = "method.request.header.Authorization"
+  type          = "COGNITO_USER_POOLS"
+  provider_arns = [aws_cognito_user_pool.users.arn]
+}
+
 # Google
 resource "aws_cognito_identity_provider" "google" {
   user_pool_id = aws_cognito_user_pool.users.id

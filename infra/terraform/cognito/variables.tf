@@ -24,6 +24,11 @@ variable "app_url" {
   default     = "https://shithead.tamaspinter.com"
 }
 
+variable "api_gateway_game_api_id" {
+    type        = string
+    description = "API Gateway ID for the game API"
+}
+
 # OAuth provider credentials
 variable "google_client_id" { type = string }
 variable "google_client_secret" { type = string }

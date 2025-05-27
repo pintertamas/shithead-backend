@@ -27,12 +27,14 @@ module "cognito" {
   google_client_secret = var.google_client_secret
   post_confirmation_function_name = module.lambda.post_confirmation_function_name
   post_confirmation_lambda_arn = module.lambda.post_confirmation_lambda_arn
+  api_gateway_game_api_id = module.api_gateway.api_gateway_game_api_id
 }
 
 module "lambda" {
   source = "./lambda"
   project_name = var.project_name
   aws_dynamodb_table_users_arn = module.dynamodb.aws_dynamodb_table_users_arn
+  aws_dynamodb_table_games_name = "${var.project_name}-game-sessions"
 }
 
 module "dynamodb" {
@@ -43,4 +45,13 @@ module "dynamodb" {
 module "ecr" {
   source       = "./ecr"
   project_name = var.project_name
+}
+
+module "api_gateway" {
+  source = "./api_gateway"
+  project_name = var.project_name
+  cognito_user_pool_arn = module.cognito.cognito_user_pool_arn
+  cognito_authorizer_id = module.cognito.cognito_authorizer_id
+  create_game_function_name = module.lambda.create_game_function_name
+  create_game_invoke_arn = module.lambda.create_game_lambda_arn
 }
