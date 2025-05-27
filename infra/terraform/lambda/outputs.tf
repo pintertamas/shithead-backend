@@ -1,11 +1,11 @@
-output "post_confirmation_lambda_arn" {
+output "post_registration_lambda_arn" {
   description = "ARN of the post-confirmation Lambda function"
-  value       = aws_lambda_function.post_confirmation.arn
+  value       = aws_lambda_function.post_registration.arn
 }
 
-output "post_confirmation_function_name" {
+output "post_registration_function_name" {
   description = "Name of the post-confirmation Lambda function"
-  value       = aws_lambda_function.post_confirmation.function_name
+  value       = aws_lambda_function.post_registration.function_name
 }
 
 output "create_game_lambda_arn" {

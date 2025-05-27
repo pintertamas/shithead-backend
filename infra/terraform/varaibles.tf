@@ -34,3 +34,14 @@ variable "google_client_secret" {
   description = "Google Client Secret for authentication"
   type        = string
 }
+
+variable "game_container_name" {
+    description = "Name of the game container in the ECS task definition"
+    type        = string
+    default     = "game-container"
+}
+
+variable "subnets" {
+  description = "List of subnets for the ECS tasks"
+  type        = list(string)
+}

@@ -5,8 +5,9 @@ data "archive_file" "create_game_zip" {
 }
 
 resource "aws_lambda_function" "create_game" {
-  function_name = "create_game_function"
+  tags = { project = var.project_name }
   role          = aws_iam_role.lambda_exec.arn
+  function_name = "create_game_function"
   handler       = "create_game_lambda_function.lambda_handler"
   runtime       = "python3.9"
 
@@ -15,11 +16,11 @@ resource "aws_lambda_function" "create_game" {
   timeout       = 10
 
   environment {
-    variables = { // TODO: Replace with your actual values
-      ECS_CLUSTER_NAME = "your-ecs-cluster-name"
-      TASK_DEFINITION  = "your-task-definition"
-      SUBNETS          = "subnet-xxxxxxx,subnet-yyyyyyy"
-      CONTAINER_NAME   = "your-container-name"
+    variables = {
+      ECS_CLUSTER_NAME = var.ecs_cluster_name
+      TASK_DEFINITION = var.ecs_task_arn
+      SUBNETS = join(",", var.subnets)
+      CONTAINER_NAME   = var.game_container_name
       DYNAMODB_TABLE   = var.aws_dynamodb_table_games_name
     }
   }

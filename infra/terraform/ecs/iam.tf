@@ -1,0 +1,44 @@
+resource "aws_iam_role" "ecs_task_exec" {
+  name = "ecsTaskExecutionRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = { Service = "ecs-tasks.amazonaws.com" },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_exec_attach" {
+  role       = aws_iam_role.ecs_task_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+resource "aws_iam_role" "ecs_task_role" {
+  name = "ecsTaskRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = { Service = "ecs-tasks.amazonaws.com" },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_service_linked_role" "ecs" {
+  aws_service_name = "ecs.amazonaws.com"
+  description      = "Service-linked role for ECS to manage ENIs, logs, and load balancers"
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_role_dynamo" {
+  role       = aws_iam_role.ecs_task_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+}

@@ -3,11 +3,6 @@ variable "project_name" {
     type        = string
 }
 
-variable "cognito_user_pool_arn" {
-    description = "ARN of the Cognito User Pool"
-    type        = string
-}
-
 variable "create_game_invoke_arn" {
     description = "Invoke ARN of the create game Lambda function"
     type        = string

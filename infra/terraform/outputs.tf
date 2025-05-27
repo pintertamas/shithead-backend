@@ -28,11 +28,6 @@ output "user_pool_domain" {
   value       = module.cognito.user_pool_domain
 }
 
-output "cognito_user_pool_arn" {
-  description = "Cognito User Pool ARN"
-  value       = module.cognito.cognito_user_pool_arn
-}
-
 output "cognito_authorizer_id" {
   description = "Cognito Authorizer ID for API Gateway"
   value       = module.cognito.cognito_authorizer_id
@@ -48,14 +43,14 @@ output "aws_dynamodb_table_users_arn"{
   value       = module.dynamodb.aws_dynamodb_table_users_arn
 }
 
-output "post_confirmation_lambda_arn" {
+output "post_registration_lambda_arn" {
   description = "ARN of the post-confirmation Lambda function"
-  value       = module.lambda.post_confirmation_lambda_arn
+  value       = module.lambda.post_registration_lambda_arn
 }
 
-output "post_confirmation_function_name" {
+output "post_registration_function_name" {
   description = "Name of the post-confirmation Lambda function"
-  value       = module.lambda.post_confirmation_function_name
+  value       = module.lambda.post_registration_function_name
 }
 
 output "create_game_lambda_arn" {
@@ -66,4 +61,14 @@ output "create_game_lambda_arn" {
 output "create_game_function_name" {
   description = "Name of the create game Lambda function"
   value       = module.lambda.create_game_function_name
+}
+
+output "ecs_cluster_name" {
+    description = "Name of the ECS cluster"
+    value       = module.ecs.ecs_cluster_name
+}
+
+output "ecs_game_task_name" {
+    description = "Name of the ECS game task"
+    value       = module.ecs.game_task_name
 }

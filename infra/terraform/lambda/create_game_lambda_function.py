@@ -2,6 +2,7 @@ import json
 import boto3
 import uuid
 import os
+from datetime import datetime
 
 ecs = boto3.client('ecs')
 dynamodb = boto3.resource('dynamodb')
@@ -18,22 +19,26 @@ def lambda_handler(event, context):
     # Generate a unique game session ID
     game_session_id = str(uuid.uuid4())
 
-    # Start ECS task
+    cluster_name = os.environ['ECS_CLUSTER_NAME']
+    task_definition = os.environ['TASK_DEFINITION']
+    subnets = os.environ['SUBNETS']
+    container_name = os.environ['CONTAINER_NAME']
+
     response = ecs.run_task(
-        cluster=os.environ['ECS_CLUSTER_NAME'],
+        cluster = cluster_name,
         launchType='FARGATE',
-        taskDefinition=os.environ['TASK_DEFINITION'],
+        taskDefinition = task_definition,
         count=1,
         networkConfiguration={
             'awsvpcConfiguration': {
-                'subnets': os.environ['SUBNETS'].split(','),
+                'subnets': subnets.split(','),
                 'assignPublicIp': 'ENABLED'
             }
         },
         overrides={
             'containerOverrides': [
                 {
-                    'name': os.environ['CONTAINER_NAME'],
+                    'name': container_name,
                     'environment': [
                         {'name': 'GAME_SESSION_ID', 'value': game_session_id},
                         {'name': 'USER_ID', 'value': user_id}
@@ -46,9 +51,10 @@ def lambda_handler(event, context):
     # Store game session in DynamoDB
     table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
     table.put_item(Item={
-        'gameSessionId': game_session_id,
-        'userId': user_id,
-        'status': 'STARTING'
+        'game_id': game_session_id,
+        'user_id': user_id,
+        'status': 'STARTING',
+        'created_at': datetime.now().isoformat()
     })
 
     return {
