@@ -17,3 +17,9 @@ variable "cognito_authorizer_id" {
     description = "ID of the Cognito Authorizer for API Gateway"
     type        = string
 }
+
+variable "stage_name" {
+    description = "Stage name for the API Gateway"
+    type        = string
+    default     = "prod"
+}
