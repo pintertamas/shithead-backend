@@ -1,6 +1,7 @@
 package com.tamaspinter.backend.repository;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -15,17 +16,18 @@ import java.net.URI;
 @Configuration
 public class DynamoDbClientProvider {
 
+    @Value("${aws.region}")
+    private String region;
+
+    @Value("${aws.accessKeyId}")
+    private String accessKey;
+
+    @Value("${aws.secretKey}")
+    private String secretKey;
+
     @Bean
     public DynamoDbClient dynamoDbClient() {
-        String endpoint = System.getenv("DYNAMODB_ENDPOINT");
-        String region = System.getenv("AWS_REGION");
-        String accessKey = System.getenv("AWS_ACCESS_KEY_ID");
-        String secretKey = System.getenv("AWS_SECRET_ACCESS_KEY");
-
-        log.info("DDB endpoint: {}", endpoint);
-
         return DynamoDbClient.builder()
-                .endpointOverride(URI.create(endpoint))
                 .region(Region.of(region))
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(accessKey, secretKey)))

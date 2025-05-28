@@ -11,9 +11,11 @@ import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 public class GameSessionRepository {
     private final DynamoDbTable<GameSessionEntity> table;
 
+    @Value("${dynamodb.sessions.table}")
+    private String tableName;
+
     public GameSessionRepository(
-            DynamoDbEnhancedClient enhancedClient,
-            @Value("${SESSIONS_TABLE}") String tableName) {
+            DynamoDbEnhancedClient enhancedClient) {
         this.table = enhancedClient.table(tableName, TableSchema.fromBean(GameSessionEntity.class));
     }
 

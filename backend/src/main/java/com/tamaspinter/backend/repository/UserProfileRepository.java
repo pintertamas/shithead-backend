@@ -16,11 +16,14 @@ import java.util.List;
 public class UserProfileRepository {
 
     private final DynamoDbTable<UserProfile> table;
+
+    @Value("${dynamodb.users.table}")
+    String tableName;
+
     private final DynamoDbEnhancedClient enhancedClient;
 
     public UserProfileRepository(
-            DynamoDbEnhancedClient enhancedClient,
-            @Value("${USERS_TABLE}") String tableName) {
+            DynamoDbEnhancedClient enhancedClient) {
         this.enhancedClient = enhancedClient;
         this.table = enhancedClient.table(
                 tableName,
