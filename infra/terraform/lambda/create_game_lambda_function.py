@@ -7,6 +7,7 @@ from datetime import datetime
 ecs = boto3.client('ecs')
 dynamodb = boto3.resource('dynamodb')
 
+
 def lambda_handler(event, context):
     try:
         # Extract user ID from Cognito claims
@@ -24,10 +25,15 @@ def lambda_handler(event, context):
     subnets = os.environ['SUBNETS']
     container_name = os.environ['CONTAINER_NAME']
 
+    idle_timeout_minutes = os.environ['IDLE_TIMEOUT_MINUTES']
+    aws_region = os.environ['AWS_REGION']
+    game_sessions_table = os.environ['GAME_SESSIONS_TABLE']
+    users_table = os.environ['USERS_TABLE']
+
     response = ecs.run_task(
-        cluster = cluster_name,
+        cluster=cluster_name,
         launchType='FARGATE',
-        taskDefinition = task_definition,
+        taskDefinition=task_definition,
         count=1,
         networkConfiguration={
             'awsvpcConfiguration': {
@@ -41,7 +47,11 @@ def lambda_handler(event, context):
                     'name': container_name,
                     'environment': [
                         {'name': 'GAME_SESSION_ID', 'value': game_session_id},
-                        {'name': 'USER_ID', 'value': user_id}
+                        {'name': 'USER_ID', 'value': user_id},
+                        {'name': 'IDLE_TIMEOUT_MINUTES', 'value': idle_timeout_minutes},
+                        {'name': 'AWS_REGION', 'value': aws_region},
+                        {'name': 'GAME_SESSIONS_TABLE', 'value': game_sessions_table},
+                        {'name': 'USERS_TABLE', 'value': users_table}
                     ]
                 }
             ]
@@ -49,7 +59,7 @@ def lambda_handler(event, context):
     )
 
     # Store game session in DynamoDB
-    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+    table = dynamodb.Table(game_sessions_table)
     table.put_item(Item={
         'game_id': game_session_id,
         'user_id': user_id,

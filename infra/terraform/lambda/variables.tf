@@ -42,3 +42,14 @@ variable "game_container_name" {
   description = "Name of the game container in ECS"
   type        = string
 }
+
+variable "idle_timeout_minutes" {
+    description = "Idle timeout in minutes for game sessions"
+    type        = number
+    default     = 15
+}
+
+variable "aws_region" {
+    description = "AWS region where the resources will be created"
+    type        = string
+}

@@ -25,7 +25,7 @@ variable "users_table" {
   type        = string
 }
 
-variable "game_session_table" {
+variable "game_sessions_table" {
   description = "Name of the DynamoDB table for game sessions"
   type        = string
 }
@@ -33,22 +33,6 @@ variable "game_session_table" {
 variable "aws_region" {
   description = "AWS region where the resources will be created"
   type        = string
-}
-
-variable "cognito_domain" {
-  description = "Cognito user pool domain"
-  type        = string
-}
-
-variable "cognito_client_id" {
-  description = "Cognito user pool client ID"
-  type        = string
-}
-
-variable "callback_url" {
-  description = "Callback URL for Cognito authentication"
-  type        = string
-  default     = "https://shithead.tamaspinter.com/auth/callback"
 }
 
 variable "idle_timeout_minutes" {

@@ -1,5 +1,5 @@
 data "archive_file" "create_game_zip" {
-  type = "zip"
+  type        = "zip"
   source_file = "${path.module}/create_game_lambda_function.py"
   output_path = "${path.module}/artifacts/create_game_lambda_function.zip"
 }
@@ -11,17 +11,19 @@ resource "aws_lambda_function" "create_game" {
   handler       = "create_game_lambda_function.lambda_handler"
   runtime       = "python3.9"
 
-  filename      = data.archive_file.create_game_zip.output_path
+  filename         = data.archive_file.create_game_zip.output_path
   source_code_hash = data.archive_file.create_game_zip.output_base64sha256
-  timeout       = 10
+  timeout          = 10
 
   environment {
     variables = {
-      ECS_CLUSTER_NAME = var.ecs_cluster_name
-      TASK_DEFINITION = var.ecs_task_arn
+      ECS_CLUSTER_NAME     = var.ecs_cluster_name
+      TASK_DEFINITION      = var.ecs_task_arn
       SUBNETS = join(",", var.subnets)
-      CONTAINER_NAME   = var.game_container_name
-      DYNAMODB_TABLE   = var.aws_dynamodb_table_games_name
+      CONTAINER_NAME       = var.game_container_name
+      IDLE_TIMEOUT_MINUTES = var.idle_timeout_minutes
+      GAME_SESSIONS_TABLE   = var.aws_dynamodb_table_games_name
+      USERS_TABLE          = var.aws_dynamodb_table_users_name
     }
   }
 }
