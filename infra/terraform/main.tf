@@ -66,4 +66,7 @@ module "ecs" {
   project_name = var.project_name
   game_container_name = "${var.project_name}-${var.game_container_name}"
   ecr_repository_game_repository_url = module.ecr.ecr_repository_url
+  aws_region = var.aws_region
+  cognito_client_id = module.cognito.user_pool_client_id
+  cognito_domain = module.cognito.user_pool_domain
 }
