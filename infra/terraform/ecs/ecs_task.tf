@@ -14,7 +14,7 @@ resource "aws_ecs_task_definition" "game_task" {
       image     = var.ecr_repository_game_repository_url
       essential = true
       portMappings = [
-        { containerPort = 80, hostPort = 80 }
+        { containerPort = 8080, hostPort = 8080 }
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -25,11 +25,11 @@ resource "aws_ecs_task_definition" "game_task" {
         }
       }
       healthCheck = {
-        command = ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-        interval    = 30
-        timeout     = 5
+        command = ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+        interval    = 60
+        timeout     = 10
         retries     = 3
-        startPeriod = 10
+        startPeriod = 30
       }
       environment = [
         { name = "GAME_SESSION_ID", value = "" }, # override in Lambda
