@@ -1,4 +1,5 @@
 resource "aws_ecs_task_definition" "game_task" {
+  tags = { project = var.project_name }
   family = "${var.project_name}-game-session"
   requires_compatibilities = ["FARGATE"]
   network_mode = "awsvpc"            # Fargate requires awsvpc
