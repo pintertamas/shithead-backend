@@ -1,6 +1,6 @@
 # For provisioning the default ELO score for new users
 resource "aws_iam_role" "lambda_exec" {
-  name = "${var.project_name}-cognito-post-confirmation-role"
+  name = "${var.project_name}-lambda-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -29,8 +29,11 @@ resource "aws_iam_role_policy" "lambda_ddb" {
         Resource = var.aws_dynamodb_table_users_arn
       },
       {
-        Effect   = "Allow"
-        Action = ["dynamodb:PutItem"]
+        Effect = "Allow"
+        Action = [
+          "dynamodb:Scan",
+          "dynamodb:PutItem"
+        ]
         Resource = var.aws_dynamodb_table_games_arn
       }
     ]
@@ -47,6 +50,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
       {
         Action = [
           "ecs:RunTask",
+          "ecs:ListTasks",
           "ecs:DescribeTasks",
           "ecs:DescribeTaskDefinition",
           "iam:PassRole"

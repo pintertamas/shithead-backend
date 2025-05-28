@@ -30,44 +30,66 @@ def lambda_handler(event, context):
     game_sessions_table = os.environ['GAME_SESSIONS_TABLE']
     users_table = os.environ['USERS_TABLE']
 
-    response = ecs.run_task(
+    existing_tasks = ecs.list_tasks(
         cluster=cluster_name,
-        launchType='FARGATE',
-        taskDefinition=task_definition,
-        count=1,
-        networkConfiguration={
-            'awsvpcConfiguration': {
-                'subnets': subnets.split(','),
-                'assignPublicIp': 'ENABLED'
-            }
+        family=task_definition.split(":")[0]
+    )["taskArns"]
+
+    db = dynamodb.Table(game_sessions_table)
+    active_sessions = db.scan(
+        FilterExpression="attribute_not_exists(ended_at) AND #status IN (:starting, :running)",
+        ExpressionAttributeNames={
+            "#status": "status"
         },
-        overrides={
-            'containerOverrides': [
-                {
-                    'name': container_name,
-                    'environment': [
-                        {'name': 'GAME_SESSION_ID', 'value': game_session_id},
-                        {'name': 'USER_ID', 'value': user_id},
-                        {'name': 'IDLE_TIMEOUT_MINUTES', 'value': idle_timeout_minutes},
-                        {'name': 'AWS_REGION', 'value': aws_region},
-                        {'name': 'GAME_SESSIONS_TABLE', 'value': game_sessions_table},
-                        {'name': 'USERS_TABLE', 'value': users_table}
-                    ]
-                }
-            ]
+        ExpressionAttributeValues={
+            ":starting": "STARTING",
+            ":running": "RUNNING"
         }
     )
 
-    # Store game session in DynamoDB
-    table = dynamodb.Table(game_sessions_table)
-    table.put_item(Item={
+    if existing_tasks or active_sessions['Items']:
+        print("A task is already running or pending; no new task will be started.")
+        response_message = 'An ECS task is already running or pending; no new task will be started.'
+    else:
+        ecs.run_task(
+            cluster=cluster_name,
+            launchType='FARGATE',
+            taskDefinition=task_definition,
+            count=1,
+            networkConfiguration={
+                'awsvpcConfiguration': {
+                    'subnets': subnets.split(','),
+                    'assignPublicIp': 'ENABLED'
+                }
+            },
+            overrides={
+                'containerOverrides': [
+                    {
+                        'name': container_name,
+                        'environment': [
+                            {'name': 'GAME_SESSION_ID', 'value': game_session_id},
+                            {'name': 'USER_ID', 'value': user_id},
+                            {'name': 'IDLE_TIMEOUT_MINUTES', 'value': idle_timeout_minutes},
+                            {'name': 'AWS_REGION', 'value': aws_region},
+                            {'name': 'GAME_SESSIONS_TABLE', 'value': game_sessions_table},
+                            {'name': 'USERS_TABLE', 'value': users_table}
+                        ]
+                    }
+                ]
+            }
+        )
+        response_message = 'New ECS task started successfully.'
+
+    db.put_item(Item={
         'game_id': game_session_id,
         'user_id': user_id,
         'status': 'STARTING',
         'created_at': datetime.now().isoformat()
     })
-
     return {
         'statusCode': 200,
-        'body': json.dumps({'gameSessionId': game_session_id})
+        'body': json.dumps({
+            'gameSessionId': game_session_id,
+            'message': response_message
+        })
     }

@@ -33,11 +33,6 @@ resource "aws_iam_role" "ecs_task_role" {
   })
 }
 
-resource "aws_iam_service_linked_role" "ecs" {
-  aws_service_name = "ecs.amazonaws.com"
-  description      = "Service-linked role for ECS to manage ENIs, logs, and load balancers"
-}
-
 resource "aws_iam_role_policy_attachment" "ecs_task_role_dynamo" {
   role       = aws_iam_role.ecs_task_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
