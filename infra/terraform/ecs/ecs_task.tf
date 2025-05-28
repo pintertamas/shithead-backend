@@ -16,10 +16,20 @@ resource "aws_ecs_task_definition" "game_task" {
       portMappings = [
         { containerPort = 80, hostPort = 80 }
       ]
+      healthCheck = {
+        command = ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 10
+      }
       environment = [
         { name = "GAME_SESSION_ID", value = "" }, # override in Lambda
         { name = "USER_ID", value = "" }, # override in Lambda
-        { name = "IDLE_TIMEOUT_MINUTES", value = tostring(var.idle_timeout_minutes) }
+        { name = "IDLE_TIMEOUT_MINUTES", value = tostring(var.idle_timeout_minutes) },
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "GAME_SESSIONS_TABLE", value = var.game_session_table },
+        { name = "USERS_TABLE", value = var.users_table }
       ]
     }
   ])

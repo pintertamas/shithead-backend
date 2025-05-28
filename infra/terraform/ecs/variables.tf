@@ -20,6 +20,16 @@ variable "game_container_name" {
   default     = "game-container"
 }
 
+variable "users_table" {
+  description = "Name of the DynamoDB table for users"
+  type        = string
+}
+
+variable "game_session_table" {
+  description = "Name of the DynamoDB table for game sessions"
+  type        = string
+}
+
 variable "aws_region" {
   description = "AWS region where the resources will be created"
   type        = string
