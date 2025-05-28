@@ -16,13 +16,21 @@ resource "aws_ecs_task_definition" "game_task" {
       portMappings = [
         { containerPort = 80, hostPort = 80 }
       ]
-      #healthCheck = {
-      #  command = ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-      #  interval    = 30
-      #  timeout     = 5
-      #  retries     = 3
-      #  startPeriod = 10
-      #}
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = var.cloudwatch_logs
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "game-session"
+        }
+      }
+      healthCheck = {
+        command = ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 10
+      }
       environment = [
         { name = "GAME_SESSION_ID", value = "" }, # override in Lambda
         { name = "USER_ID", value = "" }, # override in Lambda

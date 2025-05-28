@@ -66,8 +66,14 @@ module "ecs" {
   source                             = "./ecs"
   project_name                       = var.project_name
   game_container_name                = "${var.project_name}-${var.game_container_name}"
-  game_sessions_table                 = module.dynamodb.game_table_name
+  game_sessions_table                = module.dynamodb.game_table_name
   users_table                        = module.dynamodb.user_table_name
   ecr_repository_game_repository_url = module.ecr.ecr_repository_url
   aws_region                         = var.aws_region
+  cloudwatch_logs                    = module.cloudwatch.cloudwatch_ecs_logs
+}
+
+module "cloudwatch" {
+  source       = "./cloudwatch"
+  project_name = var.project_name
 }

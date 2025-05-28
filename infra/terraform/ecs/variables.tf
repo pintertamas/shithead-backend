@@ -40,3 +40,8 @@ variable "idle_timeout_minutes" {
   type        = number
   default     = 15
 }
+
+variable "cloudwatch_logs" {
+  description = "CloudWatch Logs configuration for ECS tasks"
+  type        = string
+}
