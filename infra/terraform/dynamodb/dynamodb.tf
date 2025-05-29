@@ -48,18 +48,18 @@ resource "aws_dynamodb_table" "games" {
 }
 
 resource "aws_dynamodb_table" "connection_registry" {
-  name         = "ConnectionRegistry"
+  name         = "${var.project_name}-connection-registry"
   billing_mode = "PAY_PER_REQUEST"
 
-  hash_key = "connectionId"
+  hash_key = "connection_id"
 
   attribute {
-    name = "connectionId"
+    name = "connection_id"
     type = "S"
   }
 
   attribute {
-    name = "gameSessionId"
+    name = "game_session_id"
     type = "S"
   }
 
@@ -69,8 +69,8 @@ resource "aws_dynamodb_table" "connection_registry" {
   }
 
   global_secondary_index {
-    name               = "gameSessionId-index"
-    hash_key           = "gameSessionId"
+    name               = "game_session_id-index"
+    hash_key           = "game_session_id"
     projection_type    = "ALL"
   }
 }

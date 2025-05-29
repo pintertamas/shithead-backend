@@ -3,6 +3,11 @@ output "ecs_cluster_name" {
     value       = aws_ecs_cluster.game_cluster.name
 }
 
+output "ecs_cluster_arn" {
+    description = "ARN of the ECS cluster"
+    value = aws_ecs_cluster.game_cluster.arn
+}
+
 output "ecs_game_task_arn" {
     description = "ARN of the ECS game task"
     value       = aws_ecs_task_definition.game_task.arn
