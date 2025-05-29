@@ -4,7 +4,6 @@ resource "aws_dynamodb_table" "users" {
   name = "${var.project_name}-users"
   billing_mode = "PAY_PER_REQUEST"
 
-  # Primary key is still only user_id
   hash_key = "user_id"
 
   attribute {
@@ -29,7 +28,6 @@ resource "aws_dynamodb_table" "games" {
   name = "${var.project_name}-game-sessions"
   billing_mode = "PAY_PER_REQUEST"
 
-  # Primary key is still only game_id
   hash_key = "game_id"
 
   attribute {
@@ -46,5 +44,33 @@ resource "aws_dynamodb_table" "games" {
     name            = "created_at-index"
     hash_key        = "created_at"
     projection_type = "ALL"
+  }
+}
+
+resource "aws_dynamodb_table" "connection_registry" {
+  name         = "ConnectionRegistry"
+  billing_mode = "PAY_PER_REQUEST"
+
+  hash_key = "connectionId"
+
+  attribute {
+    name = "connectionId"
+    type = "S"
+  }
+
+  attribute {
+    name = "gameSessionId"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  global_secondary_index {
+    name               = "gameSessionId-index"
+    hash_key           = "gameSessionId"
+    projection_type    = "ALL"
   }
 }
