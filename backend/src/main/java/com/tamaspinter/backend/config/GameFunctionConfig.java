@@ -1,4 +1,4 @@
-package com.tamaspinter.backend.handler;
+package com.tamaspinter.backend.config;
 
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2WebSocketEvent;
@@ -12,9 +12,9 @@ import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Suit;
 import com.tamaspinter.backend.model.UserProfile;
+import com.tamaspinter.backend.model.websocket.GameEnded;
+import com.tamaspinter.backend.model.websocket.PlayMessage;
 import com.tamaspinter.backend.service.EloService;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,17 +30,17 @@ import com.tamaspinter.backend.repository.*;
 
 @Slf4j
 @Configuration
-public class GameFunctions {
+public class GameFunctionConfig {
 
     private final GameManager gameManager;
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
     private final ObjectMapper mapper;
 
-    public GameFunctions(GameManager gameManager,
-                         GameSessionRepository sessionRepo,
-                         UserProfileRepository userRepo,
-                         ObjectMapper mapper) {
+    public GameFunctionConfig(GameManager gameManager,
+                              GameSessionRepository sessionRepo,
+                              UserProfileRepository userRepo,
+                              ObjectMapper mapper) {
         this.gameManager = gameManager;
         this.sessionRepo = sessionRepo;
         this.userRepo = userRepo;
@@ -54,7 +54,7 @@ public class GameFunctions {
             log.info("Creating game session with ID: {}", sessionId);
             GameSession session = gameManager.createSession(sessionId);
             sessionRepo.save(SessionMapper.toEntity(session));
-            Map<String,String> body = Map.of("sessionId", sessionId);
+            Map<String, String> body = Map.of("sessionId", sessionId);
             try {
                 return new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
@@ -75,9 +75,9 @@ public class GameFunctions {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-            String sessionId = (String)data.get("sessionId");
-            String playerId = (String)data.get("playerId");
-            String username = (String)data.get("username");
+            String sessionId = (String) data.get("sessionId");
+            String playerId = (String) data.get("playerId");
+            String username = (String) data.get("username");
             GameSession session = gameManager.getSession(sessionId);
             session.addPlayer(playerId, username);
             sessionRepo.save(session.toEntity());
@@ -94,7 +94,7 @@ public class GameFunctions {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-            String sessionId = (String)data.get("sessionId");
+            String sessionId = (String) data.get("sessionId");
             GameSession session = gameManager.getSession(sessionId);
             session.start();
             sessionRepo.save(session.toEntity());
@@ -126,16 +126,16 @@ public class GameFunctions {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-            String sessionId = (String)data.get("sessionId");
+            String sessionId = (String) data.get("sessionId");
             @SuppressWarnings("unchecked")
-            List<Map<String,Object>> cardsJson = (List)data.get("cards");
+            List<Map<String, Object>> cardsJson = (List) data.get("cards");
             List<Card> cards = new ArrayList<>();
             for (var c : cardsJson) {
                 cards.add(new Card(
-                        (Suit)c.get("suit"),
-                        (int)c.get("value"),
-                        CardRule.valueOf((String)c.get("rule")),
-                        (boolean)c.get("alwaysPlayable")
+                        (Suit) c.get("suit"),
+                        (int) c.get("value"),
+                        CardRule.valueOf((String) c.get("rule")),
+                        (boolean) c.get("alwaysPlayable")
                 ));
             }
             GameSession session = gameManager.getSession(sessionId);
@@ -192,32 +192,14 @@ public class GameFunctions {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-            Map<String,Double> current = userRepo.batchGet(payload.getPlayerIds())
+            Map<String, Double> current = userRepo.batchGet(payload.getPlayerIds())
                     .stream().collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
-            Map<String,Double> updated = EloService.updateRatings(current, payload.getResults());
-            updated.forEach((id,elo) -> {
+            Map<String, Double> updated = EloService.updateRatings(current, payload.getResults());
+            updated.forEach((id, elo) -> {
                 var u = userRepo.get(id);
                 u.setEloScore(elo);
                 userRepo.save(u);
             });
         };
-    }
-
-    /** Message payload for WS playCard route */
-    @Setter
-    @Getter
-    public static class PlayMessage {
-        private String sessionId;
-        private List<Card> cards;
-
-    }
-
-    /** SNS payload when a game ends */
-    @Setter
-    @Getter
-    public static class GameEnded {
-        private List<String> playerIds;
-        private Map<String, Double> results; // mapping playerId -> score (1 or 0)
-
     }
 }
