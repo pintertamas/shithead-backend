@@ -41,6 +41,11 @@ variable "game_container_name" {
     default     = "game-container"
 }
 
+variable "vpc_id" {
+    description = "VPC ID where the ECS tasks will run"
+    type        = string
+}
+
 variable "subnets" {
   description = "List of subnets for the ECS tasks"
   type        = list(string)

@@ -40,8 +40,8 @@ module "lambda" {
   ecs_cluster_name              = module.ecs.ecs_cluster_name
   ecs_task_arn                  = module.ecs.ecs_game_task_arn
   game_container_name           = module.ecs.game_container_name
+  vpc_id                        = var.vpc_id
   subnets                       = var.subnets
-  aws_region                    = var.aws_region
 }
 
 module "dynamodb" {
@@ -74,6 +74,6 @@ module "ecs" {
 }
 
 module "cloudwatch" {
-  source       = "./cloudwatch"
-  project_name = var.project_name
+  source                             = "./cloudwatch"
+  project_name                       = var.project_name
 }

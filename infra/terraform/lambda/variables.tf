@@ -19,8 +19,8 @@ variable "aws_dynamodb_table_games_name" {
 }
 
 variable "aws_dynamodb_table_games_arn" {
-    description = "ARN of the DynamoDB table for games"
-    type        = string
+  description = "ARN of the DynamoDB table for games"
+  type        = string
 }
 
 variable "ecs_cluster_name" {
@@ -34,8 +34,8 @@ variable "ecs_task_arn" {
 }
 
 variable "subnets" {
-    description = "List of subnets for the ECS task"
-    type        = list(string)
+  description = "List of subnets for the ECS task"
+  type = list(string)
 }
 
 variable "game_container_name" {
@@ -44,12 +44,12 @@ variable "game_container_name" {
 }
 
 variable "idle_timeout_minutes" {
-    description = "Idle timeout in minutes for game sessions"
-    type        = number
-    default     = 15
+  description = "Idle timeout in minutes for game sessions"
+  type        = number
+  default     = 15
 }
 
-variable "aws_region" {
-    description = "AWS region where the resources will be created"
-    type        = string
+variable "vpc_id" {
+  description = "VPC ID where the ECS cluster is located"
+  type        = string
 }

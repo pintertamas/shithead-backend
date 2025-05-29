@@ -1,6 +1,6 @@
 output "project_name" {
   description = "Name of the project"
-  value = var.project_name
+  value       = var.project_name
 }
 
 output "cognito_login_url" {

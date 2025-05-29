@@ -66,6 +66,15 @@ resource "aws_iam_role_policy" "lambda_policy" {
         ],
         Effect   = "Allow",
         Resource = "*"
+      },
+      {
+        Action = [
+          "elasticloadbalancing:*",
+          "apigateway:CreateApi",
+          "ssm:PutParameter"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
       }
     ]
   })
