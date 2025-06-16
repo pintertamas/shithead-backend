@@ -49,7 +49,17 @@ variable "idle_timeout_minutes" {
   default     = 15
 }
 
-variable "vpc_id" {
-  description = "VPC ID where the ECS cluster is located"
+variable "aws_dynamodb_table_ws_connections_arn" {
+  description = "ARN of the DynamoDB table for WebSocket connections"
+  type        = string
+}
+
+variable "aws_dynamodb_table_ws_connection_name" {
+  description = "Name of the DynamoDB table for WebSocket connections"
+  type        = string
+}
+
+variable "aws_apigateway_ws_execution_arn" {
+  description = "Execution ARN of the API Gateway for WebSocket connections"
   type        = string
 }

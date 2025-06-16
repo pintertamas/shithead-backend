@@ -23,17 +23,17 @@ output "user_pool_client_id" {
   value       = module.cognito.user_pool_client_id
 }
 
-output "create_game_function_name" {
-  description = "Name of the create game Lambda function"
-  value       = module.lambda.create_game_function_name
+output "token_curl_request" {
+  description = "Curl command to get a token from Cognito"
+  value       = "curl.exe --location 'https://${var.project_name}.auth.eu-central-1.amazoncognito.com/oauth2/token' --header 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'grant_type=authorization_code' --data-urlencode 'client_id=${module.cognito.user_pool_client_id}' --data-urlencode 'redirect_uri=https://shithead.tamaspinter.com/auth/callback' --data-urlencode 'code=AUTH_CODE'"
 }
 
-output "ecs_cluster_name" {
-  description = "Name of the ECS cluster"
-  value       = module.ecs.ecs_cluster_name
+output "websocket_connection_test" {
+  description = "Test command for WebSocket connection"
+  value       = "wscat -c wss://${module.api_gateway.websocket_api_id}.execute-api.${var.aws_region}.amazonaws.com/$default?game_session_id=GAME_SESSION_ID"
 }
 
-output "ecs_game_task_name" {
-  description = "Name of the ECS game task"
-  value       = module.ecs.game_task_name
+output "create_game_test_url" {
+  description = "Test URL for creating a game session"
+  value       = "curl --location --request POST '${module.api_gateway.api_gateway_game_api_url}/create-game' --header 'Authorization: AUTH_TOKEN'"
 }

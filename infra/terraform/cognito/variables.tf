@@ -23,12 +23,12 @@ variable "api_gateway_game_api_id" {
 variable "google_client_id" { type = string }
 variable "google_client_secret" { type = string }
 
-variable "post_registration_lambda_arn" {
+variable "init_user_lambda_arn" {
   description = "ARN of the post confirmation Lambda function"
   type        = string
 }
 
-variable "post_registration_function_name" {
+variable "init_user_function_name" {
     description = "Name of the post confirmation Lambda function"
     type        = string
 }

@@ -6,7 +6,7 @@ resource "aws_cognito_user_pool" "users" {
   auto_verified_attributes = ["email"]
 
   lambda_config {
-    post_confirmation = var.post_registration_lambda_arn
+    post_confirmation = var.init_user_lambda_arn
   }
 
   password_policy {

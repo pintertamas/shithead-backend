@@ -1,4 +1,3 @@
-# For provisioning the default ELO score for new users
 resource "aws_iam_role" "lambda_exec" {
   name = "${var.project_name}-lambda-role"
 
@@ -32,9 +31,13 @@ resource "aws_iam_role_policy" "lambda_ddb" {
         Effect = "Allow"
         Action = [
           "dynamodb:Scan",
-          "dynamodb:PutItem"
+          "dynamodb:PutItem",
+          "dynamodb:Query"
         ]
-        Resource = var.aws_dynamodb_table_games_arn
+        Resource = [
+          var.aws_dynamodb_table_games_arn,
+          "${var.aws_dynamodb_table_games_arn}/index/user_id-index"
+        ]
       }
     ]
   })
@@ -75,6 +78,20 @@ resource "aws_iam_role_policy" "lambda_policy" {
         ],
         Effect   = "Allow",
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan"
+        ]
+        Resource = var.aws_dynamodb_table_ws_connections_arn
+      },
+      {
+        Effect   = "Allow"
+        Action = ["execute-api:ManageConnections"]
+        Resource = "${var.aws_apigateway_ws_execution_arn}/*/*/@connections/*"
       }
     ]
   })

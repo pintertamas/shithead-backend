@@ -16,6 +16,12 @@ resource "aws_dynamodb_table" "users" {
   }
 
   global_secondary_index {
+    name            = "user_id-index"
+    hash_key        = "user_id"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
     name            = "username-index"
     hash_key        = "username"
     projection_type = "ALL"
@@ -36,8 +42,19 @@ resource "aws_dynamodb_table" "games" {
   }
 
   attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
     name = "created_at"
     type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_id-index"
+    hash_key        = "user_id"
+    projection_type = "ALL"
   }
 
   global_secondary_index {
@@ -47,7 +64,7 @@ resource "aws_dynamodb_table" "games" {
   }
 }
 
-resource "aws_dynamodb_table" "connection_registry" {
+resource "aws_dynamodb_table" "ws_connections" {
   name         = "${var.project_name}-connection-registry"
   billing_mode = "PAY_PER_REQUEST"
 
