@@ -1,8 +1,10 @@
 package com.tamaspinter.backend.mapper;
 
 import com.tamaspinter.backend.entity.CardEntity;
+import com.tamaspinter.backend.entity.GameConfigEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
+import com.tamaspinter.backend.game.GameConfig;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.Player;
@@ -18,14 +20,12 @@ public class SessionMapper {
         GameSessionEntity e = new GameSessionEntity();
         e.setSessionId(s.getSessionId());
         e.setStarted(s.isStarted());
-        List<Player> players = s.getPlayers();
-        if (players.isEmpty()) {
-            e.setCurrentPlayerId(null);
-        } else {
-            e.setCurrentPlayerId(s.getCurrentPlayerId());
-        }
+        e.setCurrentPlayerId(s.getPlayers().isEmpty() ? null : s.getCurrentPlayerId());
         e.setDiscardPile(cardsToEntities(s.getDiscardPile()));
         e.setPlayers(statesToEntities(s.getPlayers()));
+        Deck deck = s.getDeck();
+        e.setDeck(deck != null ? cardsToEntities(new ArrayDeque<>(deck.getCards())) : List.of());
+        e.setConfig(s.getConfig().toEntity());
         return e;
     }
 
@@ -37,6 +37,13 @@ public class SessionMapper {
         Deque<Card> discard = entitiesToCards(e.getDiscardPile());
         s.getDiscardPile().clear();
         discard.forEach(s.getDiscardPile()::addLast);
+        // Restore config
+        if (e.getConfig() != null) {
+            s.setConfig(GameConfig.fromEntity(e.getConfig()));
+        }
+        // Rebuild deck
+        List<CardEntity> deckEntities = e.getDeck() != null ? e.getDeck() : List.of();
+        s.setDeck(new Deck(new ArrayList<>(entitiesToCards(deckEntities))));
         // Rebuild players
         s.getPlayers().clear();
         for (PlayerEntity pe : e.getPlayers()) {

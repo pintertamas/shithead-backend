@@ -23,6 +23,11 @@ output "user_pool_client_id" {
   value       = module.cognito.user_pool_client_id
 }
 
+output "user_pool_id" {
+  description = "Cognito User Pool ID"
+  value       = module.cognito.user_pool_id
+}
+
 output "token_curl_request" {
   description = "Curl command to get a token from Cognito"
   value       = "curl.exe --location 'https://${var.project_name}.auth.eu-central-1.amazoncognito.com/oauth2/token' --header 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'grant_type=authorization_code' --data-urlencode 'client_id=${module.cognito.user_pool_client_id}' --data-urlencode 'redirect_uri=https://shithead.tamaspinter.com/auth/callback' --data-urlencode 'code=AUTH_CODE'"

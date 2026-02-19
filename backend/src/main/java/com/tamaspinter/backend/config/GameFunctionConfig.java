@@ -18,13 +18,24 @@ import com.tamaspinter.backend.service.EloService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.apigatewaymanagementapi.ApiGatewayManagementApiClient;
+import software.amazon.awssdk.services.apigatewaymanagementapi.model.GoneException;
+import software.amazon.awssdk.services.apigatewaymanagementapi.model.PostToConnectionRequest;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.*;
 import java.util.stream.Collectors;
 
-import com.tamaspinter.backend.game.GameManager;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.repository.*;
 
@@ -32,54 +43,49 @@ import com.tamaspinter.backend.repository.*;
 @Configuration
 public class GameFunctionConfig {
 
-    private final GameManager gameManager;
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
     private final ObjectMapper mapper;
+    private final DynamoDbClient dynamoClient;
+    private final String wsConnectionsTable;
+    // Cached per endpoint URL — in practice there is only one WebSocket API
+    private final java.util.concurrent.ConcurrentHashMap<String, ApiGatewayManagementApiClient> apigwClients
+            = new java.util.concurrent.ConcurrentHashMap<>();
 
-    public GameFunctionConfig(GameManager gameManager,
-                              GameSessionRepository sessionRepo,
+    public GameFunctionConfig(GameSessionRepository sessionRepo,
                               UserProfileRepository userRepo,
                               ObjectMapper mapper) {
-        this.gameManager = gameManager;
         this.sessionRepo = sessionRepo;
         this.userRepo = userRepo;
         this.mapper = mapper;
-    }
-
-    @Bean
-    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> createGame() {
-        return req -> {
-            String sessionId = UUID.randomUUID().toString();
-            log.info("Creating game session with ID: {}", sessionId);
-            GameSession session = gameManager.createSession(sessionId);
-            sessionRepo.save(SessionMapper.toEntity(session));
-            Map<String, String> body = Map.of("sessionId", sessionId);
-            try {
-                return new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withBody(mapper.writeValueAsString(body));
-            } catch (Exception e) {
-                log.error("createGame failed", e);
-                return new APIGatewayProxyResponseEvent().withStatusCode(500);
-            }
-        };
+        this.wsConnectionsTable = System.getenv("WS_CONNECTIONS_TABLE");
+        this.dynamoClient = DynamoDbClient.create();
     }
 
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> joinGame() {
         return req -> {
-            Map data;
+            String userId = req.getRequestContext().getAuthorizer().getClaims().get("sub");
+            Map<?, ?> data;
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
             }
             String sessionId = (String) data.get("sessionId");
-            String playerId = (String) data.get("playerId");
-            String username = (String) data.get("username");
-            GameSession session = gameManager.getSession(sessionId);
-            session.addPlayer(playerId, username);
+
+            GameSessionEntity entity = sessionRepo.get(sessionId);
+            if (entity == null) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+            }
+
+            UserProfile user = userRepo.get(userId);
+            GameSession session = SessionMapper.fromEntity(entity);
+            try {
+                session.addPlayer(userId, user.getUsername());
+            } catch (IllegalStateException e) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+            }
             sessionRepo.save(session.toEntity());
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
         };
@@ -88,15 +94,25 @@ public class GameFunctionConfig {
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> startGame() {
         return req -> {
-            Map data;
+            Map<?, ?> data;
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
             }
             String sessionId = (String) data.get("sessionId");
-            GameSession session = gameManager.getSession(sessionId);
-            session.start();
+
+            GameSessionEntity entity = sessionRepo.get(sessionId);
+            if (entity == null) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+            }
+
+            GameSession session = SessionMapper.fromEntity(entity);
+            try {
+                session.start();
+            } catch (IllegalStateException e) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+            }
             sessionRepo.save(session.toEntity());
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
         };
@@ -107,12 +123,16 @@ public class GameFunctionConfig {
         return req -> {
             String sessionId = req.getPathParameters().get("sessionId");
             GameSessionEntity entity = sessionRepo.get(sessionId);
+            if (entity == null) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+            }
             try {
                 return new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
                         .withBody(mapper.writeValueAsString(entity));
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                log.error("getState serialization failed", e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(500);
             }
         };
     }
@@ -120,65 +140,55 @@ public class GameFunctionConfig {
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> playCard() {
         return req -> {
-            Map data;
+            Map<?, ?> data;
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
             }
             String sessionId = (String) data.get("sessionId");
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> cardsJson = (List) data.get("cards");
-            List<Card> cards = new ArrayList<>();
-            for (var c : cardsJson) {
-                cards.add(new Card(
-                        (Suit) c.get("suit"),
-                        (int) c.get("value"),
-                        CardRule.valueOf((String) c.get("rule")),
-                        (boolean) c.get("alwaysPlayable")
-                ));
+            List<Card> cards = parseCards(data);
+
+            GameSessionEntity entity = sessionRepo.get(sessionId);
+            if (entity == null) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(404);
             }
-            GameSession session = gameManager.getSession(sessionId);
+
+            GameSession session = SessionMapper.fromEntity(entity);
             boolean ok = session.playCards(cards);
-            sessionRepo.save(session.toEntity());
-            return new APIGatewayProxyResponseEvent()
-                    .withStatusCode(ok ? 200 : 400);
+            if (ok) {
+                sessionRepo.save(session.toEntity());
+            }
+            return new APIGatewayProxyResponseEvent().withStatusCode(ok ? 200 : 400);
         };
     }
 
     @Bean
-    public Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent> connect() {
+    public Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent> playCardWS() {
         return ev -> {
-            String connId = ev.getRequestContext().getConnectionId();
-            String playerId = /* extract from JWT */ "";
-            // register connection
-            return new APIGatewayProxyResponseEvent().withStatusCode(200);
-        };
-    }
+            String endpoint = "https://" + ev.getRequestContext().getDomainName()
+                    + "/" + ev.getRequestContext().getStage();
 
-    @Bean
-    public Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent> disconnect() {
-        return ev -> {
-            String connId = ev.getRequestContext().getConnectionId();
-            // unregister connection
-            return new APIGatewayProxyResponseEvent().withStatusCode(200);
-        };
-    }
-
-    @Bean
-    public Function<APIGatewayV2WebSocketEvent, Void> playCardWS() {
-        return ev -> {
             PlayMessage msg;
             try {
                 msg = mapper.readValue(ev.getBody(), PlayMessage.class);
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
             }
-            GameSession session = gameManager.getSession(msg.getSessionId());
-            session.playCards(msg.getCards());
-            sessionRepo.save(session.toEntity());
-            // broadcast updated state
-            return null;
+
+            GameSessionEntity entity = sessionRepo.get(msg.getSessionId());
+            if (entity == null) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+            }
+
+            GameSession session = SessionMapper.fromEntity(entity);
+            boolean ok = session.playCards(msg.getCards());
+            if (ok) {
+                GameSessionEntity updated = session.toEntity();
+                sessionRepo.save(updated);
+                broadcastState(msg.getSessionId(), updated, endpoint);
+            }
+            return new APIGatewayProxyResponseEvent().withStatusCode(ok ? 200 : 400);
         };
     }
 
@@ -190,16 +200,75 @@ public class GameFunctionConfig {
             try {
                 payload = mapper.readValue(json, GameEnded.class);
             } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
+                log.error("onGameEnded deserialization failed", e);
+                return;
             }
             Map<String, Double> current = userRepo.batchGet(payload.getPlayerIds())
                     .stream().collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
             Map<String, Double> updated = EloService.updateRatings(current, payload.getResults());
             updated.forEach((id, elo) -> {
-                var u = userRepo.get(id);
+                UserProfile u = userRepo.get(id);
                 u.setEloScore(elo);
                 userRepo.save(u);
             });
         };
+    }
+
+    private void broadcastState(String gameSessionId, GameSessionEntity state, String endpoint) {
+        if (wsConnectionsTable == null) {
+            log.warn("WS_CONNECTIONS_TABLE not set, skipping broadcast");
+            return;
+        }
+
+        ApiGatewayManagementApiClient apigwClient = apigwClients.computeIfAbsent(endpoint, url ->
+                ApiGatewayManagementApiClient.builder()
+                        .endpointOverride(URI.create(url))
+                        .build());
+
+        QueryResponse connections = dynamoClient.query(QueryRequest.builder()
+                .tableName(wsConnectionsTable)
+                .indexName("game_session_id-index")
+                .keyConditionExpression("game_session_id = :gid")
+                .expressionAttributeValues(Map.of(":gid", AttributeValue.fromS(gameSessionId)))
+                .build());
+
+        byte[] payload;
+        try {
+            payload = mapper.writeValueAsBytes(state);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize game state for broadcast", e);
+            return;
+        }
+
+        for (Map<String, AttributeValue> item : connections.items()) {
+            String connectionId = item.get("connection_id").s();
+            try {
+                apigwClient.postToConnection(PostToConnectionRequest.builder()
+                        .connectionId(connectionId)
+                        .data(SdkBytes.fromByteArray(payload))
+                        .build());
+            } catch (GoneException e) {
+                log.info("Removing stale connection: {}", connectionId);
+                dynamoClient.deleteItem(DeleteItemRequest.builder()
+                        .tableName(wsConnectionsTable)
+                        .key(Map.of("connection_id", AttributeValue.fromS(connectionId)))
+                        .build());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Card> parseCards(Map<?, ?> data) {
+        List<Map<String, Object>> cardsJson = (List<Map<String, Object>>) data.get("cards");
+        List<Card> cards = new ArrayList<>();
+        for (Map<String, Object> c : cardsJson) {
+            cards.add(new Card(
+                    Suit.valueOf((String) c.get("suit")),
+                    ((Number) c.get("value")).intValue(),
+                    CardRule.valueOf((String) c.get("rule")),
+                    (Boolean) c.get("alwaysPlayable")
+            ));
+        }
+        return cards;
     }
 }

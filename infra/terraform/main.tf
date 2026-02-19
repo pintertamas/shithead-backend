@@ -37,13 +37,11 @@ module "lambda" {
   aws_dynamodb_table_users_arn          = module.dynamodb.aws_dynamodb_table_users_arn
   aws_dynamodb_table_games_name         = "${var.project_name}-game-sessions"
   aws_dynamodb_table_games_arn          = module.dynamodb.aws_dynamodb_table_games_arn
-  ecs_cluster_name                      = module.ecs.ecs_cluster_name
-  ecs_task_arn                          = module.ecs.ecs_game_task_arn
-  game_container_name                   = module.ecs.game_container_name
-  subnets                               = var.subnets
   aws_apigateway_ws_execution_arn       = module.api_gateway.apigateway_ws_execution_arn
   aws_dynamodb_table_ws_connection_name = module.dynamodb.aws_dynamodb_table_ws_connections_name
   aws_dynamodb_table_ws_connections_arn = module.dynamodb.aws_dynamodb_table_ws_connections_arn
+  cognito_user_pool_client_id           = module.cognito.user_pool_client_id
+  cognito_user_pool_id                  = module.cognito.user_pool_id
 }
 
 module "dynamodb" {
@@ -51,10 +49,6 @@ module "dynamodb" {
   project_name = var.project_name
 }
 
-module "ecr" {
-  source       = "./ecr"
-  project_name = var.project_name
-}
 
 module "api_gateway" {
   source                                          = "./api_gateway"
@@ -69,18 +63,19 @@ module "api_gateway" {
   aws_lambda_function_ws_disconnect_function_name = module.lambda.aws_lambda_function_ws_disconnect_function_name
   aws_lambda_function_ws_default_arn              = module.lambda.aws_lambda_function_ws_default_arn
   aws_lambda_function_ws_default_function_name    = module.lambda.aws_lambda_function_ws_default_function_name
+  aws_lambda_function_ws_authorizer_arn           = module.lambda.ws_lambda_function_ws_authorizer_arn
+  aws_lambda_function_ws_authorizer_function_name = module.lambda.ws_lambda_function_ws_authorizer_function_name
+  aws_cloudwatch_log_group_websocket_apigw_arn    = module.cloudwatch.aws_cloudwatch_log_group_websocket_apigw_arn
+  join_game_invoke_arn                            = module.lambda.join_game_alias_arn
+  join_game_function_name                         = module.lambda.join_game_function_name
+  start_game_invoke_arn                           = module.lambda.start_game_alias_arn
+  start_game_function_name                        = module.lambda.start_game_function_name
+  get_state_invoke_arn                            = module.lambda.get_state_alias_arn
+  get_state_function_name                         = module.lambda.get_state_function_name
+  play_card_ws_invoke_arn                         = module.lambda.play_card_ws_alias_arn
+  play_card_ws_function_name                      = module.lambda.play_card_ws_function_name
 }
 
-module "ecs" {
-  source                             = "./ecs"
-  project_name                       = var.project_name
-  aws_region                         = var.aws_region
-  game_container_name                = "${var.project_name}-${var.game_container_name}"
-  game_sessions_table                = module.dynamodb.game_table_name
-  users_table                        = module.dynamodb.user_table_name
-  ecr_repository_game_repository_url = module.ecr.ecr_repository_url
-  cloudwatch_logs                    = module.cloudwatch.cloudwatch_ecs_logs
-}
 
 module "cloudwatch" {
   source       = "./cloudwatch"

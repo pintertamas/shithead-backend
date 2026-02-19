@@ -17,11 +17,11 @@ data "archive_file" "default_zip" {
 }
 
 resource "aws_lambda_function" "ws_connect" {
-  tags = { project = var.project_name }
+  tags          = { project = var.project_name }
   role          = aws_iam_role.lambda_exec.arn
-  function_name = "ws_connect_function"
+  function_name = "${var.project_name}-ws-connect"
   handler       = "connect.lambda_handler"
-  runtime       = "python3.9"
+  runtime       = "python3.12"
 
   filename         = data.archive_file.connect_zip.output_path
   source_code_hash = data.archive_file.connect_zip.output_base64sha256
@@ -35,11 +35,11 @@ resource "aws_lambda_function" "ws_connect" {
 }
 
 resource "aws_lambda_function" "ws_disconnect" {
-  tags = { project = var.project_name }
+  tags          = { project = var.project_name }
   role          = aws_iam_role.lambda_exec.arn
-  function_name = "ws_disconnect_function"
+  function_name = "${var.project_name}-ws-disconnect"
   handler       = "disconnect.lambda_handler"
-  runtime       = "python3.9"
+  runtime       = "python3.12"
 
   filename         = data.archive_file.disconnect_zip.output_path
   source_code_hash = data.archive_file.disconnect_zip.output_base64sha256
@@ -53,11 +53,11 @@ resource "aws_lambda_function" "ws_disconnect" {
 }
 
 resource "aws_lambda_function" "ws_default" {
-  tags = { project = var.project_name }
+  tags          = { project = var.project_name }
   role          = aws_iam_role.lambda_exec.arn
-  function_name = "ws_default_function"
+  function_name = "${var.project_name}-ws-default"
   handler       = "default.lambda_handler"
-  runtime       = "python3.9"
+  runtime       = "python3.12"
 
   filename         = data.archive_file.default_zip.output_path
   source_code_hash = data.archive_file.default_zip.output_base64sha256

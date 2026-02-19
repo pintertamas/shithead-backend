@@ -20,6 +20,14 @@ public class Deck {
         cards.addAll(list);
     }
 
+    public Deck(List<Card> cards) {
+        this.cards.addAll(cards);
+    }
+
+    public List<Card> getCards() {
+        return new ArrayList<>(cards);
+    }
+
     public Optional<Card> draw() {
         return Optional.ofNullable(cards.pollFirst());
     }

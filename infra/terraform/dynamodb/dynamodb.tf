@@ -16,12 +16,6 @@ resource "aws_dynamodb_table" "users" {
   }
 
   global_secondary_index {
-    name            = "user_id-index"
-    hash_key        = "user_id"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
     name            = "username-index"
     hash_key        = "username"
     projection_type = "ALL"
@@ -61,6 +55,11 @@ resource "aws_dynamodb_table" "games" {
     name            = "created_at-index"
     hash_key        = "created_at"
     projection_type = "ALL"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
   }
 }
 

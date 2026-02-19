@@ -23,31 +23,6 @@ variable "aws_dynamodb_table_games_arn" {
   type        = string
 }
 
-variable "ecs_cluster_name" {
-  description = "Name of the ECS cluster"
-  type        = string
-}
-
-variable "ecs_task_arn" {
-  description = "ARN of the ECS task definition"
-  type        = string
-}
-
-variable "subnets" {
-  description = "List of subnets for the ECS task"
-  type = list(string)
-}
-
-variable "game_container_name" {
-  description = "Name of the game container in ECS"
-  type        = string
-}
-
-variable "idle_timeout_minutes" {
-  description = "Idle timeout in minutes for game sessions"
-  type        = number
-  default     = 15
-}
 
 variable "aws_dynamodb_table_ws_connections_arn" {
   description = "ARN of the DynamoDB table for WebSocket connections"
@@ -62,4 +37,21 @@ variable "aws_dynamodb_table_ws_connection_name" {
 variable "aws_apigateway_ws_execution_arn" {
   description = "Execution ARN of the API Gateway for WebSocket connections"
   type        = string
+}
+
+variable "cognito_user_pool_id" {
+  description = "ID of the Cognito User Pool"
+  type        = string
+}
+
+variable "cognito_user_pool_client_id" {
+  description = "Client ID of the Cognito User Pool"
+  type        = string
+}
+
+
+variable "aws_region" {
+  description = "AWS region where resources are deployed"
+  type        = string
+  default     = "eu-central-1"
 }

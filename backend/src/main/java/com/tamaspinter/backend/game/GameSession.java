@@ -22,7 +22,7 @@ public class GameSession {
     private final Deque<Card> discardPile = new ArrayDeque<>();
     private Deck deck;
     private int currentIndex = 0;
-    private final GameConfig config = GameConfig.defaultGameConfig();
+    private GameConfig config = GameConfig.defaultGameConfig();
     private boolean started = false;
 
     public GameSession(String sessionId) {
@@ -127,8 +127,9 @@ public class GameSession {
         // burn check
         if (RuleEngine.shouldBurn(discardPile, config.getBurnCount())) discardPile.clear();
         // refill
-        while (p.getHand().size() < config.getHandCount() && deck.draw().isPresent())
-            p.getHand().addLast(deck.draw().get());
+        Optional<Card> drawn;
+        while (p.getHand().size() < config.getHandCount() && (drawn = deck.draw()).isPresent())
+            p.getHand().addLast(drawn.get());
         // out check
         if (p.getHand().isEmpty() && p.getFaceUp().isEmpty() && p.getFaceDown().isEmpty()) {
             p.setOut(true);
