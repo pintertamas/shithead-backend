@@ -83,7 +83,8 @@ public class GameSession {
         if (result == PlayResult.SUCCESS) {
             Card c = cards.get(0);
             RuleEngine.playAfterEffect(c, discardPile, p, players);
-            if (!config.canPlayAgain(c.getValue())) {
+            // Advance if: card doesn't grant replay, OR the player just finished all their cards
+            if (!config.canPlayAgain(c.getValue()) || p.isOut()) {
                 nextPlayer();
             }
             checkGameEnd();
@@ -153,10 +154,9 @@ public class GameSession {
         Optional<Card> drawn;
         while (p.getHand().size() < config.getHandCount() && (drawn = deck.draw()).isPresent())
             p.getHand().addLast(drawn.get());
-        // out check
+        // out check — nextPlayer() is handled by the caller (playCards)
         if (p.getHand().isEmpty() && p.getFaceUp().isEmpty() && p.getFaceDown().isEmpty()) {
             p.setOut(true);
-            nextPlayer();
         }
     }
 

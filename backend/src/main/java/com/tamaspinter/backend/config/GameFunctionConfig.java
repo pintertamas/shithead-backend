@@ -61,7 +61,9 @@ public class GameFunctionConfig {
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> joinGame() {
         return req -> {
-            String userId = req.getRequestContext().getAuthorizer().getClaims().get("sub");
+            @SuppressWarnings("unchecked")
+            Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
+            String userId = claims.get("sub");
             Map<?, ?> data;
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
@@ -97,7 +99,9 @@ public class GameFunctionConfig {
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> startGame() {
         return req -> {
-            String userId = req.getRequestContext().getAuthorizer().getClaims().get("sub");
+            @SuppressWarnings("unchecked")
+            Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
+            String userId = claims.get("sub");
             Map<?, ?> data;
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
