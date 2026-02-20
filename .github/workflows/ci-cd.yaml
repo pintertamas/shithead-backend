@@ -76,6 +76,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Verify Terraform
+        run: |
+          echo "Terraform binary: $(command -v terraform)"
+          terraform version
+
       - name: Build backend
         run: |
           if [ -f backend/mvnw ]; then
@@ -128,6 +139,8 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
