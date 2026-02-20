@@ -349,7 +349,7 @@ public class GameFunctionConfig {
     }
 
     private GameStateView buildGameStateView(GameSessionEntity entity, String viewerId) {
-        List<com.tamaspinter.backend.entity.PlayerEntity> players = entity.getPlayers() == null
+        List<PlayerEntity> players = entity.getPlayers() == null
                 ? List.of()
                 : entity.getPlayers();
         List<PlayerStateView> playerViews = players.stream()
@@ -397,4 +397,3 @@ public class GameFunctionConfig {
                 .build();
     }
 }
-

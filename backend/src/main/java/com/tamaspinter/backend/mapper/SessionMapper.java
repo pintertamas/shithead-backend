@@ -34,6 +34,7 @@ public class SessionMapper {
                 .build();
     }
 
+    @SuppressWarnings("PMD.NcssCount")
     public static GameSession fromEntity(GameSessionEntity entity) {
         GameSession session = GameSession.builder()
                 .sessionId(entity.getSessionId())
