@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://github.com/spotbugs/filter/3.0.0"
+    xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/3.1.0/spotbugs/etc/findbugsfilter.xsd">
+
+    <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2,SPRING_ENDPOINT,CRLF_INJECTION_LOGS"/>
+    <Bug pattern="ES_COMPARING_PARAMETER_STRING_WITH_EQ"/>
+    <Bug pattern="WEAK_FILENAMEUTILS"/>
+    <Bug pattern="VA_FORMAT_STRING_USES_NEWLINE"/>
+    <Bug pattern="SE_BAD_FIELD"/>
+    <Bug pattern="SF_SWITCH_NO_DEFAULT"/>
+
+    <Match>
+        <Annotation name="~.*Generated"/>
+        <Or>
+            <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+            <Bug pattern="NP_BOOLEAN_RETURN_NULL"/>
+            <Bug pattern="NP_OPTIONAL_RETURN_NULL"/>
+        </Or>
+    </Match>
+</FindBugsFilter>

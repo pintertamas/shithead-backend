@@ -1,0 +1,21 @@
+# IDE
+.idea/
+
+# Claude Code
+.claude/
+
+# Java build artifacts
+backend/META-INF/
+backend/dependency-reduced-pom.xml
+
+# Terraform
+**/.terraform/
+*.tfvars
+*.tfstate
+*.tfstate.backup
+infra/terraform/lambda/artifacts/
+infra/terraform/lambda/build/
+/frontend/node_modules/
+node_modules/
+
+frontend/.env

@@ -1,5 +1,6 @@
 package com.tamaspinter.backend.model;
 
+import lombok.Builder;
 import lombok.Getter;
 
 @Getter
@@ -9,6 +10,7 @@ public class Card {
     private final CardRule rule;
     private final boolean alwaysPlayable;
 
+    @Builder
     public Card(Suit suit, int value, CardRule rule, boolean alwaysPlayable) {
         this.suit = suit;
         this.value = value;
@@ -18,6 +20,7 @@ public class Card {
 
     @Override
     public String toString() {
-        return value + " of " + suit + " [Rule: " + rule + " (" + (!alwaysPlayable ? "not " : "") + "always playable)]";
+        String playableText = alwaysPlayable ? "always playable" : "not always playable";
+        return value + " of " + suit + " [Rule: " + rule + " (" + playableText + ")]";
     }
 }

@@ -25,25 +25,28 @@ variable "project_name" {
   default     = "shithead"
 }
 
-########################################################
-# Cognito
-########################################################
-variable "user_pool_name" {
-  type    = string
-  default = "shithead-users"
+variable "google_client_id" {
+  description = "Google Client ID for authentication"
+  type        = string
 }
 
-variable "user_pool_domain_prefix" {
-  type    = string
-  default = "shithead-tamaspinter"
+variable "google_client_secret" {
+  description = "Google Client Secret for authentication"
+  type        = string
 }
 
-variable "app_url" {
-  type    = string
-  description = "The app's base URL (e.g. https://app.example.com)"
-  default   = "https://shithead.tamaspinter.com"
+variable "game_container_name" {
+    description = "Name of the game container in the ECS task definition"
+    type        = string
+    default     = "game-container"
 }
 
-# OAuth provider credentials
-variable "google_client_id"      { type = string }
-variable "google_client_secret"  { type = string }
+variable "vpc_id" {
+    description = "VPC ID where the ECS tasks will run"
+    type        = string
+}
+
+variable "subnets" {
+  description = "List of subnets for the ECS tasks"
+  type        = list(string)
+}

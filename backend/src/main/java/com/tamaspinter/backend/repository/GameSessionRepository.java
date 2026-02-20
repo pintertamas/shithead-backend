@@ -13,7 +13,7 @@ public class GameSessionRepository {
 
     public GameSessionRepository(
             DynamoDbEnhancedClient enhancedClient,
-            @Value("${SESSIONS_TABLE}") String tableName) {
+            @Value("${dynamodb.sessions.table}") String tableName) {
         this.table = enhancedClient.table(tableName, TableSchema.fromBean(GameSessionEntity.class));
     }
 

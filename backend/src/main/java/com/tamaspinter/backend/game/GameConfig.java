@@ -1,43 +1,74 @@
 package com.tamaspinter.backend.game;
 
+import com.tamaspinter.backend.entity.GameConfigEntity;
 import com.tamaspinter.backend.model.CardRule;
+import lombok.Builder;
 import lombok.Getter;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-@Configuration
+@Getter
+@Builder
 public class GameConfig {
-    @Getter
-    private int faceDownCount;
-    @Getter
-    private int faceUpCount;
-    @Getter
-    private int handCount;
-    @Getter
-    private int burnCount;
-    private final Map<Integer, CardRule> cardRuleMap = new HashMap<>(); // Maps a card rule to a number (the number must be 2-14)
-    private final Map<Integer, Boolean> isAlwaysPlayable = new HashMap<>();
-    private final Map<Integer, Boolean> canPlayAgain = new HashMap<>();
+    private final int faceDownCount;
+    private final int faceUpCount;
+    private final int handCount;
+    private final int burnCount;
+    @Builder.Default
+    private final Map<Integer, CardRule> cardRuleMap = new HashMap<>();
+    @Builder.Default
+    private final Map<Integer, Boolean> alwaysPlayableMap = new HashMap<>();
+    @Builder.Default
+    private final Map<Integer, Boolean> canPlayAgainMap = new HashMap<>();
 
     public static GameConfig defaultGameConfig() {
-        GameConfig gameConfig = new GameConfig();
-        gameConfig.faceDownCount = 3;
-        gameConfig.faceUpCount = 3;
-        gameConfig.handCount = 3;
-        gameConfig.burnCount = 4;
-        gameConfig.cardRuleMap.put(2, CardRule.JOKER);
-        gameConfig.cardRuleMap.put(6, CardRule.SMALLER);
-        gameConfig.cardRuleMap.put(8, CardRule.TRANSPARENT);
-        gameConfig.cardRuleMap.put(9, CardRule.REVERSE);
-        gameConfig.cardRuleMap.put(10, CardRule.BURNER);
-        gameConfig.isAlwaysPlayable.put(2, true);
-        gameConfig.isAlwaysPlayable.put(8, true);
-        gameConfig.canPlayAgain.put(10, true);
+        GameConfig config = GameConfig.builder()
+                .faceDownCount(3)
+                .faceUpCount(3)
+                .handCount(3)
+                .burnCount(4)
+                .build();
+        config.cardRuleMap.put(2, CardRule.JOKER);
+        config.cardRuleMap.put(6, CardRule.SMALLER);
+        config.cardRuleMap.put(8, CardRule.TRANSPARENT);
+        config.cardRuleMap.put(9, CardRule.REVERSE);
+        config.cardRuleMap.put(10, CardRule.BURNER);
+        config.alwaysPlayableMap.put(2, true);
+        config.alwaysPlayableMap.put(8, true);
+        config.canPlayAgainMap.put(10, true);
+        return config;
+    }
 
-        return gameConfig;
+    public static GameConfig fromEntity(GameConfigEntity e) {
+        GameConfig config = GameConfig.builder()
+                .faceDownCount(e.getFaceDownCount())
+                .faceUpCount(e.getFaceUpCount())
+                .handCount(e.getHandCount())
+                .burnCount(e.getBurnCount())
+                .build();
+        e.getCardRules().forEach((key, value) ->
+                config.cardRuleMap.put(Integer.parseInt(key), CardRule.valueOf(value)));
+        e.getAlwaysPlayable().forEach(value -> config.alwaysPlayableMap.put(value, true));
+        e.getCanPlayAgain().forEach(value -> config.canPlayAgainMap.put(value, true));
+        return config;
+    }
+
+    public GameConfigEntity toEntity() {
+        Map<String, String> rules = new HashMap<>();
+        this.cardRuleMap.forEach((key, value) -> rules.put(String.valueOf(key), value.name()));
+        return GameConfigEntity.builder()
+                .burnCount(this.burnCount)
+                .faceDownCount(this.faceDownCount)
+                .faceUpCount(this.faceUpCount)
+                .handCount(this.handCount)
+                .cardRules(rules)
+                .alwaysPlayable(this.alwaysPlayableMap.entrySet().stream()
+                        .filter(Map.Entry::getValue).map(Map.Entry::getKey).collect(Collectors.toList()))
+                .canPlayAgain(this.canPlayAgainMap.entrySet().stream()
+                        .filter(Map.Entry::getValue).map(Map.Entry::getKey).collect(Collectors.toList()))
+                .build();
     }
 
     public CardRule getCardRule(int value) {
@@ -45,17 +76,10 @@ public class GameConfig {
     }
 
     public boolean isAlwaysPlayable(int value) {
-        return isAlwaysPlayable.getOrDefault(value, false);
+        return alwaysPlayableMap.getOrDefault(value, false);
     }
 
     public boolean canPlayAgain(int value) {
-        return canPlayAgain.getOrDefault(value, false);
+        return canPlayAgainMap.getOrDefault(value, false);
     }
-
-    @Bean
-    public GameManager gameManager() {
-        return new GameManager();
-    }
-
-    // TODO : Function to fetch config from somewhere
 }
