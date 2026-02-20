@@ -25,6 +25,12 @@ variable "project_name" {
   default     = "shithead"
 }
 
+variable "app_url" {
+  description = "Public URL of the frontend app (no trailing slash preferred)"
+  type        = string
+  default     = "https://shithead.tamaspinter.com"
+}
+
 variable "google_client_id" {
   description = "Google Client ID for authentication"
   type        = string

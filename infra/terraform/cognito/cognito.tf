@@ -59,9 +59,9 @@ resource "aws_cognito_user_pool_client" "app_client" {
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 
-  # OAuth2 code grant
+  # OAuth2 flows (frontend currently uses implicit token flow)
   allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_flows  = ["code"]
+  allowed_oauth_flows  = ["code", "implicit"]
   allowed_oauth_scopes = ["openid","email","profile"]
 
   # All the IdPs we set up
@@ -72,10 +72,10 @@ resource "aws_cognito_user_pool_client" "app_client" {
 
   # Where Cognito redirects after login/logout
   callback_urls = [
-    "${var.app_url}/auth/callback"
+    "${trimsuffix(var.app_url, "/")}/auth/callback"
   ]
   logout_urls = [
-    "${var.app_url}/"
+    "${trimsuffix(var.app_url, "/")}/"
   ]
 
   # Token lifetimes

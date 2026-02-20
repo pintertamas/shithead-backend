@@ -75,8 +75,8 @@ jobs:
           VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL }}
           VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
           VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_REDIRECT_URI: ${{ vars.VITE_COGNITO_REDIRECT_URI }}
-          VITE_COGNITO_LOGOUT_URI: ${{ vars.VITE_COGNITO_LOGOUT_URI }}
+          VITE_COGNITO_REDIRECT_URI: ${{ vars.APP_URL != '' && (endsWith(vars.APP_URL, '/') && format('{0}auth/callback', vars.APP_URL) || format('{0}/auth/callback', vars.APP_URL)) || vars.VITE_COGNITO_REDIRECT_URI }}
+          VITE_COGNITO_LOGOUT_URI: ${{ vars.APP_URL != '' && (endsWith(vars.APP_URL, '/') && vars.APP_URL || format('{0}/', vars.APP_URL)) || vars.VITE_COGNITO_LOGOUT_URI }}
         run: |
           npm ci
           npm run build
@@ -90,6 +90,7 @@ jobs:
     if: github.event_name == 'push' && needs.changes.outputs.backend == 'true'
     env:
       TF_INPUT: "false"
+      TF_VAR_app_url: ${{ vars.APP_URL != '' && vars.APP_URL || 'https://shithead.tamaspinter.com' }}
       TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
       TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       TF_VAR_vpc_id: ${{ vars.VPC_ID }}
@@ -184,8 +185,8 @@ jobs:
           VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL }}
           VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
           VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_REDIRECT_URI: ${{ vars.VITE_COGNITO_REDIRECT_URI }}
-          VITE_COGNITO_LOGOUT_URI: ${{ vars.VITE_COGNITO_LOGOUT_URI }}
+          VITE_COGNITO_REDIRECT_URI: ${{ vars.APP_URL != '' && (endsWith(vars.APP_URL, '/') && format('{0}auth/callback', vars.APP_URL) || format('{0}/auth/callback', vars.APP_URL)) || vars.VITE_COGNITO_REDIRECT_URI }}
+          VITE_COGNITO_LOGOUT_URI: ${{ vars.APP_URL != '' && (endsWith(vars.APP_URL, '/') && vars.APP_URL || format('{0}/', vars.APP_URL)) || vars.VITE_COGNITO_LOGOUT_URI }}
         run: |
           npm ci
           npm run build
@@ -202,3 +203,4 @@ jobs:
 
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
+

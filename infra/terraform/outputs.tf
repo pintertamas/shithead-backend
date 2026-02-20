@@ -30,7 +30,7 @@ output "user_pool_id" {
 
 output "token_curl_request" {
   description = "Curl command to get a token from Cognito"
-  value       = "curl.exe --location 'https://${var.project_name}.auth.eu-central-1.amazoncognito.com/oauth2/token' --header 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'grant_type=authorization_code' --data-urlencode 'client_id=${module.cognito.user_pool_client_id}' --data-urlencode 'redirect_uri=https://shithead.tamaspinter.com/auth/callback' --data-urlencode 'code=AUTH_CODE'"
+  value       = "curl.exe --location 'https://${var.project_name}.auth.eu-central-1.amazoncognito.com/oauth2/token' --header 'Content-Type: application/x-www-form-urlencoded' --data-urlencode 'grant_type=authorization_code' --data-urlencode 'client_id=${module.cognito.user_pool_client_id}' --data-urlencode 'redirect_uri=${trimsuffix(var.app_url, "/")}/auth/callback' --data-urlencode 'code=AUTH_CODE'"
 }
 
 output "websocket_connection_test" {

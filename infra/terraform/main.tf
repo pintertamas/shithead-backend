@@ -22,6 +22,7 @@ provider "aws" {
 module "cognito" {
   source                          = "./cognito"
   project_name                    = var.project_name
+  app_url                         = var.app_url
   google_client_id                = var.google_client_id
   google_client_secret            = var.google_client_secret
   init_user_function_name = module.lambda.init_user_function_name
