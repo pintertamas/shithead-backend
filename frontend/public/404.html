@@ -5,7 +5,8 @@
     <title>Redirecting...</title>
     <script>
       (function () {
-        var pathSegmentsToKeep = 1;
+        var isProjectPagesHost = /\.github\.io$/i.test(window.location.hostname);
+        var pathSegmentsToKeep = isProjectPagesHost ? 1 : 0;
         var l = window.location;
         var redirectUrl =
           l.protocol +
