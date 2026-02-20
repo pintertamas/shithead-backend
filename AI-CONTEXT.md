@@ -89,20 +89,38 @@ shithead-backend/
 ## 2. Essential Commands
 
 ```bash
-# Run all tests
-./mvnw test -pl backend
+# Run all tests  (Maven wrapper lives in backend/)
+cd backend && ./mvnw test
 
 # Build fat JAR for Lambda
-./mvnw package -pl backend
+cd backend && ./mvnw package
 
-# Run with code-quality checks
-./mvnw verify -pl backend -P codeQuality
+# Run static analysis (PMD + Checkstyle + SpotBugs)
+cd backend && ./mvnw verify -P codeQuality
 
 # Deploy infrastructure
 cd infra && terraform apply
 
 # Deploy Lambda code
 ./deploy.sh
+```
+
+### Static Analysis (`-P codeQuality`)
+
+The three tools are **skipped by default** and only enabled via the `codeQuality` Maven profile.
+
+| Tool | Config file | Maven phase | What it checks |
+|---|---|---|---|
+| Checkstyle | `src/main/resources/checkstyle/checkstyle.xml` | `validate` | Formatting, naming, whitespace, line length (max 150) |
+| PMD | `src/main/resources/pmd/ruleset.xml` | `process-test-classes` | Best practices, code style, design, error-prone patterns |
+| SpotBugs | `src/main/resources/spotbugs/excludes.xml` | `process-test-classes` | Bytecode-level bug patterns |
+
+All three fail the build on violations. To suppress a specific violation inline:
+
+```java
+@SuppressWarnings("checkstyle:MagicNumber")   // Checkstyle
+@SuppressWarnings("PMD.CyclomaticComplexity") // PMD
+@SuppressFBWarnings("NP_NULL_ON_SOME_PATH")   // SpotBugs (requires spotbugs-annotations dep)
 ```
 
 ---
@@ -631,3 +649,4 @@ Include a **change log entry** at the top of this section with date and model na
 |---|---|---|
 | 2026-02-20 | Initial file created | Claude Sonnet 4.6 |
 | 2026-02-20 | Added Builder pattern, Records, constructor injection, test naming, exception hierarchy | Claude Sonnet 4.6 |
+| 2026-02-20 | Added PMD, Checkstyle, SpotBugs setup and codeQuality profile docs | Claude Sonnet 4.6 |
