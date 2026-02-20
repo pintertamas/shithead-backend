@@ -26,8 +26,9 @@ jobs:
           java-version: "17"
 
       - name: Backend verify
-        run: ./mvnw -q verify -P codeQuality
-        working-directory: backend
+        run: |
+          chmod +x backend/mvnw
+          ./backend/mvnw -q verify -P codeQuality
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -72,8 +73,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Build backend
-        run: ./mvnw -q package -DskipTests
-        working-directory: backend
+        run: |
+          chmod +x backend/mvnw
+          ./backend/mvnw -q package -DskipTests
 
       - name: Terraform init
         run: terraform init
