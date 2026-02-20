@@ -6,17 +6,21 @@ export default function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const hash = window.location.hash.replace("#", "");
-    const params = new URLSearchParams(hash);
-    const idToken = params.get("id_token");
-    const accessToken = params.get("access_token");
-    const expiresIn = Number(params.get("expires_in") || "0");
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const queryParams = new URLSearchParams(window.location.search);
+
+    const idToken = hashParams.get("id_token") || queryParams.get("id_token");
+    const accessToken = hashParams.get("access_token") || queryParams.get("access_token");
+
+    const expiresRaw = hashParams.get("expires_in") || queryParams.get("expires_in");
+    const expiresIn = Number(expiresRaw || "3600");
+    const ttlSeconds = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600;
 
     if (idToken && accessToken) {
       saveAuth({
         idToken,
         accessToken,
-        expiresAt: Date.now() + expiresIn * 1000
+        expiresAt: Date.now() + ttlSeconds * 1000
       });
       navigate("/lobby", { replace: true });
       return;

@@ -10,9 +10,13 @@ export default function Login() {
     clearAuth();
   }, []);
 
-  const loginUrl = `${domain}/login?response_type=token&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-    redirectUri
-  )}&scope=openid+profile+email`;
+  const loginParams = new URLSearchParams({
+    response_type: "token id_token",
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: "openid profile email"
+  });
+  const loginUrl = `${domain}/login?${loginParams.toString()}`;
 
   return (
     <div className="page fade-in">
