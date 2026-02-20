@@ -19,6 +19,7 @@ import java.util.Optional;
 @Getter
 @Setter
 @Builder
+@SuppressWarnings("PMD.TooManyMethods")
 public class GameSession {
     private final String sessionId;
     @Builder.Default

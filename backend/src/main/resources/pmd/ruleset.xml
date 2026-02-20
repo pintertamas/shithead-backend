@@ -77,7 +77,7 @@
     <rule ref="category/java/design.xml/NcssCount">
         <properties>
             <property name="methodReportLevel" value="25"/>
-            <property name="violationSuppressXPath" value="./ancestor-or-self::ClassDeclaration[matches(@SimpleName, '^.*Test)]"/>
+            <property name="violationSuppressXPath" value="./ancestor-or-self::ClassDeclaration[matches(@SimpleName, '^.*Test$')]"/>
         </properties>
     </rule>
     <rule ref="category/java/design.xml/CouplingBetweenObjects">
@@ -93,7 +93,7 @@
     <rule ref="category/java/design.xml/TooManyMethods">
         <properties>
             <property name="maxmethods" value="15"/>
-            <property name="violationSuppressXPath" value="./ancestor-or-self::ClassDeclaration[matches(@SimpleName, '^.*Test)]"/>
+            <property name="violationSuppressXPath" value="./ancestor-or-self::ClassDeclaration[matches(@SimpleName, '^.*Test$')]"/>
         </properties>
     </rule>
     <rule ref="category/java/documentation.xml">
