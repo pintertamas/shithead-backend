@@ -132,6 +132,14 @@ jobs:
             mvn -q -f backend/pom.xml package -DskipTests
           fi
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Package Python Lambda dependencies
+        run: python infra/terraform/lambda/scripts/package.py
+
       - name: Validate Terraform variables
         run: |
           [ -n "${TF_VAR_google_client_id}" ] || (echo "Missing secret: GOOGLE_CLIENT_ID" && exit 1)
