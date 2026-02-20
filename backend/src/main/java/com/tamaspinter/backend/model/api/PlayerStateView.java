@@ -1,4 +1,4 @@
-﻿package com.tamaspinter.backend.model.api;
+package com.tamaspinter.backend.model.api;
 
 import com.tamaspinter.backend.model.Card;
 import lombok.Builder;
@@ -16,4 +16,3 @@ public record PlayerStateView(
         List<Card> hand
 ) {
 }
-
