@@ -1,9 +1,12 @@
 package com.tamaspinter.backend.repository;
 
+import com.tamaspinter.backend.model.UserProfile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
-import software.amazon.awssdk.enhanced.dynamodb.*;
-import com.tamaspinter.backend.model.*;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Key;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchGetItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.BatchGetResultPage;
 import software.amazon.awssdk.enhanced.dynamodb.model.ReadBatch;
@@ -40,7 +43,6 @@ public class UserProfileRepository {
     }
 
     public List<UserProfile> batchGet(List<String> userIds) {
-        // Build a single ReadBatch with one GetItem per userId
         ReadBatch.Builder<UserProfile> readBatchBuilder = ReadBatch
                 .builder(UserProfile.class)
                 .mappedTableResource(table);
@@ -49,7 +51,6 @@ public class UserProfileRepository {
         }
         ReadBatch readBatch = readBatchBuilder.build();
 
-        // Build and execute the batch-get request
         BatchGetItemEnhancedRequest batchRequest = BatchGetItemEnhancedRequest
                 .builder()
                 .addReadBatch(readBatch)
@@ -58,7 +59,6 @@ public class UserProfileRepository {
         Iterator<BatchGetResultPage> pages =
                 enhancedClient.batchGetItem(batchRequest).iterator();
 
-        // Collect and return all retrieved items
         List<UserProfile> result = new ArrayList<>();
         pages.forEachRemaining(page -> result.addAll(page.resultsForTable(table)));
         return result;

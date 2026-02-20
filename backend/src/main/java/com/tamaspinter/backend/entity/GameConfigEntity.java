@@ -1,6 +1,9 @@
 package com.tamaspinter.backend.entity;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 
@@ -11,16 +14,23 @@ import java.util.Map;
 
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @DynamoDbBean
 public class GameConfigEntity {
+    @Builder.Default
     private int burnCount = 4;
+    @Builder.Default
     private int faceDownCount = 3;
+    @Builder.Default
     private int faceUpCount = 3;
+    @Builder.Default
     private int handCount = 3;
-    // Maps card value (as string) to rule name, e.g. "2" -> "JOKER"
+    @Builder.Default
     private Map<String, String> cardRules = new HashMap<>();
-    // Card values that can always be played regardless of the top card
+    @Builder.Default
     private List<Integer> alwaysPlayable = new ArrayList<>();
-    // Card values that let the same player go again after playing
+    @Builder.Default
     private List<Integer> canPlayAgain = new ArrayList<>();
 }

@@ -1,14 +1,10 @@
 package com.tamaspinter.backend.model.websocket;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Builder;
 
 import java.util.List;
 import java.util.Map;
 
-@Setter
-@Getter
-public class GameEnded {
-    private List<String> playerIds;
-    private Map<String, Double> results; // mapping playerId -> score (1 or 0)
+@Builder
+public record GameEnded(List<String> playerIds, Map<String, Double> results) {
 }

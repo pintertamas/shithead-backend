@@ -7,9 +7,11 @@ public class GameManager {
     private final Map<String, GameSession> sessions = new ConcurrentHashMap<>();
 
     public GameSession createSession(String sessionId) {
-        GameSession s = new GameSession(sessionId);
-        sessions.put(sessionId, s);
-        return s;
+        GameSession session = GameSession.builder()
+                .sessionId(sessionId)
+                .build();
+        sessions.put(sessionId, session);
+        return session;
     }
 
     public GameSession getSession(String sessionId) {

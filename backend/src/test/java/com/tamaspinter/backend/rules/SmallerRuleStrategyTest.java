@@ -17,8 +17,8 @@ class SmallerRuleStrategyTest {
     @Test
     void testLowerValueIsPlayable() {
         // Given
-        Card prev = new Card(Suit.HEARTS, 9, CardRule.SMALLER, false);
-        Card newCard = new Card(Suit.SPADES, 5, CardRule.DEFAULT, false);
+        Card prev = Card.builder().suit(Suit.HEARTS).value(9).rule(CardRule.SMALLER).alwaysPlayable(false).build();
+        Card newCard = Card.builder().suit(Suit.SPADES).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(prev);
 
@@ -29,8 +29,8 @@ class SmallerRuleStrategyTest {
     @Test
     void testEqualValueIsPlayable() {
         // Given
-        Card prev = new Card(Suit.HEARTS, 6, CardRule.SMALLER, false);
-        Card newCard = new Card(Suit.SPADES, 6, CardRule.SMALLER, false);
+        Card prev = Card.builder().suit(Suit.HEARTS).value(6).rule(CardRule.SMALLER).alwaysPlayable(false).build();
+        Card newCard = Card.builder().suit(Suit.SPADES).value(6).rule(CardRule.SMALLER).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(prev);
 
@@ -41,8 +41,8 @@ class SmallerRuleStrategyTest {
     @Test
     void testHigherValueIsNotPlayable() {
         // Given
-        Card prev = new Card(Suit.HEARTS, 6, CardRule.SMALLER, false);
-        Card newCard = new Card(Suit.SPADES, 9, CardRule.DEFAULT, false);
+        Card prev = Card.builder().suit(Suit.HEARTS).value(6).rule(CardRule.SMALLER).alwaysPlayable(false).build();
+        Card newCard = Card.builder().suit(Suit.SPADES).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(prev);
 
@@ -53,8 +53,8 @@ class SmallerRuleStrategyTest {
     @Test
     void testAlwaysPlayableIgnoresRule() {
         // Given — ace played after a 3 (would normally fail SMALLER rule)
-        Card prev = new Card(Suit.HEARTS, 3, CardRule.SMALLER, false);
-        Card newCard = new Card(Suit.SPADES, 14, CardRule.DEFAULT, true);
+        Card prev = Card.builder().suit(Suit.HEARTS).value(3).rule(CardRule.SMALLER).alwaysPlayable(false).build();
+        Card newCard = Card.builder().suit(Suit.SPADES).value(14).rule(CardRule.DEFAULT).alwaysPlayable(true).build();
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(prev);
 
@@ -65,10 +65,11 @@ class SmallerRuleStrategyTest {
     @Test
     void testPlayableOnEmptyPile() {
         // Given
-        Card newCard = new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false);
+        Card newCard = Card.builder().suit(Suit.HEARTS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
 
         // When/Then
         assertTrue(strategy.canPlay(newCard, pile));
     }
 }
+

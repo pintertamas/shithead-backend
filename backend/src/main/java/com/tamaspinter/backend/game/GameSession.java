@@ -6,6 +6,7 @@ import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.Deck;
 import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.rules.RuleEngine;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,146 +18,181 @@ import java.util.Optional;
 
 @Getter
 @Setter
+@Builder
 public class GameSession {
     private final String sessionId;
+    @Builder.Default
     private final List<Player> players = new ArrayList<>();
+    @Builder.Default
     private final Deque<Card> discardPile = new ArrayDeque<>();
     private Deck deck;
-    private int currentIndex = 0;
+    private int currentIndex;
+    @Builder.Default
     private GameConfig config = GameConfig.defaultGameConfig();
-    private boolean started = false;
-    private boolean finished = false;
-    private String shitheadId = null;
-
-    public GameSession(String sessionId) {
-        this.sessionId = sessionId;
-    }
+    private boolean started;
+    private boolean finished;
+    private String shitheadId;
 
     public void addPlayer(String id, String name) {
-        if (started) throw new IllegalStateException("Game already started");
-        players.add(new Player(id, name));
+        if (started) {
+            throw new IllegalStateException("Game already started");
+        }
+        players.add(Player.builder()
+                .playerId(id)
+                .username(name)
+                .build());
     }
 
     public void start() {
-        int decks = 1 + (players.size() - 1) / 5; // make sure there are enough cards for all players
+        int decks = 1 + (players.size() - 1) / 5;
         deck = new Deck(decks, config);
-        // deal faceDown, faceUp, hand to each player
-        for (Player p : players) {
-            for (int i = 0; i < config.getFaceDownCount(); i++)
-                p.getFaceDown().add(deck.draw().orElseThrow());
-            for (int i = 0; i < config.getFaceUpCount(); i++)
-                p.getFaceUp().add(deck.draw().orElseThrow());
-            for (int i = 0; i < config.getHandCount(); i++)
-                p.getHand().add(deck.draw().orElseThrow());
+        for (Player player : players) {
+            for (int i = 0; i < config.getFaceDownCount(); i++) {
+                player.getFaceDown().add(deck.draw().orElseThrow());
+            }
+            for (int i = 0; i < config.getFaceUpCount(); i++) {
+                player.getFaceUp().add(deck.draw().orElseThrow());
+            }
+            for (int i = 0; i < config.getHandCount(); i++) {
+                player.getHand().add(deck.draw().orElseThrow());
+            }
         }
         started = true;
     }
 
     private boolean notAllCardsAreTheSameValue(List<Card> cards) {
-        if (cards.isEmpty()) return true;
+        if (cards.isEmpty()) {
+            return true;
+        }
         int value = cards.get(0).getValue();
-        for (Card c : cards) {
-            if (c.getValue() != value) return true;
+        for (Card card : cards) {
+            if (card.getValue() != value) {
+                return true;
+            }
         }
         return false;
     }
 
-    private boolean playerCannotPlayAllSelectedCards(Player p, List<Card> cards) {
-        for (Card card : cards)
+    private boolean playerCannotPlayAllSelectedCards(List<Card> cards) {
+        for (Card card : cards) {
             if (!RuleEngine.canPlay(card, discardPile)) {
                 return true;
             }
+        }
         return false;
     }
 
-    // Plays cards from the appropriate source (hand -> faceUp -> faceDown).
-    // Returns SUCCESS, PICKUP (auto-pickup on blind face-down fail), or INVALID.
     public PlayResult playCards(List<Card> cards) {
-        if (finished) return PlayResult.INVALID;
-        Player p = players.get(currentIndex);
-        PlayResult result;
-        if (!p.getHand().isEmpty()) result = playFromHand(cards);
-        else if (!p.getFaceUp().isEmpty()) result = playFromFaceUp(cards);
-        else if (!p.getFaceDown().isEmpty()) result = playFromFaceDown(cards);
-        else return PlayResult.INVALID;
-
-        if (result == PlayResult.SUCCESS) {
-            Card c = cards.get(0);
-            RuleEngine.playAfterEffect(c, discardPile, p, players);
-            // Advance if: card doesn't grant replay, OR the player just finished all their cards
-            if (!config.canPlayAgain(c.getValue()) || p.isOut()) {
-                nextPlayer();
-            }
-            checkGameEnd();
+        if (finished) {
+            return PlayResult.INVALID;
         }
+        Player player = players.get(currentIndex);
+        PlayResult result = resolvePlayResult(player, cards);
+
+        if (result != PlayResult.SUCCESS) {
+            return result;
+        }
+        Card card = cards.get(0);
+        RuleEngine.playAfterEffect(card, discardPile, player, players);
+        if (!config.canPlayAgain(card.getValue()) || player.isOut()) {
+            nextPlayer();
+        }
+        checkGameEnd();
         return result;
     }
 
-    // Player explicitly picks up the discard pile when they cannot play from hand/faceUp.
+    private PlayResult resolvePlayResult(Player player, List<Card> cards) {
+        if (!player.getHand().isEmpty()) {
+            return playFromHand(cards);
+        }
+        if (!player.getFaceUp().isEmpty()) {
+            return playFromFaceUp(cards);
+        }
+        if (!player.getFaceDown().isEmpty()) {
+            return playFromFaceDown(cards);
+        }
+        return PlayResult.INVALID;
+    }
+
     public PlayResult pickupPile() {
-        if (finished) return PlayResult.INVALID;
-        Player p = players.get(currentIndex);
-        discardPile.forEach(p.getHand()::addLast);
+        if (finished) {
+            return PlayResult.INVALID;
+        }
+        Player player = players.get(currentIndex);
+        discardPile.forEach(player.getHand()::addLast);
         discardPile.clear();
         nextPlayer();
         return PlayResult.PICKUP;
     }
 
     private PlayResult playFromHand(List<Card> cards) {
-        Player p = players.get(currentIndex);
-        if (p.getHand().isEmpty()) return PlayResult.INVALID;
-        if (!p.getHand().containsAll(cards)) return PlayResult.INVALID;
-        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(p, cards)) {
+        Player player = players.get(currentIndex);
+        if (player.getHand().isEmpty()) {
+            return PlayResult.INVALID;
+        }
+        if (!player.getHand().containsAll(cards)) {
+            return PlayResult.INVALID;
+        }
+        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
             return PlayResult.INVALID;
         }
         cards.forEach(discardPile::addLast);
-        p.getHand().removeAll(cards);
-        postPlayCleanup(p);
+        player.getHand().removeAll(cards);
+        postPlayCleanup(player);
         return PlayResult.SUCCESS;
     }
 
     private PlayResult playFromFaceUp(List<Card> cards) {
-        Player p = players.get(currentIndex);
-        if (!p.getHand().isEmpty() || p.getFaceUp().isEmpty()) return PlayResult.INVALID;
-        if (!p.getFaceUp().containsAll(cards)) return PlayResult.INVALID;
-        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(p, cards)) {
+        Player player = players.get(currentIndex);
+        if (!player.getHand().isEmpty() || player.getFaceUp().isEmpty()) {
+            return PlayResult.INVALID;
+        }
+        if (!player.getFaceUp().containsAll(cards)) {
+            return PlayResult.INVALID;
+        }
+        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
             return PlayResult.INVALID;
         }
         cards.forEach(discardPile::addLast);
-        p.getFaceUp().removeAll(cards);
-        postPlayCleanup(p);
+        player.getFaceUp().removeAll(cards);
+        postPlayCleanup(player);
         return PlayResult.SUCCESS;
     }
 
     private PlayResult playFromFaceDown(List<Card> cards) {
-        Player p = players.get(currentIndex);
-        if (!p.getHand().isEmpty() || !p.getFaceUp().isEmpty() || p.getFaceDown().isEmpty()) return PlayResult.INVALID;
-        if (!p.getFaceDown().containsAll(cards)) return PlayResult.INVALID;
-        // Remove the flipped card(s) from faceDown regardless of outcome
-        p.getFaceDown().removeAll(cards);
-        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(p, cards)) {
-            // Blind flip failed: player picks up the pile plus the flipped cards
-            cards.forEach(p.getHand()::addLast);
-            discardPile.forEach(p.getHand()::addLast);
+        Player player = players.get(currentIndex);
+        if (!player.getHand().isEmpty() || !player.getFaceUp().isEmpty() || player.getFaceDown().isEmpty()) {
+            return PlayResult.INVALID;
+        }
+        if (!player.getFaceDown().containsAll(cards)) {
+            return PlayResult.INVALID;
+        }
+        player.getFaceDown().removeAll(cards);
+        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
+            cards.forEach(player.getHand()::addLast);
+            discardPile.forEach(player.getHand()::addLast);
             discardPile.clear();
             nextPlayer();
             return PlayResult.PICKUP;
         }
         cards.forEach(discardPile::addLast);
-        postPlayCleanup(p);
+        postPlayCleanup(player);
         return PlayResult.SUCCESS;
     }
 
-    private void postPlayCleanup(Player p) {
-        // burn check
-        if (RuleEngine.shouldBurn(discardPile, config.getBurnCount())) discardPile.clear();
-        // refill hand from deck
-        Optional<Card> drawn;
-        while (p.getHand().size() < config.getHandCount() && (drawn = deck.draw()).isPresent())
-            p.getHand().addLast(drawn.get());
-        // out check — nextPlayer() is handled by the caller (playCards)
-        if (p.getHand().isEmpty() && p.getFaceUp().isEmpty() && p.getFaceDown().isEmpty()) {
-            p.setOut(true);
+    private void postPlayCleanup(Player player) {
+        if (RuleEngine.shouldBurn(discardPile, config.getBurnCount())) {
+            discardPile.clear();
+        }
+        while (player.getHand().size() < config.getHandCount()) {
+            Optional<Card> drawn = deck.draw();
+            if (drawn.isEmpty()) {
+                break;
+            }
+            player.getHand().addLast(drawn.get());
+        }
+        if (player.getHand().isEmpty() && player.getFaceUp().isEmpty() && player.getFaceDown().isEmpty()) {
+            player.setOut(true);
         }
     }
 
@@ -164,10 +200,13 @@ public class GameSession {
         long activePlayers = players.stream().filter(pl -> !pl.isOut()).count();
         if (activePlayers <= 1) {
             finished = true;
-            players.stream()
+            Optional<Player> remainingPlayer = players.stream()
                     .filter(pl -> !pl.isOut())
-                    .findFirst()
-                    .ifPresent(pl -> shitheadId = pl.getPlayerId());
+                    .findFirst();
+            if (remainingPlayer.isPresent()) {
+                Player remaining = remainingPlayer.get();
+                shitheadId = remaining.getPlayerId();
+            }
         }
     }
 
@@ -179,7 +218,9 @@ public class GameSession {
     }
 
     public String getCurrentPlayerId() {
-        if (players.isEmpty() || currentIndex < 0 || currentIndex >= players.size()) return null;
+        if (players.isEmpty() || currentIndex < 0 || currentIndex >= players.size()) {
+            return null;
+        }
         return players.get(currentIndex).getPlayerId();
     }
 
@@ -189,14 +230,16 @@ public class GameSession {
 
     @Override
     public String toString() {
-        return "GameSession{" +
-                "sessionId='" + sessionId + '\'' +
-                ", number of players=" + players.size() +
-                ", discardPile=" + discardPile +
-                ", deck=" + deck +
-                ", currentIndex=" + currentIndex +
-                ", config=" + config +
-                ", started=" + started +
-                '}';
+        return "GameSession{"
+                + "sessionId='" + sessionId + '\''
+                + ", number of players=" + players.size()
+                + ", discardPile=" + discardPile
+                + ", deck=" + deck
+                + ", currentIndex=" + currentIndex
+                + ", config=" + config
+                + ", started=" + started
+                + '}';
     }
 }
+
+

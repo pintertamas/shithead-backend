@@ -20,17 +20,17 @@ class ReverseRuleStrategyTest {
         // Given
         ReverseRuleStrategy strategy = new ReverseRuleStrategy();
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 2, CardRule.JOKER, true));
-        pile.add(new Card(Suit.DIAMONDS, 3, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.DIAMONDS, 3, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.CLUBS, 4, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.CLUBS, 9, CardRule.REVERSE, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(2).rule(CardRule.JOKER).alwaysPlayable(true).build());
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.CLUBS).value(4).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.REVERSE).alwaysPlayable(false).build());
 
         List<Player> players = new ArrayList<>();
-        Player player1 = new Player("1", "test1");
-        Player player2 = new Player("2", "test2");
-        Player player3 = new Player("3", "test3");
-        Player player4 = new Player("4", "test4");
+        Player player1 = Player.builder().playerId("1").username("test1").build();
+        Player player2 = Player.builder().playerId("2").username("test2").build();
+        Player player3 = Player.builder().playerId("3").username("test3").build();
+        Player player4 = Player.builder().playerId("4").username("test4").build();
         players.add(player1);
         players.add(player2);
         players.add(player3);

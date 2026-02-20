@@ -7,5 +7,8 @@ import java.util.Deque;
 import java.util.List;
 
 public interface AfterEffect {
-    default void afterEffect(Deque<Card> pile, List<Player> players, Player currentPlayer) {}
+    default void afterEffect(Deque<Card> pile, List<Player> players, Player currentPlayer) {
+        // no-op
+    }
 }
+

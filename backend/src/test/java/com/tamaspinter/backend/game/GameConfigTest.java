@@ -76,3 +76,4 @@ class GameConfigTest {
         assertFalse(config.canPlayAgain(9));
     }
 }
+

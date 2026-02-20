@@ -66,3 +66,4 @@ class EloServiceTest {
         assertEquals(984.0,  updated.get("shithead"), 0.001);
     }
 }
+

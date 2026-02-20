@@ -23,7 +23,7 @@ class SessionMapperTest {
     @Test
     void testToEntity_preservesSessionMetadata() {
         // Given
-        GameSession session = new GameSession("session-1");
+        GameSession session = GameSession.builder().sessionId("session-1").build();
         session.addPlayer("p1", "alice");
         session.addPlayer("p2", "bob");
         session.setStarted(true);
@@ -46,16 +46,16 @@ class SessionMapperTest {
     @Test
     void testToEntity_preservesPlayerState() {
         // Given
-        GameSession session = new GameSession("session-2");
+        GameSession session = GameSession.builder().sessionId("session-2").build();
         session.addPlayer("p1", "alice");
         session.setStarted(true);
         session.setDeck(new Deck(List.of()));
 
         Player alice = session.getPlayers().get(0);
-        alice.getHand().add(new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false));
-        alice.getHand().add(new Card(Suit.SPADES, 9, CardRule.DEFAULT, false));
-        alice.getFaceUp().add(new Card(Suit.CLUBS, 5, CardRule.DEFAULT, false));
-        alice.getFaceDown().add(new Card(Suit.DIAMONDS, 3, CardRule.DEFAULT, false));
+        alice.getHand().add(Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        alice.getHand().add(Card.builder().suit(Suit.SPADES).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        alice.getFaceUp().add(Card.builder().suit(Suit.CLUBS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        alice.getFaceDown().add(Card.builder().suit(Suit.DIAMONDS).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
         alice.setOut(false);
 
         // When
@@ -103,21 +103,21 @@ class SessionMapperTest {
     @Test
     void testRoundTrip_preservesGameState() {
         // Given — build a session with known state
-        GameSession original = new GameSession("rt-session");
+        GameSession original = GameSession.builder().sessionId("rt-session").build();
         original.addPlayer("p1", "alice");
         original.addPlayer("p2", "bob");
         original.setStarted(true);
         original.setCurrentIndex(1); // bob's turn
 
         Player p1 = original.getPlayers().get(0);
-        p1.getHand().add(new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false));
-        p1.getFaceUp().add(new Card(Suit.CLUBS, 5, CardRule.DEFAULT, false));
+        p1.getHand().add(Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        p1.getFaceUp().add(Card.builder().suit(Suit.CLUBS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
 
         Player p2 = original.getPlayers().get(1);
         p2.setOut(true);
 
-        original.getDiscardPile().add(new Card(Suit.HEARTS, 9, CardRule.DEFAULT, false));
-        original.setDeck(new Deck(List.of(new Card(Suit.SPADES, 3, CardRule.DEFAULT, false))));
+        original.getDiscardPile().add(Card.builder().suit(Suit.HEARTS).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        original.setDeck(new Deck(List.of(Card.builder().suit(Suit.SPADES).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build())));
 
         // When
         GameSessionEntity entity   = SessionMapper.toEntity(original);
@@ -161,3 +161,4 @@ class SessionMapperTest {
         return pe;
     }
 }
+

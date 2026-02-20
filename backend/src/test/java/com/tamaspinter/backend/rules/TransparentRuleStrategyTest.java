@@ -25,11 +25,11 @@ class TransparentRuleStrategyTest {
     void testDelegatesToDefaultRuleWhenBelowIsDefault() {
         // Given — pile: [5 DEFAULT, 8 TRANSPARENT]; delegates to DEFAULT → newCard >= 8
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.SPADES, 8, CardRule.TRANSPARENT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
 
-        Card playable = new Card(Suit.CLUBS, 9, CardRule.DEFAULT, false);
-        Card notPlayable = new Card(Suit.CLUBS, 5, CardRule.DEFAULT, false);
+        Card playable = Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+        Card notPlayable = Card.builder().suit(Suit.CLUBS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
 
         // When/Then
         assertTrue(strategy.canPlay(playable, pile));
@@ -42,11 +42,11 @@ class TransparentRuleStrategyTest {
     void testDelegatesToSmallerRuleWhenBelowIsSmaller() {
         // Given — pile: [9 SMALLER, 8 TRANSPARENT]; delegates to SMALLER → newCard <= 8
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 9, CardRule.SMALLER, false));
-        pile.add(new Card(Suit.SPADES, 8, CardRule.TRANSPARENT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(9).rule(CardRule.SMALLER).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
 
-        Card playable = new Card(Suit.CLUBS, 5, CardRule.DEFAULT, false);
-        Card notPlayable = new Card(Suit.CLUBS, 10, CardRule.DEFAULT, false);
+        Card playable = Card.builder().suit(Suit.CLUBS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+        Card notPlayable = Card.builder().suit(Suit.CLUBS).value(10).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
 
         // When/Then
         assertTrue(strategy.canPlay(playable, pile));
@@ -59,12 +59,12 @@ class TransparentRuleStrategyTest {
     void testWalksThroughMultipleTransparentCards() {
         // Given — pile: [5 DEFAULT, 8 TRANSPARENT, 8 TRANSPARENT]; still delegates to DEFAULT
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.SPADES, 8, CardRule.TRANSPARENT, false));
-        pile.add(new Card(Suit.DIAMONDS, 8, CardRule.TRANSPARENT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
 
-        Card playable = new Card(Suit.CLUBS, 9, CardRule.DEFAULT, false);
-        Card notPlayable = new Card(Suit.CLUBS, 3, CardRule.DEFAULT, false);
+        Card playable = Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+        Card notPlayable = Card.builder().suit(Suit.CLUBS).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
 
         // When/Then
         assertTrue(strategy.canPlay(playable, pile));
@@ -77,10 +77,10 @@ class TransparentRuleStrategyTest {
     void testAllTransparentPileIsAlwaysPlayable() {
         // Given — pile consists entirely of transparent cards → returns true
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 8, CardRule.TRANSPARENT, false));
-        pile.add(new Card(Suit.SPADES, 8, CardRule.TRANSPARENT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
 
-        Card anyCard = new Card(Suit.CLUBS, 3, CardRule.DEFAULT, false);
+        Card anyCard = Card.builder().suit(Suit.CLUBS).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
 
         // When/Then
         assertTrue(strategy.canPlay(anyCard, pile));
@@ -92,12 +92,13 @@ class TransparentRuleStrategyTest {
     void testAlwaysPlayableCardIgnoresTransparentRule() {
         // Given — even a low card can be played if it's marked always-playable
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.SPADES, 8, CardRule.TRANSPARENT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
 
-        Card alwaysPlayable = new Card(Suit.CLUBS, 2, CardRule.JOKER, true);
+        Card alwaysPlayable = Card.builder().suit(Suit.CLUBS).value(2).rule(CardRule.JOKER).alwaysPlayable(true).build();
 
         // When/Then
         assertTrue(strategy.canPlay(alwaysPlayable, pile));
     }
 }
+

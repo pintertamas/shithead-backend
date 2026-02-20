@@ -33,6 +33,8 @@
         <exclude name="EmptyMethodInAbstractClassShouldBeAbstract"/>
         <exclude name="GenericsNaming"/>
         <exclude name="LongVariable"/>
+        <exclude name="LocalVariableCouldBeFinal"/>
+        <exclude name="MethodArgumentCouldBeFinal"/>
         <exclude name="ModifierOrder"/>
         <exclude name="OnlyOneReturn"/>
         <exclude name="ShortClassName"/>
@@ -105,11 +107,6 @@
         <exclude name="InvalidLogMessageFormat"/>
         <exclude name="NullAssignment"/>
         <exclude name="TestClassWithoutTestCases"/>
-    </rule>
-    <rule ref="category/java/errorprone.xml/AvoidCatchingGenericException">
-        <properties>
-            <property name="typesThatShouldNotBeCaught" value="java.lang.NullPointerException,java.lang.Throwable,java.lang.Error"/>
-        </properties>
     </rule>
     <rule ref="category/java/multithreading.xml">
         <exclude name="DoNotUseThreads"/>

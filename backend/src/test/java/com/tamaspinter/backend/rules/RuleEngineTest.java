@@ -18,7 +18,7 @@ class RuleEngineTest {
     @Test
     void testCanPlayOnEmptyPile() {
         // Given
-        Card card = new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false);
+        Card card = Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
 
         // When/Then
@@ -28,8 +28,8 @@ class RuleEngineTest {
     @Test
     void testCanPlayAlwaysPlayableCard() {
         // Given
-        Card alwaysPlayableCard = new Card(Suit.HEARTS, 7, CardRule.DEFAULT, true);
-        Card topCard = new Card(Suit.SPADES, 10, CardRule.DEFAULT, false);
+        Card alwaysPlayableCard = Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(true).build();
+        Card topCard = Card.builder().suit(Suit.SPADES).value(10).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(topCard);
 
@@ -41,10 +41,10 @@ class RuleEngineTest {
     void testShouldBurnWithFourSameValues() {
         // Given
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.DIAMONDS, 7, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.CLUBS, 7, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.SPADES, 7, CardRule.DEFAULT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.CLUBS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
 
         // When/Then
         assertTrue(RuleEngine.shouldBurn(pile, 4));
@@ -54,10 +54,10 @@ class RuleEngineTest {
     void testShouldNotBurnWithDifferentValues() {
         // Given
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.DIAMONDS, 8, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.CLUBS, 9, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.SPADES, 10, CardRule.DEFAULT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(8).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(10).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
 
         // When/Then
         assertFalse(RuleEngine.shouldBurn(pile, 4));
@@ -67,10 +67,10 @@ class RuleEngineTest {
     void testShouldNotBurnWithFewerThanNMatchingCards() {
         // Given — only 3 matching cards, burnCount is 4
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.DIAMONDS, 7, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.CLUBS, 7, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.SPADES, 7, CardRule.DEFAULT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.CLUBS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
 
         // When/Then
         assertFalse(RuleEngine.shouldBurn(pile, 4));
@@ -80,11 +80,11 @@ class RuleEngineTest {
     void testCanPlayWithTransparentOnTop() {
         // Given — transparent card on top; RuleEngine delegates through it
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.SPADES, 8, CardRule.TRANSPARENT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
 
-        Card playable = new Card(Suit.CLUBS, 9, CardRule.DEFAULT, false);
-        Card notPlayable = new Card(Suit.CLUBS, 3, CardRule.DEFAULT, false);
+        Card playable = Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+        Card notPlayable = Card.builder().suit(Suit.CLUBS).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
 
         // When/Then
         assertTrue(RuleEngine.canPlay(playable, pile));
@@ -94,12 +94,12 @@ class RuleEngineTest {
     @Test
     void testPlayAfterEffectBurnerClearsPile() {
         // Given
-        Card burner = new Card(Suit.CLUBS, 10, CardRule.BURNER, false);
+        Card burner = Card.builder().suit(Suit.CLUBS).value(10).rule(CardRule.BURNER).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false));
-        pile.add(new Card(Suit.DIAMONDS, 7, CardRule.DEFAULT, false));
+        pile.add(Card.builder().suit(Suit.HEARTS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
         pile.add(burner);
-        List<Player> players = List.of(new Player("1", "alice"), new Player("2", "bob"));
+        List<Player> players = List.of(Player.builder().playerId("1").username("alice").build(), Player.builder().playerId("2").username("bob").build());
         Player current = players.get(0);
 
         // When
@@ -112,13 +112,13 @@ class RuleEngineTest {
     @Test
     void testPlayAfterEffectReverseReversesPlayers() {
         // Given
-        Card reverse = new Card(Suit.CLUBS, 9, CardRule.REVERSE, false);
+        Card reverse = Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.REVERSE).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(reverse);
         List<Player> players = new ArrayList<>();
-        players.add(new Player("1", "alice"));
-        players.add(new Player("2", "bob"));
-        players.add(new Player("3", "carol"));
+        players.add(Player.builder().playerId("1").username("alice").build());
+        players.add(Player.builder().playerId("2").username("bob").build());
+        players.add(Player.builder().playerId("3").username("carol").build());
         Player current = players.get(0);
 
         // When
@@ -133,13 +133,13 @@ class RuleEngineTest {
     @Test
     void testPlayAfterEffectDefaultIsNoOp() {
         // Given — DEFAULT card has no after-effect
-        Card defaultCard = new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false);
+        Card defaultCard = Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         Deque<Card> pile = new ArrayDeque<>();
-        pile.add(new Card(Suit.DIAMONDS, 5, CardRule.DEFAULT, false));
+        pile.add(Card.builder().suit(Suit.DIAMONDS).value(5).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
         pile.add(defaultCard);
         List<Player> players = new ArrayList<>();
-        players.add(new Player("1", "alice"));
-        players.add(new Player("2", "bob"));
+        players.add(Player.builder().playerId("1").username("alice").build());
+        players.add(Player.builder().playerId("2").username("bob").build());
         Player current = players.get(0);
 
         // When

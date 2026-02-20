@@ -21,7 +21,7 @@ class GameSessionTest {
 
     @BeforeEach
     void setUp() {
-        session = new GameSession("test-session");
+        session = GameSession.builder().sessionId("test-session").build();
         session.addPlayer("p1", "alice");
         session.addPlayer("p2", "bob");
     }
@@ -29,7 +29,12 @@ class GameSessionTest {
     /** Creates a card with the correct rule and alwaysPlayable flag from the default config. */
     private Card card(int value) {
         GameConfig config = GameConfig.defaultGameConfig();
-        return new Card(Suit.HEARTS, value, config.getCardRule(value), config.isAlwaysPlayable(value));
+        return Card.builder()
+                .suit(Suit.HEARTS)
+                .value(value)
+                .rule(config.getCardRule(value))
+                .alwaysPlayable(config.isAlwaysPlayable(value))
+                .build();
     }
 
     /** Sets the session into a started state with an empty deck (no hand refills). */
@@ -93,8 +98,8 @@ class GameSessionTest {
         // Given
         prepareStartedGame();
         Player p1 = session.getPlayers().get(0);
-        Card c1 = new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false);
-        Card c2 = new Card(Suit.SPADES, 7, CardRule.DEFAULT, false);
+        Card c1 = Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+        Card c2 = Card.builder().suit(Suit.SPADES).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         p1.getHand().add(c1);
         p1.getHand().add(c2);
         session.getDiscardPile().add(card(5));
@@ -260,8 +265,8 @@ class GameSessionTest {
         // Given
         prepareStartedGame();
         Player p1 = session.getPlayers().get(0);
-        Card blind1 = new Card(Suit.CLUBS, 7, CardRule.DEFAULT, false); // 7 >= 5, playable
-        Card blind2 = new Card(Suit.SPADES, 9, CardRule.DEFAULT, false); // kept so p1 is not out
+        Card blind1 = Card.builder().suit(Suit.CLUBS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build(); // 7 >= 5, playable
+        Card blind2 = Card.builder().suit(Suit.SPADES).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build(); // kept so p1 is not out
         p1.getFaceDown().add(blind1);
         p1.getFaceDown().add(blind2);
         session.getDiscardPile().add(card(5));
@@ -319,10 +324,10 @@ class GameSessionTest {
         // Given — three 7s already on pile, player plays the fourth
         prepareStartedGame();
         Player p1 = session.getPlayers().get(0);
-        session.getDiscardPile().add(new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false));
-        session.getDiscardPile().add(new Card(Suit.DIAMONDS, 7, CardRule.DEFAULT, false));
-        session.getDiscardPile().add(new Card(Suit.CLUBS, 7, CardRule.DEFAULT, false));
-        Card fourthSeven = new Card(Suit.SPADES, 7, CardRule.DEFAULT, false);
+        session.getDiscardPile().add(Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        session.getDiscardPile().add(Card.builder().suit(Suit.DIAMONDS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        session.getDiscardPile().add(Card.builder().suit(Suit.CLUBS).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        Card fourthSeven = Card.builder().suit(Suit.SPADES).value(7).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         p1.getHand().add(fourthSeven);
         p1.getHand().add(card(4)); // extra card so p1 is not out after playing
 
@@ -339,7 +344,7 @@ class GameSessionTest {
         // Given
         prepareStartedGame();
         Player p1 = session.getPlayers().get(0);
-        Card burner = new Card(Suit.CLUBS, 10, CardRule.BURNER, false);
+        Card burner = Card.builder().suit(Suit.CLUBS).value(10).rule(CardRule.BURNER).alwaysPlayable(false).build();
         p1.getHand().add(burner);
         p1.getHand().add(card(3)); // extra so p1 is not out after playing
         session.getDiscardPile().add(card(5));
@@ -360,7 +365,7 @@ class GameSessionTest {
         //          even though BURNER normally grants replay
         prepareStartedGame();
         Player p1 = session.getPlayers().get(0);
-        Card burner = new Card(Suit.CLUBS, 10, CardRule.BURNER, false);
+        Card burner = Card.builder().suit(Suit.CLUBS).value(10).rule(CardRule.BURNER).alwaysPlayable(false).build();
         p1.getHand().add(burner);
         session.getPlayers().get(1).getHand().add(card(5)); // p2 has cards → becomes shithead
 
@@ -375,14 +380,14 @@ class GameSessionTest {
     @Test
     void testReverseCard_reversesPlayerOrderAndAdvancesTurn() {
         // Given — 3-player game so the order change is observable
-        GameSession s = new GameSession("reverse-session");
+        GameSession s = GameSession.builder().sessionId("reverse-session").build();
         s.addPlayer("p1", "alice");
         s.addPlayer("p2", "bob");
         s.addPlayer("p3", "carol");
         s.setStarted(true);
         s.setDeck(new Deck(List.of()));
         Player alice = s.getPlayers().get(0);
-        Card reverseCard = new Card(Suit.CLUBS, 9, CardRule.REVERSE, false);
+        Card reverseCard = Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.REVERSE).alwaysPlayable(false).build();
         alice.getHand().add(reverseCard);
         alice.getHand().add(card(5)); // extra so alice is not out after playing
 
@@ -410,8 +415,8 @@ class GameSessionTest {
         Card playable = card(7);
         p1.getHand().add(playable);
 
-        Card refill1 = new Card(Suit.CLUBS, 3, CardRule.DEFAULT, false);
-        Card refill2 = new Card(Suit.DIAMONDS, 4, CardRule.DEFAULT, false);
+        Card refill1 = Card.builder().suit(Suit.CLUBS).value(3).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+        Card refill2 = Card.builder().suit(Suit.DIAMONDS).value(4).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
         Deck mockDeck = Mockito.mock(Deck.class);
         when(mockDeck.draw()).thenReturn(
                 Optional.of(refill1),
@@ -453,7 +458,7 @@ class GameSessionTest {
     @Test
     void testNextPlayer_skipsOutPlayers() {
         // Given — p2 (bob) is already out; after p1 plays, turn jumps to p3 (carol)
-        GameSession s = new GameSession("skip-session");
+        GameSession s = GameSession.builder().sessionId("skip-session").build();
         s.addPlayer("p1", "alice");
         s.addPlayer("p2", "bob");
         s.addPlayer("p3", "carol");
@@ -539,9 +544,9 @@ class GameSessionTest {
         // Given — pile topped with a 6 (SMALLER); next card must be <= 6
         prepareStartedGame();
         Player p1 = session.getPlayers().get(0);
-        session.getDiscardPile().add(new Card(Suit.CLUBS, 6, CardRule.SMALLER, false));
-        Card valid   = new Card(Suit.HEARTS, 4, CardRule.DEFAULT, false); // 4 <= 6
-        Card invalid = new Card(Suit.HEARTS, 9, CardRule.DEFAULT, false); // 9 > 6
+        session.getDiscardPile().add(Card.builder().suit(Suit.CLUBS).value(6).rule(CardRule.SMALLER).alwaysPlayable(false).build());
+        Card valid   = Card.builder().suit(Suit.HEARTS).value(4).rule(CardRule.DEFAULT).alwaysPlayable(false).build(); // 4 <= 6
+        Card invalid = Card.builder().suit(Suit.HEARTS).value(9).rule(CardRule.DEFAULT).alwaysPlayable(false).build(); // 9 > 6
         p1.getHand().add(valid);
         p1.getHand().add(invalid);
 
@@ -553,9 +558,10 @@ class GameSessionTest {
     @Test
     void testGetCurrentPlayerId_returnsNullWhenNoPlayers() {
         // Given — fresh session with no players added
-        GameSession empty = new GameSession("empty");
+        GameSession empty = GameSession.builder().sessionId("empty").build();
 
         // When/Then
         assertNull(empty.getCurrentPlayerId());
     }
 }
+

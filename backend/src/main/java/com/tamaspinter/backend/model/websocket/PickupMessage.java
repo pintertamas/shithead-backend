@@ -1,10 +1,7 @@
 package com.tamaspinter.backend.model.websocket;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Builder;
 
-@Setter
-@Getter
-public class PickupMessage {
-    private String sessionId;
+@Builder
+public record PickupMessage(String sessionId) {
 }
