@@ -78,6 +78,14 @@ jobs:
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+          terraform_wrapper: false
+
+      - name: Verify Terraform
+        run: |
+          echo "Terraform binary: $(command -v terraform)"
+          terraform version
 
       - name: Build backend
         run: |
