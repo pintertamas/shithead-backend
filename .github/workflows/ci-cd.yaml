@@ -27,8 +27,12 @@ jobs:
 
       - name: Backend verify
         run: |
-          chmod +x backend/mvnw
-          ./backend/mvnw -q verify -P codeQuality
+          if [ -f backend/mvnw ]; then
+            chmod +x backend/mvnw
+            ./backend/mvnw -q verify -P codeQuality
+          else
+            mvn -q -f backend/pom.xml verify -P codeQuality
+          fi
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -74,8 +78,12 @@ jobs:
 
       - name: Build backend
         run: |
-          chmod +x backend/mvnw
-          ./backend/mvnw -q package -DskipTests
+          if [ -f backend/mvnw ]; then
+            chmod +x backend/mvnw
+            ./backend/mvnw -q package -DskipTests
+          else
+            mvn -q -f backend/pom.xml package -DskipTests
+          fi
 
       - name: Terraform init
         run: terraform init
