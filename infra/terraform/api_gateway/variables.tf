@@ -104,6 +104,26 @@ variable "get_state_function_name" {
   type        = string
 }
 
+variable "leaderboard_session_invoke_arn" {
+  description = "Alias ARN of the leaderboard session Lambda function"
+  type        = string
+}
+
+variable "leaderboard_session_function_name" {
+  description = "Name of the leaderboard session Lambda function"
+  type        = string
+}
+
+variable "leaderboard_top_invoke_arn" {
+  description = "Alias ARN of the leaderboard top Lambda function"
+  type        = string
+}
+
+variable "leaderboard_top_function_name" {
+  description = "Name of the leaderboard top Lambda function"
+  type        = string
+}
+
 variable "play_card_ws_invoke_arn" {
   description = "Alias ARN of the play card WebSocket Lambda function"
   type        = string

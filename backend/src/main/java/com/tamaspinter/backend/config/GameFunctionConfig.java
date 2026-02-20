@@ -6,11 +6,15 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tamaspinter.backend.entity.GameSessionEntity;
+import com.tamaspinter.backend.entity.PlayerEntity;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.game.PlayResult;
 import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.model.UserProfile;
+import com.tamaspinter.backend.model.api.GameStateView;
+import com.tamaspinter.backend.model.api.LeaderboardEntry;
+import com.tamaspinter.backend.model.api.PlayerStateView;
 import com.tamaspinter.backend.model.websocket.PickupMessage;
 import com.tamaspinter.backend.model.websocket.PlayMessage;
 import com.tamaspinter.backend.repository.GameSessionRepository;
@@ -32,6 +36,7 @@ import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
 import java.net.URI;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,10 +136,14 @@ public class GameFunctionConfig {
             if (entity == null) {
                 return new APIGatewayProxyResponseEvent().withStatusCode(404);
             }
+            @SuppressWarnings("unchecked")
+            Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
+            String userId = claims.get("sub");
             try {
+                GameStateView view = buildGameStateView(entity, userId);
                 return new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
-                        .withBody(mapper.writeValueAsString(entity));
+                        .withBody(mapper.writeValueAsString(view));
             } catch (JsonProcessingException e) {
                 log.error("getState serialization failed", e);
                 return new APIGatewayProxyResponseEvent().withStatusCode(500);
@@ -208,6 +217,76 @@ public class GameFunctionConfig {
         };
     }
 
+    @Bean
+    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> leaderboardSession() {
+        return req -> {
+            String sessionId = req.getPathParameters().get("sessionId");
+            GameSessionEntity entity = sessionRepo.get(sessionId);
+            if (entity == null) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+            }
+            List<String> playerIds = entity.getPlayers() == null
+                    ? List.of()
+                    : entity.getPlayers().stream().map(PlayerEntity::getPlayerId)
+                            .collect(Collectors.toList());
+            Map<String, UserProfile> profiles = userRepo.batchGet(playerIds)
+                    .stream()
+                    .collect(Collectors.toMap(UserProfile::getUserId, profile -> profile));
+            List<LeaderboardEntry> entries = playerIds.stream()
+                    .map(playerId -> profiles.getOrDefault(playerId, UserProfile.builder()
+                            .userId(playerId)
+                            .username("Unknown")
+                            .eloScore(0)
+                            .build()))
+                    .map(profile -> LeaderboardEntry.builder()
+                            .userId(profile.getUserId())
+                            .username(profile.getUsername())
+                            .eloScore(profile.getEloScore())
+                            .build())
+                    .collect(Collectors.toList());
+            try {
+                return new APIGatewayProxyResponseEvent()
+                        .withStatusCode(200)
+                        .withBody(mapper.writeValueAsString(entries));
+            } catch (JsonProcessingException e) {
+                log.error("leaderboardSession serialization failed", e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(500);
+            }
+        };
+    }
+
+    @Bean
+    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> leaderboardTop() {
+        return req -> {
+            int limit = 20;
+            String limitParam = req.getQueryStringParameters() != null
+                    ? req.getQueryStringParameters().get("limit")
+                    : null;
+            if (limitParam != null) {
+                try {
+                    limit = Math.max(1, Math.min(100, Integer.parseInt(limitParam)));
+                } catch (NumberFormatException ignored) {
+                    limit = 20;
+                }
+            }
+            List<LeaderboardEntry> entries = userRepo.topLeaderboard(limit).stream()
+                    .map(profile -> LeaderboardEntry.builder()
+                            .userId(profile.getUserId())
+                            .username(profile.getUsername())
+                            .eloScore(profile.getEloScore())
+                            .build())
+                    .collect(Collectors.toList());
+            try {
+                return new APIGatewayProxyResponseEvent()
+                        .withStatusCode(200)
+                        .withBody(mapper.writeValueAsString(entries));
+            } catch (JsonProcessingException e) {
+                log.error("leaderboardTop serialization failed", e);
+                return new APIGatewayProxyResponseEvent().withStatusCode(500);
+            }
+        };
+    }
+
     private void updateElo(GameSession session) {
         String shitheadId = session.getShitheadId();
         Map<String, Double> results = new HashMap<>();
@@ -244,24 +323,20 @@ public class GameFunctionConfig {
                 .expressionAttributeValues(Map.of(":gid", AttributeValue.fromS(gameSessionId)))
                 .build());
 
-        byte[] payload;
-        try {
-            payload = mapper.writeValueAsBytes(state);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize game state for broadcast", e);
-            return;
-        }
-
         try (ApiGatewayManagementApiClient apigwClient = ApiGatewayManagementApiClient.builder()
                 .endpointOverride(URI.create(endpoint))
                 .build()) {
             for (Map<String, AttributeValue> item : connections.items()) {
                 String connectionId = item.get("connection_id").s();
+                String userId = item.containsKey("user_id") ? item.get("user_id").s() : null;
                 try {
+                    GameStateView view = buildGameStateView(state, userId);
                     apigwClient.postToConnection(PostToConnectionRequest.builder()
                             .connectionId(connectionId)
-                            .data(SdkBytes.fromByteArray(payload))
+                            .data(SdkBytes.fromByteArray(mapper.writeValueAsBytes(view)))
                             .build());
+                } catch (JsonProcessingException e) {
+                    log.error("Failed to serialize game state for broadcast", e);
                 } catch (GoneException e) {
                     log.info("Removing stale connection: {}", connectionId);
                     dynamoClient.deleteItem(DeleteItemRequest.builder()
@@ -271,6 +346,55 @@ public class GameFunctionConfig {
                 }
             }
         }
+    }
+
+    private GameStateView buildGameStateView(GameSessionEntity entity, String viewerId) {
+        List<com.tamaspinter.backend.entity.PlayerEntity> players = entity.getPlayers() == null
+                ? List.of()
+                : entity.getPlayers();
+        List<PlayerStateView> playerViews = players.stream()
+                .map(player -> {
+                    boolean isYou = viewerId != null && viewerId.equals(player.getPlayerId());
+                    List<com.tamaspinter.backend.entity.CardEntity> hand = player.getHand() == null
+                            ? List.of()
+                            : player.getHand();
+                    List<com.tamaspinter.backend.entity.CardEntity> faceUp = player.getFaceUp() == null
+                            ? List.of()
+                            : player.getFaceUp();
+                    List<com.tamaspinter.backend.entity.CardEntity> faceDown = player.getFaceDown() == null
+                            ? List.of()
+                            : player.getFaceDown();
+                    return PlayerStateView.builder()
+                            .playerId(player.getPlayerId())
+                            .username(player.getUsername())
+                            .handCount(hand.size())
+                            .faceUp(SessionMapper.entitiesToCardList(faceUp))
+                            .faceDownCount(faceDown.size())
+                            .isYou(isYou)
+                            .hand(isYou ? SessionMapper.entitiesToCardList(hand) : Collections.emptyList())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        List<com.tamaspinter.backend.entity.CardEntity> discard = entity.getDiscardPile() == null
+                ? List.of()
+                : entity.getDiscardPile();
+        List<com.tamaspinter.backend.entity.CardEntity> deck = entity.getDeck() == null
+                ? List.of()
+                : entity.getDeck();
+
+        return GameStateView.builder()
+                .sessionId(entity.getSessionId())
+                .started(entity.isStarted())
+                .finished(entity.isFinished())
+                .currentPlayerId(entity.getCurrentPlayerId())
+                .shitheadId(entity.getShitheadId())
+                .isOwner(viewerId != null && viewerId.equals(entity.getOwnerId()))
+                .deckCount(deck.size())
+                .discardCount(discard.size())
+                .discardPile(SessionMapper.entitiesToCardList(discard))
+                .players(playerViews)
+                .build();
     }
 }
 

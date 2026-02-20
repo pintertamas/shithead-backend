@@ -45,9 +45,13 @@ resource "aws_iam_role_policy" "lambda_ddb" {
         Action = [
           "dynamodb:GetItem",
           "dynamodb:PutItem",
-          "dynamodb:BatchGetItem"
+          "dynamodb:BatchGetItem",
+          "dynamodb:Query"
         ]
-        Resource = var.aws_dynamodb_table_users_arn
+        Resource = [
+          var.aws_dynamodb_table_users_arn,
+          "${var.aws_dynamodb_table_users_arn}/index/leaderboard-index"
+        ]
       },
       {
         Effect = "Allow"

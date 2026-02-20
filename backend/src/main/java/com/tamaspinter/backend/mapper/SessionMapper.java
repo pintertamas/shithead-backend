@@ -23,17 +23,23 @@ public class SessionMapper {
                 .started(session.isStarted())
                 .finished(session.isFinished())
                 .shitheadId(session.getShitheadId())
+                .ownerId(session.getOwnerId())
                 .currentPlayerId(session.getPlayers().isEmpty() ? null : session.getCurrentPlayerId())
                 .discardPile(cardsToEntities(session.getDiscardPile()))
                 .players(statesToEntities(session.getPlayers()))
                 .deck(deck != null ? cardsToEntities(new ArrayDeque<>(deck.getCards())) : List.of())
                 .config(session.getConfig().toEntity())
+                .createdAt(session.getCreatedAt())
+                .ttl(session.getTtl())
                 .build();
     }
 
     public static GameSession fromEntity(GameSessionEntity entity) {
         GameSession session = GameSession.builder()
                 .sessionId(entity.getSessionId())
+                .ownerId(entity.getOwnerId())
+                .createdAt(entity.getCreatedAt())
+                .ttl(entity.getTtl())
                 .build();
         if (entity.isStarted()) {
             session.setStarted(true);
@@ -94,6 +100,10 @@ public class SessionMapper {
                     .build());
         }
         return cards;
+    }
+
+    public static List<Card> entitiesToCardList(List<CardEntity> entities) {
+        return new ArrayList<>(entitiesToCards(entities));
     }
 
     private static List<PlayerEntity> statesToEntities(List<Player> states) {

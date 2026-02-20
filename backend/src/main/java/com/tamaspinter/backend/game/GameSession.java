@@ -32,6 +32,9 @@ public class GameSession {
     private boolean started;
     private boolean finished;
     private String shitheadId;
+    private String ownerId;
+    private String createdAt;
+    private Long ttl;
 
     public void addPlayer(String id, String name) {
         if (started) {

@@ -7,6 +7,8 @@ table = dynamodb.Table(os.environ['TABLE_NAME'])
 
 def lambda_handler(event, context):
     connection_id = event['requestContext']['connectionId']
+    authorizer = event.get('requestContext', {}).get('authorizer', {}) or {}
+    user_id = authorizer.get('sub')
     params = event.get('queryStringParameters') or {}
     game_session_id = params.get('game_session_id')
 
@@ -20,6 +22,8 @@ def lambda_handler(event, context):
     }
     if game_session_id:
         item['game_session_id'] = game_session_id
+    if user_id:
+        item['user_id'] = user_id
 
     table.put_item(Item=item)
 

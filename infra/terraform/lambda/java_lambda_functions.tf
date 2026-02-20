@@ -116,6 +116,60 @@ resource "aws_lambda_alias" "get_state_live" {
   function_version = aws_lambda_function.get_state.version
 }
 
+resource "aws_lambda_function" "leaderboard_session" {
+  tags          = { project = var.project_name }
+  role          = aws_iam_role.lambda_exec.arn
+  function_name = "${var.project_name}-leaderboard-session"
+  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
+  runtime       = "java17"
+  filename      = local.jar_path
+  source_code_hash = filebase64sha256(local.jar_path)
+  timeout       = 30
+  memory_size   = 512
+  publish       = true
+
+  snap_start { apply_on = "PublishedVersions" }
+
+  environment {
+    variables = merge(local.java_common_env, {
+      SPRING_CLOUD_FUNCTION_DEFINITION = "leaderboardSession"
+    })
+  }
+}
+
+resource "aws_lambda_alias" "leaderboard_session_live" {
+  name             = "LIVE"
+  function_name    = aws_lambda_function.leaderboard_session.function_name
+  function_version = aws_lambda_function.leaderboard_session.version
+}
+
+resource "aws_lambda_function" "leaderboard_top" {
+  tags          = { project = var.project_name }
+  role          = aws_iam_role.lambda_exec.arn
+  function_name = "${var.project_name}-leaderboard-top"
+  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
+  runtime       = "java17"
+  filename      = local.jar_path
+  source_code_hash = filebase64sha256(local.jar_path)
+  timeout       = 30
+  memory_size   = 512
+  publish       = true
+
+  snap_start { apply_on = "PublishedVersions" }
+
+  environment {
+    variables = merge(local.java_common_env, {
+      SPRING_CLOUD_FUNCTION_DEFINITION = "leaderboardTop"
+    })
+  }
+}
+
+resource "aws_lambda_alias" "leaderboard_top_live" {
+  name             = "LIVE"
+  function_name    = aws_lambda_function.leaderboard_top.function_name
+  function_version = aws_lambda_function.leaderboard_top.version
+}
+
 resource "aws_lambda_function" "play_card_ws" {
   tags          = { project = var.project_name }
   role          = aws_iam_role.lambda_exec.arn

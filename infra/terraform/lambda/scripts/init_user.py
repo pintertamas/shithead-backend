@@ -12,7 +12,8 @@ def lambda_handler(event, context):
     dynamodb.Table(os.environ['USER_TABLE_NAME']).put_item(Item={
         'user_id':    user_id,
         'username':   username,
-        'elo':        1000,
+        'elo_score':  1000,
+        'leaderboard_pk': 'global',
         'created_at': datetime.now(timezone.utc).isoformat()
     })
 

@@ -18,6 +18,7 @@ resource "aws_lambda_function" "create_game" {
   environment {
     variables = {
       GAME_SESSIONS_TABLE = var.aws_dynamodb_table_games_name
+      USERS_TABLE         = var.aws_dynamodb_table_users_name
     }
   }
 }

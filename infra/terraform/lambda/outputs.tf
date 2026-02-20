@@ -82,6 +82,22 @@ output "get_state_function_name" {
   value = aws_lambda_function.get_state.function_name
 }
 
+output "leaderboard_session_alias_arn" {
+  value = aws_lambda_alias.leaderboard_session_live.arn
+}
+
+output "leaderboard_session_function_name" {
+  value = aws_lambda_function.leaderboard_session.function_name
+}
+
+output "leaderboard_top_alias_arn" {
+  value = aws_lambda_alias.leaderboard_top_live.arn
+}
+
+output "leaderboard_top_function_name" {
+  value = aws_lambda_function.leaderboard_top.function_name
+}
+
 output "play_card_ws_alias_arn" {
   value = aws_lambda_alias.play_card_ws_live.arn
 }

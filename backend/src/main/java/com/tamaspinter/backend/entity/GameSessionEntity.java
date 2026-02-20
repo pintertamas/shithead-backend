@@ -32,6 +32,10 @@ public class GameSessionEntity {
     @Getter(AccessLevel.NONE)
     private String ownerId;
     private GameConfigEntity config;
+    @Getter(AccessLevel.NONE)
+    private String createdAt;
+    @Getter(AccessLevel.NONE)
+    private Long ttl;
 
     @DynamoDbAttribute("user_id")
     public String getOwnerId() {
@@ -42,5 +46,15 @@ public class GameSessionEntity {
     @DynamoDbAttribute("game_id")
     public String getSessionId() {
         return sessionId;
+    }
+
+    @DynamoDbAttribute("created_at")
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    @DynamoDbAttribute("ttl")
+    public Long getTtl() {
+        return ttl;
     }
 }

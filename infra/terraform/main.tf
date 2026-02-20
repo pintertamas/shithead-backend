@@ -72,6 +72,10 @@ module "api_gateway" {
   start_game_function_name                        = module.lambda.start_game_function_name
   get_state_invoke_arn                            = module.lambda.get_state_alias_arn
   get_state_function_name                         = module.lambda.get_state_function_name
+  leaderboard_session_invoke_arn                  = module.lambda.leaderboard_session_alias_arn
+  leaderboard_session_function_name               = module.lambda.leaderboard_session_function_name
+  leaderboard_top_invoke_arn                      = module.lambda.leaderboard_top_alias_arn
+  leaderboard_top_function_name                   = module.lambda.leaderboard_top_function_name
   play_card_ws_invoke_arn                         = module.lambda.play_card_ws_alias_arn
   play_card_ws_function_name                      = module.lambda.play_card_ws_function_name
   pickup_pile_ws_invoke_arn                       = module.lambda.pickup_pile_ws_alias_arn

@@ -65,6 +65,24 @@ resource "aws_lambda_permission" "allow_get_state" {
   source_arn    = "${aws_api_gateway_rest_api.game_api.execution_arn}/*/*"
 }
 
+resource "aws_lambda_permission" "allow_leaderboard_session" {
+  statement_id  = "AllowAPIGatewayInvokeLeaderboardSession"
+  action        = "lambda:InvokeFunction"
+  function_name = var.leaderboard_session_function_name
+  qualifier     = "LIVE"
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.game_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "allow_leaderboard_top" {
+  statement_id  = "AllowAPIGatewayInvokeLeaderboardTop"
+  action        = "lambda:InvokeFunction"
+  function_name = var.leaderboard_top_function_name
+  qualifier     = "LIVE"
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.game_api.execution_arn}/*/*"
+}
+
 resource "aws_lambda_permission" "allow_play_card_ws" {
   statement_id  = "AllowWebSocketInvokePlayCard"
   action        = "lambda:InvokeFunction"

@@ -14,10 +14,25 @@ resource "aws_dynamodb_table" "users" {
     name = "username"
     type = "S"
   }
+  attribute {
+    name = "leaderboard_pk"
+    type = "S"
+  }
+  attribute {
+    name = "elo_score"
+    type = "N"
+  }
 
   global_secondary_index {
     name            = "username-index"
     hash_key        = "username"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "leaderboard-index"
+    hash_key        = "leaderboard_pk"
+    range_key       = "elo_score"
     projection_type = "ALL"
   }
 }
