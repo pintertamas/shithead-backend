@@ -2,12 +2,24 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="refresh" content="0;url=/" />
-    <title>Redirecting…</title>
-  </head>
-  <body>
+    <title>Redirecting...</title>
     <script>
-      window.location.replace("/");
+      (function () {
+        var pathSegmentsToKeep = 1;
+        var l = window.location;
+        var redirectUrl =
+          l.protocol +
+          "//" +
+          l.host +
+          l.pathname.split("/").slice(0, 1 + pathSegmentsToKeep).join("/") +
+          "/?/" +
+          l.pathname.slice(1).split("/").slice(pathSegmentsToKeep).join("/").replace(/&/g, "~and~") +
+          (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+          l.hash;
+
+        l.replace(redirectUrl);
+      })();
     </script>
-  </body>
+  </head>
+  <body></body>
 </html>
