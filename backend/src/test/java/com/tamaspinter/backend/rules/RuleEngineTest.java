@@ -150,4 +150,13 @@ class RuleEngineTest {
         assertEquals("alice", players.get(0).getUsername());
         assertEquals("bob", players.get(1).getUsername());
     }
+
+    @Test
+    void testShouldBurnReturnsFalseForEmptyPile() {
+        // Given
+        Deque<Card> pile = new ArrayDeque<>();
+
+        // When/Then
+        assertFalse(RuleEngine.shouldBurn(pile, 4));
+    }
 }

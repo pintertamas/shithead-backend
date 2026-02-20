@@ -516,4 +516,46 @@ class GameSessionTest {
         // When/Then
         assertEquals(PlayResult.INVALID, session.pickupPile());
     }
+
+    // =========================================================================
+    // Edge cases
+    // =========================================================================
+
+    @Test
+    void testAlwaysPlayableCard_canBePlayedOnHighPile() {
+        // Given — JOKER (value 2, alwaysPlayable=true) on top of a king
+        prepareStartedGame();
+        Player p1 = session.getPlayers().get(0);
+        Card joker = card(2); // alwaysPlayable=true per default config
+        p1.getHand().add(joker);
+        session.getDiscardPile().add(card(13));
+
+        // When/Then — should succeed even though 2 < 13
+        assertEquals(PlayResult.SUCCESS, session.playCards(List.of(joker)));
+    }
+
+    @Test
+    void testSmallerCard_onPileTop_enforcesDescendingRule() {
+        // Given — pile topped with a 6 (SMALLER); next card must be <= 6
+        prepareStartedGame();
+        Player p1 = session.getPlayers().get(0);
+        session.getDiscardPile().add(new Card(Suit.CLUBS, 6, CardRule.SMALLER, false));
+        Card valid   = new Card(Suit.HEARTS, 4, CardRule.DEFAULT, false); // 4 <= 6
+        Card invalid = new Card(Suit.HEARTS, 9, CardRule.DEFAULT, false); // 9 > 6
+        p1.getHand().add(valid);
+        p1.getHand().add(invalid);
+
+        // When/Then — invalid move leaves turn unchanged; valid move succeeds
+        assertEquals(PlayResult.INVALID, session.playCards(List.of(invalid)));
+        assertEquals(PlayResult.SUCCESS,  session.playCards(List.of(valid)));
+    }
+
+    @Test
+    void testGetCurrentPlayerId_returnsNullWhenNoPlayers() {
+        // Given — fresh session with no players added
+        GameSession empty = new GameSession("empty");
+
+        // When/Then
+        assertNull(empty.getCurrentPlayerId());
+    }
 }
