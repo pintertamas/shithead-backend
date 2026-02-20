@@ -3,16 +3,13 @@ package com.tamaspinter.backend.config;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2WebSocketEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
-import com.amazonaws.services.lambda.runtime.events.SNSEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tamaspinter.backend.entity.GameSessionEntity;
+import com.tamaspinter.backend.game.PlayResult;
 import com.tamaspinter.backend.mapper.SessionMapper;
-import com.tamaspinter.backend.model.Card;
-import com.tamaspinter.backend.model.CardRule;
-import com.tamaspinter.backend.model.Suit;
 import com.tamaspinter.backend.model.UserProfile;
-import com.tamaspinter.backend.model.websocket.GameEnded;
+import com.tamaspinter.backend.model.websocket.PickupMessage;
 import com.tamaspinter.backend.model.websocket.PlayMessage;
 import com.tamaspinter.backend.service.EloService;
 import lombok.extern.slf4j.Slf4j;
@@ -29,10 +26,9 @@ import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
 import java.net.URI;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -78,6 +74,13 @@ public class GameFunctionConfig {
             if (entity == null) {
                 return new APIGatewayProxyResponseEvent().withStatusCode(404);
             }
+            if (entity.isStarted()) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+            }
+            if (entity.getPlayers() != null &&
+                    entity.getPlayers().stream().anyMatch(p -> userId.equals(p.getPlayerId()))) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+            }
 
             UserProfile user = userRepo.get(userId);
             GameSession session = SessionMapper.fromEntity(entity);
@@ -94,6 +97,7 @@ public class GameFunctionConfig {
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> startGame() {
         return req -> {
+            String userId = req.getRequestContext().getAuthorizer().getClaims().get("sub");
             Map<?, ?> data;
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
@@ -106,8 +110,14 @@ public class GameFunctionConfig {
             if (entity == null) {
                 return new APIGatewayProxyResponseEvent().withStatusCode(404);
             }
+            if (!userId.equals(entity.getOwnerId())) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(403);
+            }
 
             GameSession session = SessionMapper.fromEntity(entity);
+            if (session.getPlayers().size() < 2) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+            }
             try {
                 session.start();
             } catch (IllegalStateException e) {
@@ -138,32 +148,6 @@ public class GameFunctionConfig {
     }
 
     @Bean
-    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> playCard() {
-        return req -> {
-            Map<?, ?> data;
-            try {
-                data = mapper.readValue(req.getBody(), Map.class);
-            } catch (JsonProcessingException e) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
-            }
-            String sessionId = (String) data.get("sessionId");
-            List<Card> cards = parseCards(data);
-
-            GameSessionEntity entity = sessionRepo.get(sessionId);
-            if (entity == null) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(404);
-            }
-
-            GameSession session = SessionMapper.fromEntity(entity);
-            boolean ok = session.playCards(cards);
-            if (ok) {
-                sessionRepo.save(session.toEntity());
-            }
-            return new APIGatewayProxyResponseEvent().withStatusCode(ok ? 200 : 400);
-        };
-    }
-
-    @Bean
     public Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent> playCardWS() {
         return ev -> {
             String endpoint = "https://" + ev.getRequestContext().getDomainName()
@@ -182,36 +166,76 @@ public class GameFunctionConfig {
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
-            boolean ok = session.playCards(msg.getCards());
-            if (ok) {
-                GameSessionEntity updated = session.toEntity();
-                sessionRepo.save(updated);
-                broadcastState(msg.getSessionId(), updated, endpoint);
+            PlayResult result = session.playCards(msg.getCards());
+            if (result == PlayResult.INVALID) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
             }
-            return new APIGatewayProxyResponseEvent().withStatusCode(ok ? 200 : 400);
+
+            GameSessionEntity updated = session.toEntity();
+            sessionRepo.save(updated);
+            broadcastState(msg.getSessionId(), updated, endpoint);
+
+            if (session.isFinished()) {
+                updateElo(session);
+            }
+
+            return new APIGatewayProxyResponseEvent().withStatusCode(200);
         };
     }
 
     @Bean
-    public Consumer<SNSEvent> onGameEnded() {
-        return snsEvent -> {
-            String json = snsEvent.getRecords().get(0).getSNS().getMessage();
-            GameEnded payload;
+    public Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent> pickupPileWS() {
+        return ev -> {
+            String endpoint = "https://" + ev.getRequestContext().getDomainName()
+                    + "/" + ev.getRequestContext().getStage();
+
+            PickupMessage msg;
             try {
-                payload = mapper.readValue(json, GameEnded.class);
+                msg = mapper.readValue(ev.getBody(), PickupMessage.class);
             } catch (JsonProcessingException e) {
-                log.error("onGameEnded deserialization failed", e);
-                return;
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
             }
-            Map<String, Double> current = userRepo.batchGet(payload.getPlayerIds())
+
+            GameSessionEntity entity = sessionRepo.get(msg.getSessionId());
+            if (entity == null) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+            }
+
+            GameSession session = SessionMapper.fromEntity(entity);
+            PlayResult result = session.pickupPile();
+            if (result == PlayResult.INVALID) {
+                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+            }
+
+            GameSessionEntity updated = session.toEntity();
+            sessionRepo.save(updated);
+            broadcastState(msg.getSessionId(), updated, endpoint);
+
+            return new APIGatewayProxyResponseEvent().withStatusCode(200);
+        };
+    }
+
+    private void updateElo(GameSession session) {
+        String shitheadId = session.getShitheadId();
+        Map<String, Double> results = new HashMap<>();
+        for (var player : session.getPlayers()) {
+            results.put(player.getPlayerId(), player.getPlayerId().equals(shitheadId) ? 0.0 : 1.0);
+        }
+        List<String> playerIds = session.getPlayers().stream()
+                .map(p -> p.getPlayerId())
+                .collect(Collectors.toList());
+        try {
+            Map<String, Double> current = userRepo.batchGet(playerIds)
                     .stream().collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
-            Map<String, Double> updated = EloService.updateRatings(current, payload.getResults());
+            Map<String, Double> updated = EloService.updateRatings(current, results);
             updated.forEach((id, elo) -> {
                 UserProfile u = userRepo.get(id);
                 u.setEloScore(elo);
                 userRepo.save(u);
             });
-        };
+        } catch (Exception e) {
+            log.error("Elo update failed for session {}", session.getSessionId(), e);
+        }
     }
 
     private void broadcastState(String gameSessionId, GameSessionEntity state, String endpoint) {
@@ -255,20 +279,5 @@ public class GameFunctionConfig {
                         .build());
             }
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Card> parseCards(Map<?, ?> data) {
-        List<Map<String, Object>> cardsJson = (List<Map<String, Object>>) data.get("cards");
-        List<Card> cards = new ArrayList<>();
-        for (Map<String, Object> c : cardsJson) {
-            cards.add(new Card(
-                    Suit.valueOf((String) c.get("suit")),
-                    ((Number) c.get("value")).intValue(),
-                    CardRule.valueOf((String) c.get("rule")),
-                    (Boolean) c.get("alwaysPlayable")
-            ));
-        }
-        return cards;
     }
 }

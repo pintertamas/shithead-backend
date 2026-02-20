@@ -74,6 +74,8 @@ module "api_gateway" {
   get_state_function_name                         = module.lambda.get_state_function_name
   play_card_ws_invoke_arn                         = module.lambda.play_card_ws_alias_arn
   play_card_ws_function_name                      = module.lambda.play_card_ws_function_name
+  pickup_pile_ws_invoke_arn                       = module.lambda.pickup_pile_ws_alias_arn
+  pickup_pile_ws_function_name                    = module.lambda.pickup_pile_ws_function_name
 }
 
 

@@ -99,3 +99,11 @@ output "ws_lambda_function_ws_authorizer_function_name" {
   description = "Name of the WebSocket authorizer Lambda function"
   value       = aws_lambda_function.ws_authorizer.function_name
 }
+
+output "pickup_pile_ws_alias_arn" {
+  value = aws_lambda_alias.pickup_pile_ws_live.arn
+}
+
+output "pickup_pile_ws_function_name" {
+  value = aws_lambda_function.pickup_pile_ws.function_name
+}

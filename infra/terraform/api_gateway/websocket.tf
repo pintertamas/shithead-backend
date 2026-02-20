@@ -62,6 +62,20 @@ resource "aws_apigatewayv2_route" "play_card" {
   target    = "integrations/${aws_apigatewayv2_integration.play_card.id}"
 }
 
+resource "aws_apigatewayv2_integration" "pickup_pile" {
+  api_id                 = aws_apigatewayv2_api.game_ws.id
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
+  integration_uri        = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.pickup_pile_ws_invoke_arn}/invocations"
+  payload_format_version = "1.0"
+}
+
+resource "aws_apigatewayv2_route" "pickup_pile" {
+  api_id    = aws_apigatewayv2_api.game_ws.id
+  route_key = "pickup"
+  target    = "integrations/${aws_apigatewayv2_integration.pickup_pile.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default_stage" {
   api_id = aws_apigatewayv2_api.game_ws.id
   name   = "$default"

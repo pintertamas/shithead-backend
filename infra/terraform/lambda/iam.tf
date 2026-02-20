@@ -41,13 +41,18 @@ resource "aws_iam_role_policy" "lambda_ddb" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["dynamodb:PutItem"]
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:BatchGetItem"
+        ]
         Resource = var.aws_dynamodb_table_users_arn
       },
       {
         Effect = "Allow"
         Action = [
+          "dynamodb:GetItem",
           "dynamodb:PutItem",
           "dynamodb:Query"
         ]

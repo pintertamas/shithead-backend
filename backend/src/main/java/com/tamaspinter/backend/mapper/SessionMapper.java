@@ -9,7 +9,10 @@ import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.Player;
 
+import com.tamaspinter.backend.model.Deck;
+
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,6 +23,8 @@ public class SessionMapper {
         GameSessionEntity e = new GameSessionEntity();
         e.setSessionId(s.getSessionId());
         e.setStarted(s.isStarted());
+        e.setFinished(s.isFinished());
+        e.setShitheadId(s.getShitheadId());
         e.setCurrentPlayerId(s.getPlayers().isEmpty() ? null : s.getCurrentPlayerId());
         e.setDiscardPile(cardsToEntities(s.getDiscardPile()));
         e.setPlayers(statesToEntities(s.getPlayers()));
@@ -33,6 +38,8 @@ public class SessionMapper {
     public static GameSession fromEntity(GameSessionEntity e) {
         GameSession s = new GameSession(e.getSessionId());
         if (e.isStarted()) s.setStarted(true);
+        if (e.isFinished()) s.setFinished(true);
+        s.setShitheadId(e.getShitheadId());
         // Rebuild discard pile
         Deque<Card> discard = entitiesToCards(e.getDiscardPile());
         s.getDiscardPile().clear();
@@ -112,5 +119,4 @@ public class SessionMapper {
                 })
                 .collect(Collectors.toList());
     }
-
 }

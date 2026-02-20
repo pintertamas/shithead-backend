@@ -113,3 +113,13 @@ variable "play_card_ws_function_name" {
   description = "Name of the play card WebSocket Lambda function"
   type        = string
 }
+
+variable "pickup_pile_ws_invoke_arn" {
+  description = "Alias ARN of the pickup pile WebSocket Lambda function"
+  type        = string
+}
+
+variable "pickup_pile_ws_function_name" {
+  description = "Name of the pickup pile WebSocket Lambda function"
+  type        = string
+}

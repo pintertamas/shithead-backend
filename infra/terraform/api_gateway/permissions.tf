@@ -73,3 +73,12 @@ resource "aws_lambda_permission" "allow_play_card_ws" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.game_ws.execution_arn}/*/play"
 }
+
+resource "aws_lambda_permission" "allow_pickup_pile_ws" {
+  statement_id  = "AllowWebSocketInvokePickupPile"
+  action        = "lambda:InvokeFunction"
+  function_name = var.pickup_pile_ws_function_name
+  qualifier     = "LIVE"
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.game_ws.execution_arn}/*/pickup"
+}
