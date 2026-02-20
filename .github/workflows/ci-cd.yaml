@@ -34,7 +34,6 @@ jobs:
               - infra/**
               - pom.xml
               - Dockerfile
-              - .github/workflows/ci-cd.yaml
             frontend:
               - frontend/**
               - .github/workflows/ci-cd.yaml
@@ -71,7 +70,7 @@ jobs:
       - name: Frontend build
         working-directory: frontend
         env:
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH != '' && vars.VITE_BASE_PATH || format('/{0}/', github.event.repository.name) }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL }}
           VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
@@ -180,7 +179,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH != '' && vars.VITE_BASE_PATH || format('/{0}/', github.event.repository.name) }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL }}
           VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
