@@ -12,7 +12,6 @@ terraform {
     bucket = "shithead-game-state-bucket"
     key    = "shithead/terraform.tfstate"
     region = "eu-central-1"
-    tags = { project = var.project_name }
   }
 }
 
