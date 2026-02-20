@@ -1,7 +1,6 @@
+package com.tamaspinter.backend.model;
+
 import com.tamaspinter.backend.game.GameConfig;
-import com.tamaspinter.backend.model.Card;
-import com.tamaspinter.backend.model.CardRule;
-import com.tamaspinter.backend.model.Deck;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 

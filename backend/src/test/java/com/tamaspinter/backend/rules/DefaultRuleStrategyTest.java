@@ -1,7 +1,8 @@
+package com.tamaspinter.backend.rules;
+
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Suit;
-import com.tamaspinter.backend.rules.JokerRuleStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayDeque;
@@ -9,15 +10,15 @@ import java.util.Deque;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class JokerRuleStrategyTest {
+class DefaultRuleStrategyTest {
 
-    private final JokerRuleStrategy strategy = new JokerRuleStrategy();
+    private final DefaultRuleStrategy strategy = new DefaultRuleStrategy();
 
     @Test
-    void testLowCardPlayableOnHighValue() {
-        // Given — 3 played after a joker (2) despite being higher; joker always allows
-        Card prev = new Card(Suit.HEARTS, 2, CardRule.JOKER, true);
-        Card newCard = new Card(Suit.SPADES, 3, CardRule.DEFAULT, false);
+    void testHigherValueIsPlayable() {
+        // Given
+        Card prev = new Card(Suit.HEARTS, 5, CardRule.DEFAULT, false);
+        Card newCard = new Card(Suit.SPADES, 7, CardRule.DEFAULT, false);
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(prev);
 
@@ -26,10 +27,10 @@ class JokerRuleStrategyTest {
     }
 
     @Test
-    void testHighCardPlayableAfterJoker() {
-        // Given — ace played after a joker
-        Card prev = new Card(Suit.HEARTS, 2, CardRule.JOKER, true);
-        Card newCard = new Card(Suit.SPADES, 14, CardRule.DEFAULT, false);
+    void testEqualValueIsPlayable() {
+        // Given
+        Card prev = new Card(Suit.HEARTS, 7, CardRule.DEFAULT, false);
+        Card newCard = new Card(Suit.CLUBS, 7, CardRule.DEFAULT, false);
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(prev);
 
@@ -38,10 +39,22 @@ class JokerRuleStrategyTest {
     }
 
     @Test
-    void testAnyCardPlayableOnAnyTopCard() {
-        // Given — low card played after a king; joker rule always permits
+    void testLowerValueIsNotPlayable() {
+        // Given
+        Card prev = new Card(Suit.HEARTS, 9, CardRule.DEFAULT, false);
+        Card newCard = new Card(Suit.SPADES, 5, CardRule.DEFAULT, false);
+        Deque<Card> pile = new ArrayDeque<>();
+        pile.add(prev);
+
+        // When/Then
+        assertFalse(strategy.canPlay(newCard, pile));
+    }
+
+    @Test
+    void testAlwaysPlayableIgnoresRule() {
+        // Given — king on top, low card marked always-playable
         Card prev = new Card(Suit.HEARTS, 13, CardRule.DEFAULT, false);
-        Card newCard = new Card(Suit.DIAMONDS, 3, CardRule.DEFAULT, false);
+        Card newCard = new Card(Suit.SPADES, 3, CardRule.DEFAULT, true);
         Deque<Card> pile = new ArrayDeque<>();
         pile.add(prev);
 

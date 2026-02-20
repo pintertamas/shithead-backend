@@ -1,6 +1,5 @@
-import com.tamaspinter.backend.game.GameConfig;
-import com.tamaspinter.backend.game.GameSession;
-import com.tamaspinter.backend.game.PlayResult;
+package com.tamaspinter.backend.game;
+
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Deck;

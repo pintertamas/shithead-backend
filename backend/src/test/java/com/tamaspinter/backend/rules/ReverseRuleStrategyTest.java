@@ -1,8 +1,9 @@
+package com.tamaspinter.backend.rules;
+
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.model.Suit;
-import com.tamaspinter.backend.rules.ReverseRuleStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayDeque;
