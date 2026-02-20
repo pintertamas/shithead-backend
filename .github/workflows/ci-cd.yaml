@@ -59,6 +59,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     if: github.event_name == 'push'
+    env:
+      TF_INPUT: "false"
+      TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
+      TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      TF_VAR_vpc_id: ${{ vars.VPC_ID }}
+      TF_VAR_subnets: ${{ vars.SUBNETS_JSON }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,12 +102,19 @@ jobs:
             mvn -q -f backend/pom.xml package -DskipTests
           fi
 
+      - name: Validate Terraform variables
+        run: |
+          [ -n "${TF_VAR_google_client_id}" ] || (echo "Missing secret: GOOGLE_CLIENT_ID" && exit 1)
+          [ -n "${TF_VAR_google_client_secret}" ] || (echo "Missing secret: GOOGLE_CLIENT_SECRET" && exit 1)
+          [ -n "${TF_VAR_vpc_id}" ] || (echo "Missing variable: VPC_ID" && exit 1)
+          [ -n "${TF_VAR_subnets}" ] || (echo "Missing variable: SUBNETS_JSON (example: [\"subnet-a\",\"subnet-b\"])" && exit 1)
+
       - name: Terraform init
-        run: terraform init
+        run: terraform init -input=false
         working-directory: infra/terraform
 
       - name: Terraform apply
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -input=false
         working-directory: infra/terraform
 
   deploy-frontend:
