@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { saveAuth } from "./useAuth";
 
@@ -20,7 +20,7 @@ function resolveTtlSeconds(expiresIn?: number): number {
 async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; accessToken: string; expiresIn: number } | null> {
   const verifier = localStorage.getItem(PKCE_VERIFIER_KEY);
   if (!verifier) {
-    console.error("Missing PKCE verifier in session storage");
+    console.error("Missing PKCE verifier in local storage");
     return null;
   }
 
@@ -43,7 +43,7 @@ async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; a
   if (!response.ok) {
     const errorBody = await response.text();
     console.error("Cognito token exchange failed", response.status, errorBody);
-    return null;
+    throw new Error(`Token exchange failed (HTTP ${response.status}): ${errorBody}`);
   }
 
   const tokens = (await response.json()) as TokenResponse;
@@ -52,7 +52,7 @@ async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; a
 
   if (!idToken || !accessToken) {
     console.error("Token response missing required tokens", tokens);
-    return null;
+    throw new Error("Auth server returned an incomplete response (missing id_token or access_token).");
   }
 
   localStorage.removeItem(PKCE_VERIFIER_KEY);
@@ -65,6 +65,7 @@ async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; a
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,8 +76,9 @@ export default function AuthCallback() {
 
       const error = queryParams.get("error");
       if (error) {
-        console.error("Cognito authorize error", error, queryParams.get("error_description"));
-        if (!cancelled) navigate("/login", { replace: true });
+        const desc = queryParams.get("error_description") || error;
+        console.error("Cognito authorize error", error, desc);
+        if (!cancelled) setErrorMsg(`Sign-in was rejected by the auth server: ${desc}`);
         return;
       }
 
@@ -87,34 +89,59 @@ export default function AuthCallback() {
       const ttlSeconds = resolveTtlSeconds(expiresIn);
 
       if (idToken && accessToken) {
-        saveAuth({
-          idToken,
-          accessToken,
-          expiresAt: Date.now() + ttlSeconds * 1000
-        });
+        try {
+          saveAuth({ idToken, accessToken, expiresAt: Date.now() + ttlSeconds * 1000 });
+        } catch (saveErr) {
+          console.error("Failed to save auth from implicit flow", saveErr);
+          if (!cancelled) setErrorMsg("Could not save your session (storage blocked?). Try allowing cookies/storage for this site in your browser settings.");
+          return;
+        }
         if (!cancelled) navigate("/lobby", { replace: true });
         return;
       }
 
       const code = queryParams.get("code");
-      if (code) {
-        try {
-          const exchanged = await exchangeCodeForTokens(code);
-          if (exchanged) {
-            saveAuth({
-              idToken: exchanged.idToken,
-              accessToken: exchanged.accessToken,
-              expiresAt: Date.now() + exchanged.expiresIn * 1000
-            });
-            if (!cancelled) navigate("/lobby", { replace: true });
-            return;
-          }
-        } catch (err) {
-          console.error("Code exchange threw an error", err);
-        }
+      if (!code) {
+        if (!cancelled) setErrorMsg("No authorization code was returned. Please try signing in again.");
+        return;
       }
 
-      if (!cancelled) navigate("/login", { replace: true });
+      // Check verifier before attempting exchange
+      if (!localStorage.getItem(PKCE_VERIFIER_KEY)) {
+        if (!cancelled) setErrorMsg("Login session expired (PKCE verifier missing). Please try signing in again.");
+        return;
+      }
+
+      let exchanged: { idToken: string; accessToken: string; expiresIn: number } | null = null;
+      try {
+        exchanged = await exchangeCodeForTokens(code);
+      } catch (exchangeErr) {
+        console.error("Token exchange error", exchangeErr);
+        if (!cancelled) {
+          const msg = exchangeErr instanceof Error ? exchangeErr.message : String(exchangeErr);
+          setErrorMsg(msg);
+        }
+        return;
+      }
+
+      if (!exchanged) {
+        if (!cancelled) setErrorMsg("Token exchange returned no result. Please try signing in again.");
+        return;
+      }
+
+      try {
+        saveAuth({
+          idToken: exchanged.idToken,
+          accessToken: exchanged.accessToken,
+          expiresAt: Date.now() + exchanged.expiresIn * 1000
+        });
+      } catch (saveErr) {
+        console.error("Failed to save auth tokens", saveErr);
+        if (!cancelled) setErrorMsg("Could not save your session (storage blocked?). Try allowing cookies/storage for this site in your browser settings.");
+        return;
+      }
+
+      if (!cancelled) navigate("/lobby", { replace: true });
     };
 
     completeLogin();
@@ -123,6 +150,19 @@ export default function AuthCallback() {
       cancelled = true;
     };
   }, [navigate]);
+
+  if (errorMsg) {
+    return (
+      <div className="page">
+        <div className="glass card">
+          <p style={{ color: "var(--ink-dim)", marginBottom: "1rem" }}>{errorMsg}</p>
+          <button className="button" type="button" onClick={() => navigate("/login", { replace: true })}>
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
