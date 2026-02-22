@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
@@ -87,7 +88,7 @@ jobs:
     needs:
       - test
       - changes
-    if: github.event_name == 'push' && needs.changes.outputs.backend == 'true'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && needs.changes.outputs.backend == 'true')
     env:
       TF_INPUT: "false"
       TF_VAR_app_url: ${{ vars.APP_URL != '' && vars.APP_URL || 'https://shithead.tamaspinter.com' }}
@@ -161,7 +162,7 @@ jobs:
     needs:
       - test
       - changes
-    if: github.event_name == 'push' && needs.changes.outputs.frontend == 'true'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && needs.changes.outputs.frontend == 'true')
     permissions:
       contents: read
       pages: write
