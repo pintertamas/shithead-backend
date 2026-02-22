@@ -18,7 +18,7 @@ function resolveTtlSeconds(expiresIn?: number): number {
 }
 
 async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; accessToken: string; expiresIn: number } | null> {
-  const verifier = sessionStorage.getItem(PKCE_VERIFIER_KEY);
+  const verifier = localStorage.getItem(PKCE_VERIFIER_KEY);
   if (!verifier) {
     console.error("Missing PKCE verifier in session storage");
     return null;
@@ -55,7 +55,7 @@ async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; a
     return null;
   }
 
-  sessionStorage.removeItem(PKCE_VERIFIER_KEY);
+  localStorage.removeItem(PKCE_VERIFIER_KEY);
   return {
     idToken,
     accessToken,

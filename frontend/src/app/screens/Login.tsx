@@ -38,7 +38,7 @@ export default function Login() {
     setIsRedirecting(true);
     try {
       const verifier = createVerifier();
-      sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);
+      localStorage.setItem(PKCE_VERIFIER_KEY, verifier);
 
       const challenge = await createChallenge(verifier);
       const loginParams = new URLSearchParams({
