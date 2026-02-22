@@ -48,11 +48,25 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GameFunctionConfig {
 
+    private static final Map<String, String> CORS_HEADERS = Map.of(
+            "Access-Control-Allow-Origin", "*",
+            "Access-Control-Allow-Headers", "Content-Type,Authorization",
+            "Access-Control-Allow-Methods", "POST,GET,OPTIONS"
+    );
+
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
     private final ObjectMapper mapper;
     private final DynamoDbClient dynamoClient = DynamoDbClient.create();
     private final String wsConnectionsTable = System.getenv("WS_CONNECTIONS_TABLE");
+
+    private static APIGatewayProxyResponseEvent corsResponse(int statusCode) {
+        return new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withHeaders(CORS_HEADERS);
+    }
+
+    private static APIGatewayProxyResponseEvent corsResponse(int statusCode, String body) {
+        return new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withHeaders(CORS_HEADERS).withBody(body);
+    }
 
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> joinGame() {
@@ -61,23 +75,23 @@ public class GameFunctionConfig {
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
             } catch (JsonProcessingException e) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+                return corsResponse(400);
             }
             String sessionId = (String) data.get("sessionId");
 
             GameSessionEntity entity = sessionRepo.get(sessionId);
             if (entity == null) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+                return corsResponse(404);
             }
             if (entity.isStarted()) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+                return corsResponse(409);
             }
             @SuppressWarnings("unchecked")
             Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
             String userId = claims.get("sub");
             if (entity.getPlayers() != null
                     && entity.getPlayers().stream().anyMatch(player -> userId.equals(player.getPlayerId()))) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+                return corsResponse(409);
             }
 
             UserProfile user = userRepo.get(userId);
@@ -85,10 +99,10 @@ public class GameFunctionConfig {
             try {
                 session.addPlayer(userId, user.getUsername());
             } catch (IllegalStateException e) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+                return corsResponse(409);
             }
             sessionRepo.save(session.toEntity());
-            return new APIGatewayProxyResponseEvent().withStatusCode(200);
+            return corsResponse(200);
         };
     }
 
@@ -99,32 +113,32 @@ public class GameFunctionConfig {
             try {
                 data = mapper.readValue(req.getBody(), Map.class);
             } catch (JsonProcessingException e) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+                return corsResponse(400);
             }
             String sessionId = (String) data.get("sessionId");
 
             GameSessionEntity entity = sessionRepo.get(sessionId);
             if (entity == null) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+                return corsResponse(404);
             }
             @SuppressWarnings("unchecked")
             Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
             String userId = claims.get("sub");
             if (!userId.equals(entity.getOwnerId())) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(403);
+                return corsResponse(403);
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
             if (session.getPlayers().size() < 2) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+                return corsResponse(400);
             }
             try {
                 session.start();
             } catch (IllegalStateException e) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(409);
+                return corsResponse(409);
             }
             sessionRepo.save(session.toEntity());
-            return new APIGatewayProxyResponseEvent().withStatusCode(200);
+            return corsResponse(200);
         };
     }
 
@@ -134,19 +148,17 @@ public class GameFunctionConfig {
             String sessionId = req.getPathParameters().get("sessionId");
             GameSessionEntity entity = sessionRepo.get(sessionId);
             if (entity == null) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+                return corsResponse(404);
             }
             @SuppressWarnings("unchecked")
             Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
             String userId = claims.get("sub");
             try {
                 GameStateView view = buildGameStateView(entity, userId);
-                return new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withBody(mapper.writeValueAsString(view));
+                return corsResponse(200, mapper.writeValueAsString(view));
             } catch (JsonProcessingException e) {
                 log.error("getState serialization failed", e);
-                return new APIGatewayProxyResponseEvent().withStatusCode(500);
+                return corsResponse(500);
             }
         };
     }
@@ -223,7 +235,7 @@ public class GameFunctionConfig {
             String sessionId = req.getPathParameters().get("sessionId");
             GameSessionEntity entity = sessionRepo.get(sessionId);
             if (entity == null) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+                return corsResponse(404);
             }
             List<String> playerIds = entity.getPlayers() == null
                     ? List.of()
@@ -245,12 +257,10 @@ public class GameFunctionConfig {
                             .build())
                     .collect(Collectors.toList());
             try {
-                return new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withBody(mapper.writeValueAsString(entries));
+                return corsResponse(200, mapper.writeValueAsString(entries));
             } catch (JsonProcessingException e) {
                 log.error("leaderboardSession serialization failed", e);
-                return new APIGatewayProxyResponseEvent().withStatusCode(500);
+                return corsResponse(500);
             }
         };
     }
@@ -277,12 +287,10 @@ public class GameFunctionConfig {
                             .build())
                     .collect(Collectors.toList());
             try {
-                return new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withBody(mapper.writeValueAsString(entries));
+                return corsResponse(200, mapper.writeValueAsString(entries));
             } catch (JsonProcessingException e) {
                 log.error("leaderboardTop serialization failed", e);
-                return new APIGatewayProxyResponseEvent().withStatusCode(500);
+                return corsResponse(500);
             }
         };
     }

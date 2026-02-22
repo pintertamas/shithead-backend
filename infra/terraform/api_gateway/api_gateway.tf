@@ -162,6 +162,264 @@ resource "aws_api_gateway_integration" "leaderboard_top" {
   uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.leaderboard_top_invoke_arn}/invocations"
 }
 
+# ── CORS gateway-level responses (covers auth failures and other 4XX/5XX) ──────
+
+resource "aws_api_gateway_gateway_response" "cors_4xx" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  response_type = "DEFAULT_4XX"
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
+    "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,GET,OPTIONS'"
+  }
+}
+
+resource "aws_api_gateway_gateway_response" "cors_5xx" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  response_type = "DEFAULT_5XX"
+  response_parameters = {
+    "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
+    "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,GET,OPTIONS'"
+  }
+}
+
+# ── OPTIONS preflight for each resource ────────────────────────────────────────
+
+resource "aws_api_gateway_method" "options_create_game" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.create_game.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_create_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.create_game.id
+  http_method = aws_api_gateway_method.options_create_game.http_method
+  type        = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_create_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.create_game.id
+  http_method = aws_api_gateway_method.options_create_game.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_create_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.create_game.id
+  http_method = aws_api_gateway_method.options_create_game.http_method
+  status_code = aws_api_gateway_method_response.options_create_game.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method" "options_join_game" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.join_game.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_join_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.join_game.id
+  http_method = aws_api_gateway_method.options_join_game.http_method
+  type        = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_join_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.join_game.id
+  http_method = aws_api_gateway_method.options_join_game.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_join_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.join_game.id
+  http_method = aws_api_gateway_method.options_join_game.http_method
+  status_code = aws_api_gateway_method_response.options_join_game.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method" "options_start_game" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.start_game.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_start_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.start_game.id
+  http_method = aws_api_gateway_method.options_start_game.http_method
+  type        = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_start_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.start_game.id
+  http_method = aws_api_gateway_method.options_start_game.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_start_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.start_game.id
+  http_method = aws_api_gateway_method.options_start_game.http_method
+  status_code = aws_api_gateway_method_response.options_start_game.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method" "options_state" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.state_session.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_state" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.state_session.id
+  http_method = aws_api_gateway_method.options_state.http_method
+  type        = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_state" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.state_session.id
+  http_method = aws_api_gateway_method.options_state.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_state" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.state_session.id
+  http_method = aws_api_gateway_method.options_state.http_method
+  status_code = aws_api_gateway_method_response.options_state.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method" "options_leaderboard_session" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.leaderboard_session_id.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_leaderboard_session" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leaderboard_session_id.id
+  http_method = aws_api_gateway_method.options_leaderboard_session.http_method
+  type        = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_leaderboard_session" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leaderboard_session_id.id
+  http_method = aws_api_gateway_method.options_leaderboard_session.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_leaderboard_session" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leaderboard_session_id.id
+  http_method = aws_api_gateway_method.options_leaderboard_session.http_method
+  status_code = aws_api_gateway_method_response.options_leaderboard_session.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method" "options_leaderboard_top" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.leaderboard_top.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_leaderboard_top" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leaderboard_top.id
+  http_method = aws_api_gateway_method.options_leaderboard_top.http_method
+  type        = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_leaderboard_top" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leaderboard_top.id
+  http_method = aws_api_gateway_method.options_leaderboard_top.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_leaderboard_top" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leaderboard_top.id
+  http_method = aws_api_gateway_method.options_leaderboard_top.http_method
+  status_code = aws_api_gateway_method_response.options_leaderboard_top.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
 resource "aws_api_gateway_deployment" "deployment" {
   rest_api_id = aws_api_gateway_rest_api.game_api.id
 
@@ -173,6 +431,12 @@ resource "aws_api_gateway_deployment" "deployment" {
       aws_api_gateway_integration.get_state.id,
       aws_api_gateway_integration.leaderboard_session.id,
       aws_api_gateway_integration.leaderboard_top.id,
+      aws_api_gateway_integration.options_create_game.id,
+      aws_api_gateway_integration.options_join_game.id,
+      aws_api_gateway_integration.options_start_game.id,
+      aws_api_gateway_integration.options_state.id,
+      aws_api_gateway_integration.options_leaderboard_session.id,
+      aws_api_gateway_integration.options_leaderboard_top.id,
     ]))
   }
 
