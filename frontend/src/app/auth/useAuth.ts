@@ -14,7 +14,7 @@ export function clearAuth() {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-function loadAuth(): AuthState | null {
+export function loadAuth(): AuthState | null {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {

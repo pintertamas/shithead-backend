@@ -2,25 +2,8 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Redirecting...</title>
-    <script>
-      (function () {
-        var isProjectPagesHost = /\.github\.io$/i.test(window.location.hostname);
-        var pathSegmentsToKeep = isProjectPagesHost ? 1 : 0;
-        var l = window.location;
-        var redirectUrl =
-          l.protocol +
-          "//" +
-          l.host +
-          l.pathname.split("/").slice(0, 1 + pathSegmentsToKeep).join("/") +
-          "/?/" +
-          l.pathname.slice(1).split("/").slice(pathSegmentsToKeep).join("/").replace(/&/g, "~and~") +
-          (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
-          l.hash;
-
-        l.replace(redirectUrl);
-      })();
-    </script>
+    <title>Loading...</title>
+    <meta http-equiv="refresh" content="0;url=." />
   </head>
   <body></body>
 </html>
