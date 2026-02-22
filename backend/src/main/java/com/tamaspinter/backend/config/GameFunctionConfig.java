@@ -95,9 +95,10 @@ public class GameFunctionConfig {
             }
 
             UserProfile user = userRepo.get(userId);
+            String username = user != null ? user.getUsername() : "Unknown";
             GameSession session = SessionMapper.fromEntity(entity);
             try {
-                session.addPlayer(userId, user.getUsername());
+                session.addPlayer(userId, username);
             } catch (IllegalStateException e) {
                 return corsResponse(409);
             }
