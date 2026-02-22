@@ -168,7 +168,7 @@ export default function AuthCallback() {
       }
 
       console.log("[auth] navigating to /lobby");
-      if (!cancelled) navigate("/lobby", { replace: true });
+      window.location.replace(import.meta.env.BASE_URL + "lobby");
     };
 
     completeLogin();
