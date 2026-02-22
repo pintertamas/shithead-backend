@@ -141,6 +141,11 @@ export default function AuthCallback() {
         return;
       }
 
+      if (!localStorage.getItem("shithead_auth")) {
+        if (!cancelled) setErrorMsg("Session was saved but immediately lost — your browser is blocking localStorage. In Brave, go to Shields → disable 'Block third-party cookies' or add an exception for this site.");
+        return;
+      }
+
       if (!cancelled) navigate("/lobby", { replace: true });
     };
 
