@@ -75,6 +75,12 @@ export default function AuthCallback() {
     let cancelled = false;
 
     const completeLogin = async () => {
+      // Guard: if auth is already valid (e.g. effect ran twice), just go to lobby.
+      if (loadAuth()) {
+        if (!cancelled) navigate("/lobby", { replace: true });
+        return;
+      }
+
       console.log("[auth] completeLogin started, url:", window.location.href);
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const queryParams = new URLSearchParams(window.location.search);
@@ -170,7 +176,8 @@ export default function AuthCallback() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (errorMsg) {
     return (
