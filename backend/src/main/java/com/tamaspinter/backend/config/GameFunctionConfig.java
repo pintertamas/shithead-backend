@@ -91,7 +91,7 @@ public class GameFunctionConfig {
             String userId = claims.get("sub");
             if (entity.getPlayers() != null
                     && entity.getPlayers().stream().anyMatch(player -> userId.equals(player.getPlayerId()))) {
-                return corsResponse(409);
+                return corsResponse(200);
             }
 
             UserProfile user = userRepo.get(userId);

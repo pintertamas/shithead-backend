@@ -56,7 +56,6 @@ resource "aws_cognito_user_pool_client" "app_client" {
 
   # Allowed login flows
   explicit_auth_flows = [
-    "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 
@@ -67,7 +66,6 @@ resource "aws_cognito_user_pool_client" "app_client" {
 
   # All the IdPs we set up
   supported_identity_providers = [
-    "COGNITO",
     aws_cognito_identity_provider.google.provider_name,
   ]
 

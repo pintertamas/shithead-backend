@@ -13,6 +13,7 @@ export default function Room() {
   const refresh = async () => {
     if (!sessionId) return;
     try {
+      setError(null);
       const data = await fetchState(token, sessionId);
       setState(data);
       if (data.started) {
