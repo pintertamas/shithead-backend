@@ -71,10 +71,12 @@ resource "aws_cognito_user_pool_client" "app_client" {
 
   # Where Cognito redirects after login/logout
   callback_urls = [
-    "${trimsuffix(var.app_url, "/")}/auth/callback"
+    "${trimsuffix(var.app_url, "/")}/auth/callback",
+    "http://localhost:5173/auth/callback"
   ]
   logout_urls = [
-    "${trimsuffix(var.app_url, "/")}/"
+    "${trimsuffix(var.app_url, "/")}/",
+    "http://localhost:5173/"
   ]
 
   # Token lifetimes

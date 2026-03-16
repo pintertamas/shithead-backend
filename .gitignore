@@ -19,3 +19,4 @@ infra/terraform/lambda/build/
 node_modules/
 
 frontend/.env
+frontend/.env.local
