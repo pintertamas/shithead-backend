@@ -9,6 +9,7 @@ export default function Room() {
   const { token } = useAuth();
   const [state, setState] = useState<GameStateView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
   const failCount = useRef(0);
 
   useEffect(() => {
@@ -49,10 +50,13 @@ export default function Room() {
 
   const onStart = async () => {
     if (!sessionId) return;
+    setLoading("starting");
     try {
       await startGame(token, sessionId);
     } catch {
       setError("Failed to start game.");
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -65,17 +69,18 @@ export default function Room() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {canStart && (
-            <button className="button" onClick={onStart}>
-              Start Game
+            <button className="button" onClick={onStart} disabled={loading !== null}>
+              {loading === "starting" ? "Starting..." : "Start Game"}
             </button>
           )}
-          <button className="button secondary" onClick={async () => {
+          <button className="button secondary" disabled={loading !== null} onClick={async () => {
+            setLoading("leaving");
             if (sessionId) {
               try { await leaveGame(token, sessionId); } catch {}
             }
             navigate("/lobby");
           }}>
-            Leave
+            {loading === "leaving" ? "Leaving..." : "Leave"}
           </button>
         </div>
       </div>

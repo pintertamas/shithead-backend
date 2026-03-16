@@ -520,5 +520,5 @@ resource "aws_apigatewayv2_authorizer" "ws" {
   name            = "WebSocketJwtAuthorizer"
   authorizer_type = "REQUEST"
   authorizer_uri  = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.aws_lambda_function_ws_authorizer_arn}/invocations"
-  identity_sources = ["route.request.header.Sec-WebSocket-Protocol"]
+  identity_sources = ["route.request.querystring.token"]
 }

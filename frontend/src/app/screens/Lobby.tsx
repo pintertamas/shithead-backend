@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGame, joinGame } from "../api/game";
 import { useAuth } from "../auth/useAuth";
@@ -8,26 +8,33 @@ export default function Lobby() {
   const { token, username, logout } = useAuth();
   const [joinCode, setJoinCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
 
   const handleCreate = async () => {
     setStatus(null);
+    setLoading("creating");
     try {
       const res = await createGame(token);
       navigate(`/room/${res.sessionId}`);
     } catch {
       setStatus("Failed to create game.");
+    } finally {
+      setLoading(null);
     }
   };
 
   const handleJoin = async () => {
     setStatus(null);
+    const trimmed = joinCode.trim().toUpperCase();
+    if (!trimmed) return;
+    setLoading("joining");
     try {
-      const trimmed = joinCode.trim().toUpperCase();
-      if (!trimmed) return;
       await joinGame(token, trimmed);
       navigate(`/room/${trimmed}`);
     } catch {
       setStatus("Failed to join game.");
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -55,8 +62,8 @@ export default function Lobby() {
           <p style={{ color: "var(--ink-dim)" }}>
             Generate a short join code and invite friends.
           </p>
-          <button className="button" onClick={handleCreate}>
-            Create Game
+          <button className="button" onClick={handleCreate} disabled={loading !== null}>
+            {loading === "creating" ? "Creating..." : "Create Game"}
           </button>
         </div>
 
@@ -70,10 +77,11 @@ export default function Lobby() {
             placeholder="Enter join code"
             value={joinCode}
             onChange={(e) => setJoinCode(e.target.value)}
+            disabled={loading !== null}
           />
           <div style={{ height: 12 }} />
-          <button className="button" onClick={handleJoin}>
-            Join Game
+          <button className="button" onClick={handleJoin} disabled={loading !== null}>
+            {loading === "joining" ? "Joining..." : "Join Game"}
           </button>
           {status && <p style={{ color: "var(--danger)" }}>{status}</p>}
         </div>
@@ -81,7 +89,7 @@ export default function Lobby() {
         <div className="glass card">
           <h3 className="title">How it works</h3>
           <p style={{ color: "var(--ink-dim)" }}>
-            You’ll see your hand, face-up cards, and counts for hidden cards.
+            You'll see your hand, face-up cards, and counts for hidden cards.
             Enemy hands remain hidden. The game table updates in real time.
           </p>
         </div>
@@ -89,4 +97,3 @@ export default function Lobby() {
     </div>
   );
 }
-
