@@ -33,9 +33,14 @@ export default function GameTable() {
   }, [sessionId, token]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !token) return;
     const url = `${WS_BASE}?game_session_id=${sessionId}`;
-    const ws = new WebSocket(url, [`Bearer ${token}`]);
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url, [`Bearer ${token}`]);
+    } catch {
+      return;
+    }
 
     ws.onmessage = (evt) => {
       try {

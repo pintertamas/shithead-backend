@@ -45,7 +45,7 @@ function decodeUsername(idToken: string): string {
   try {
     const payload = idToken.split(".")[1];
     const decoded = JSON.parse(atob(payload));
-    return decoded["cognito:username"] || decoded["email"] || "";
+    return decoded["email"] || decoded["cognito:username"] || "";
   } catch {
     return "";
   }

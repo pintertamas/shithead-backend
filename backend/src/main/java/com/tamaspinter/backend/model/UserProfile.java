@@ -26,6 +26,7 @@ public class UserProfile {
     private String leaderboardPk;
 
     @DynamoDbPartitionKey
+    @DynamoDbAttribute("user_id")
     public String getUserId() {
         return userId;
     }
