@@ -24,6 +24,30 @@ DEFAULT_CONFIG = {
     'canPlayAgain':   [10]
 }
 
+def cleanup_old_sessions(sessions_table, user_id):
+    """Remove user from any non-started sessions they own or are in."""
+    # Find sessions owned by this user
+    resp = sessions_table.query(
+        IndexName='user_id-index',
+        KeyConditionExpression='user_id = :uid',
+        ExpressionAttributeValues={':uid': user_id}
+    )
+    for item in resp.get('Items', []):
+        if item.get('started'):
+            continue
+        game_id = item['game_id']
+        players = item.get('players', [])
+        remaining = [p for p in players if p.get('playerId') != user_id]
+        if not remaining:
+            sessions_table.delete_item(Key={'game_id': game_id})
+        else:
+            new_owner = remaining[0]['playerId']
+            sessions_table.update_item(
+                Key={'game_id': game_id},
+                UpdateExpression='SET players = :p, user_id = :o',
+                ExpressionAttributeValues={':p': remaining, ':o': new_owner}
+            )
+
 def lambda_handler(event, context):
     user_id = event['requestContext']['authorizer']['claims']['sub']
 
@@ -32,6 +56,8 @@ def lambda_handler(event, context):
 
     sessions_table = dynamodb.Table(os.environ['GAME_SESSIONS_TABLE'])
     users_table = dynamodb.Table(os.environ['USERS_TABLE'])
+
+    cleanup_old_sessions(sessions_table, user_id)
 
     game_id = generate_session_id(sessions_table)
     ttl = int(time.time()) + 3600  # 1 hour from now

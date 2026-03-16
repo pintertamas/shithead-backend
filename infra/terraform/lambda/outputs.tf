@@ -66,6 +66,14 @@ output "join_game_function_name" {
   value = aws_lambda_function.join_game.function_name
 }
 
+output "leave_game_alias_arn" {
+  value = aws_lambda_alias.leave_game_live.arn
+}
+
+output "leave_game_function_name" {
+  value = aws_lambda_function.leave_game.function_name
+}
+
 output "start_game_alias_arn" {
   value = aws_lambda_alias.start_game_live.arn
 }

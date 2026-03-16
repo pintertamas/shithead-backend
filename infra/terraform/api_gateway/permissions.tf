@@ -47,6 +47,15 @@ resource "aws_lambda_permission" "allow_join_game" {
   source_arn    = "${aws_api_gateway_rest_api.game_api.execution_arn}/*/*"
 }
 
+resource "aws_lambda_permission" "allow_leave_game" {
+  statement_id  = "AllowAPIGatewayInvokeLeaveGame"
+  action        = "lambda:InvokeFunction"
+  function_name = var.leave_game_function_name
+  qualifier     = "LIVE"
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.game_api.execution_arn}/*/*"
+}
+
 resource "aws_lambda_permission" "allow_start_game" {
   statement_id  = "AllowAPIGatewayInvokeStartGame"
   action        = "lambda:InvokeFunction"

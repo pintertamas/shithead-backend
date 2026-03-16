@@ -68,6 +68,8 @@ module "api_gateway" {
   aws_cloudwatch_log_group_websocket_apigw_arn    = module.cloudwatch.aws_cloudwatch_log_group_websocket_apigw_arn
   join_game_invoke_arn                            = module.lambda.join_game_alias_arn
   join_game_function_name                         = module.lambda.join_game_function_name
+  leave_game_invoke_arn                           = module.lambda.leave_game_alias_arn
+  leave_game_function_name                        = module.lambda.leave_game_function_name
   start_game_invoke_arn                           = module.lambda.start_game_alias_arn
   start_game_function_name                        = module.lambda.start_game_function_name
   get_state_invoke_arn                            = module.lambda.get_state_alias_arn

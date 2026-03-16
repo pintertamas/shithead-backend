@@ -68,6 +68,21 @@ public class GameFunctionConfig {
         return new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withHeaders(CORS_HEADERS).withBody(body);
     }
 
+    private void cleanupOldSessions(String userId, String excludeSessionId) {
+        for (GameSessionEntity owned : sessionRepo.findByOwnerId(userId)) {
+            if (owned.isStarted() || owned.getSessionId().equals(excludeSessionId)) {
+                continue;
+            }
+            GameSession session = SessionMapper.fromEntity(owned);
+            session.removePlayer(userId);
+            if (session.getPlayers().isEmpty()) {
+                sessionRepo.delete(owned.getSessionId());
+            } else {
+                sessionRepo.save(session.toEntity());
+            }
+        }
+    }
+
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> joinGame() {
         return req -> {
@@ -93,6 +108,8 @@ public class GameFunctionConfig {
                     && entity.getPlayers().stream().anyMatch(player -> userId.equals(player.getPlayerId()))) {
                 return corsResponse(200);
             }
+
+            cleanupOldSessions(userId, sessionId);
 
             UserProfile user = userRepo.get(userId);
             String username = user != null ? user.getUsername() : "Unknown";
@@ -139,6 +156,40 @@ public class GameFunctionConfig {
                 return corsResponse(409);
             }
             sessionRepo.save(session.toEntity());
+            return corsResponse(200);
+        };
+    }
+
+    @Bean
+    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> leaveGame() {
+        return req -> {
+            Map<?, ?> data;
+            try {
+                data = mapper.readValue(req.getBody(), Map.class);
+            } catch (JsonProcessingException e) {
+                return corsResponse(400);
+            }
+            String sessionId = (String) data.get("sessionId");
+
+            GameSessionEntity entity = sessionRepo.get(sessionId);
+            if (entity == null) {
+                return corsResponse(404);
+            }
+            if (entity.isStarted()) {
+                return corsResponse(409, "{\"error\":\"Cannot leave a started game\"}");
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
+            String userId = claims.get("sub");
+
+            GameSession session = SessionMapper.fromEntity(entity);
+            session.removePlayer(userId);
+
+            if (session.getPlayers().isEmpty()) {
+                sessionRepo.delete(sessionId);
+            } else {
+                sessionRepo.save(session.toEntity());
+            }
             return corsResponse(200);
         };
     }

@@ -84,6 +84,16 @@ variable "join_game_function_name" {
   type        = string
 }
 
+variable "leave_game_invoke_arn" {
+  description = "Alias ARN of the leave game Lambda function"
+  type        = string
+}
+
+variable "leave_game_function_name" {
+  description = "Name of the leave game Lambda function"
+  type        = string
+}
+
 variable "start_game_invoke_arn" {
   description = "Alias ARN of the start game Lambda function"
   type        = string

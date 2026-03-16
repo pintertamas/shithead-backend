@@ -19,16 +19,22 @@ def lambda_handler(event, context):
     # Normalize headers
     headers = {k.lower(): v for k, v in event.get("headers", {}).items()}
     raw_proto_or_auth = headers.get("sec-websocket-protocol") or headers.get("authorization")
-    if not raw_proto_or_auth:
-        logger.warning("No Bearer token provided")
-        raise Exception("Unauthorized")
 
-    parts = raw_proto_or_auth.split(None, 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        logger.warning("Malformed auth header: %s", raw_proto_or_auth)
-        raise Exception("Unauthorized")
+    # Also check query string for token
+    qs = event.get("queryStringParameters") or {}
+    qs_token = qs.get("token")
 
-    token = parts[1]
+    token = None
+    if qs_token:
+        token = qs_token
+    elif raw_proto_or_auth:
+        parts = raw_proto_or_auth.split(None, 1)
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+
+    if not token:
+        logger.warning("No token provided")
+        raise Exception("Unauthorized")
     try:
         unverified = jwt.get_unverified_header(token)
     except JWSError as e:

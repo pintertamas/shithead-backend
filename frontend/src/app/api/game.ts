@@ -52,6 +52,14 @@ export async function startGame(token: string, sessionId: string) {
   if (!res.ok) throw new Error("Failed to start game");
 }
 
+export async function leaveGame(token: string, sessionId: string) {
+  const res = await apiFetch("/leave-game", token, {
+    method: "POST",
+    body: JSON.stringify({ sessionId })
+  });
+  if (!res.ok) throw new Error("Failed to leave game");
+}
+
 export async function fetchState(token: string, sessionId: string) {
   const res = await apiFetch(`/state/${sessionId}`, token, { method: "GET" });
   if (!res.ok) throw new Error("Failed to fetch state");

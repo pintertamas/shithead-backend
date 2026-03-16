@@ -1,6 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, GameStateView } from "../api/game";
+import { Card, fetchState, GameStateView } from "../api/game";
 import { useAuth } from "../auth/useAuth";
 import Hand from "../components/Hand";
 import FaceUp from "../components/FaceUp";
@@ -18,6 +18,41 @@ export default function GameTable() {
   const { token } = useAuth();
   const [state, setState] = useState<GameStateView | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [selected, setSelected] = useState<number[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const you = useMemo(() => state?.players.find((p) => p.isYou), [state]);
+  const others = useMemo(() => state?.players.filter((p) => !p.isYou) || [], [state]);
+  const currentName = useMemo(() => {
+    if (!state?.currentPlayerId) return "";
+    return state.players.find((p) => p.playerId === state.currentPlayerId)?.username || "";
+  }, [state]);
+
+  const toggleCard = useCallback((idx: number) => {
+    setSelected((prev) => prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]);
+  }, []);
+
+  const sendWs = useCallback((payload: object) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(payload));
+    }
+  }, []);
+
+  const playSelected = useCallback(() => {
+    if (!sessionId || !you) return;
+    const hand: Card[] = you.hand || [];
+    const cards = selected.map((i) => hand[i]).filter(Boolean);
+    if (cards.length === 0) return;
+    sendWs({ action: "play", sessionId, cards });
+    setSelected([]);
+  }, [sessionId, selected, you, sendWs]);
+
+  const pickup = useCallback(() => {
+    if (!sessionId) return;
+    sendWs({ action: "pickup", sessionId });
+    setSelected([]);
+  }, [sessionId, sendWs]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -34,13 +69,9 @@ export default function GameTable() {
 
   useEffect(() => {
     if (!sessionId || !token) return;
-    const url = `${WS_BASE}?game_session_id=${sessionId}`;
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url, [`Bearer ${token}`]);
-    } catch {
-      return;
-    }
+    const url = `${WS_BASE}?game_session_id=${sessionId}&token=${encodeURIComponent(token)}`;
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
 
     ws.onmessage = (evt) => {
       try {
@@ -57,6 +88,7 @@ export default function GameTable() {
 
     return () => {
       ws.close();
+      wsRef.current = null;
     };
   }, [sessionId, token]);
 
@@ -66,17 +98,10 @@ export default function GameTable() {
     }
   }, [state?.finished, state?.shitheadId]);
 
-  const you = useMemo(() => state?.players.find((p) => p.isYou), [state]);
-  const others = useMemo(() => state?.players.filter((p) => !p.isYou) || [], [state]);
-  const currentName = useMemo(() => {
-    if (!state?.currentPlayerId) return "";
-    return state.players.find((p) => p.playerId === state.currentPlayerId)?.username || "";
-  }, [state]);
-
   if (!state || !you) {
     return (
       <div className="page">
-        <div className="glass card">Loading game state…</div>
+        <div className="glass card">Loading game state...</div>
       </div>
     );
   }
@@ -115,7 +140,15 @@ export default function GameTable() {
 
         <div className="glass card">
           <h3 className="title">Your Hand</h3>
-          <Hand cards={you.hand || []} />
+          <Hand cards={you.hand || []} selected={selected} onToggle={toggleCard} />
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button className="button" disabled={selected.length === 0} onClick={playSelected}>
+              Play {selected.length > 0 ? `(${selected.length})` : ""}
+            </button>
+            <button className="button secondary" onClick={pickup}>
+              Pick Up Pile
+            </button>
+          </div>
         </div>
       </div>
 
@@ -128,4 +161,3 @@ export default function GameTable() {
     </div>
   );
 }
-

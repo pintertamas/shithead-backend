@@ -47,6 +47,16 @@ public class GameSession {
                 .build());
     }
 
+    public void removePlayer(String playerId) {
+        if (started) {
+            throw new IllegalStateException("Cannot leave a started game");
+        }
+        players.removeIf(p -> p.getPlayerId().equals(playerId));
+        if (ownerId != null && ownerId.equals(playerId) && !players.isEmpty()) {
+            ownerId = players.get(0).getPlayerId();
+        }
+    }
+
     public void start() {
         int decks = 1 + (players.size() - 1) / 5;
         deck = new Deck(decks, config);

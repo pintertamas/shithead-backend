@@ -1,6 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, startGame, GameStateView } from "../api/game";
+import { fetchState, startGame, leaveGame, GameStateView } from "../api/game";
 import { useAuth } from "../auth/useAuth";
 
 export default function Room() {
@@ -9,26 +9,38 @@ export default function Room() {
   const { token } = useAuth();
   const [state, setState] = useState<GameStateView | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const refresh = async () => {
-    if (!sessionId) return;
-    try {
-      setError(null);
-      const data = await fetchState(token, sessionId);
-      setState(data);
-      if (data.started) {
-        navigate(`/game/${sessionId}`);
-      }
-    } catch {
-      setError("Failed to load lobby state.");
-    }
-  };
+  const failCount = useRef(0);
 
   useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const data = await fetchState(token, sessionId);
+        if (cancelled) return;
+        setState(data);
+        setError(null);
+        failCount.current = 0;
+        if (data.started) {
+          navigate(`/game/${sessionId}`);
+        }
+      } catch {
+        if (cancelled) return;
+        failCount.current++;
+        if (failCount.current >= 3) {
+          setError("Failed to load lobby state.");
+        }
+      }
+    };
+
     refresh();
     const handle = setInterval(refresh, 3000);
-    return () => clearInterval(handle);
-  }, [sessionId]);
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
+  }, [sessionId, token]);
 
   const canStart = useMemo(() => {
     if (!state) return false;
@@ -39,7 +51,6 @@ export default function Room() {
     if (!sessionId) return;
     try {
       await startGame(token, sessionId);
-      refresh();
     } catch {
       setError("Failed to start game.");
     }
@@ -52,16 +63,27 @@ export default function Room() {
           <div className="badge">Lobby</div>
           <h2 className="title">Room {sessionId}</h2>
         </div>
-        {canStart && (
-          <button className="button" onClick={onStart}>
-            Start Game
+        <div style={{ display: "flex", gap: 8 }}>
+          {canStart && (
+            <button className="button" onClick={onStart}>
+              Start Game
+            </button>
+          )}
+          <button className="button secondary" onClick={async () => {
+            if (sessionId) {
+              try { await leaveGame(token, sessionId); } catch {}
+            }
+            navigate("/lobby");
+          }}>
+            Leave
           </button>
-        )}
+        </div>
       </div>
 
       <div className="layout single">
         <div className="glass card">
           <h3 className="title">Players</h3>
+          {!state && !error && <p style={{ color: "var(--ink-dim)" }}>Loading...</p>}
           <div className="player-list">
             {state?.players.map((player) => (
               <div key={player.playerId} className="player-item">
@@ -76,4 +98,3 @@ export default function Room() {
     </div>
   );
 }
-

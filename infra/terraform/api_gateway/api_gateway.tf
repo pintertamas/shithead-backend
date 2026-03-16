@@ -52,6 +52,29 @@ resource "aws_api_gateway_integration" "join_game" {
   uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.join_game_invoke_arn}/invocations"
 }
 
+resource "aws_api_gateway_resource" "leave_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  parent_id   = aws_api_gateway_rest_api.game_api.root_resource_id
+  path_part   = "leave-game"
+}
+
+resource "aws_api_gateway_method" "post_leave_game" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.leave_game.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = var.cognito_authorizer_id
+}
+
+resource "aws_api_gateway_integration" "leave_game" {
+  rest_api_id             = aws_api_gateway_rest_api.game_api.id
+  resource_id             = aws_api_gateway_resource.leave_game.id
+  http_method             = aws_api_gateway_method.post_leave_game.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.leave_game_invoke_arn}/invocations"
+}
+
 resource "aws_api_gateway_resource" "start_game" {
   rest_api_id = aws_api_gateway_rest_api.game_api.id
   parent_id   = aws_api_gateway_rest_api.game_api.root_resource_id
@@ -264,6 +287,45 @@ resource "aws_api_gateway_integration_response" "options_join_game" {
   }
 }
 
+resource "aws_api_gateway_method" "options_leave_game" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.leave_game.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_leave_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leave_game.id
+  http_method = aws_api_gateway_method.options_leave_game.http_method
+  type        = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_leave_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leave_game.id
+  http_method = aws_api_gateway_method.options_leave_game.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_leave_game" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.leave_game.id
+  http_method = aws_api_gateway_method.options_leave_game.http_method
+  status_code = aws_api_gateway_method_response.options_leave_game.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
 resource "aws_api_gateway_method" "options_start_game" {
   rest_api_id   = aws_api_gateway_rest_api.game_api.id
   resource_id   = aws_api_gateway_resource.start_game.id
@@ -427,12 +489,14 @@ resource "aws_api_gateway_deployment" "deployment" {
     redeploy = sha1(join(",", [
       aws_api_gateway_integration.lambda_integration.id,
       aws_api_gateway_integration.join_game.id,
+      aws_api_gateway_integration.leave_game.id,
       aws_api_gateway_integration.start_game.id,
       aws_api_gateway_integration.get_state.id,
       aws_api_gateway_integration.leaderboard_session.id,
       aws_api_gateway_integration.leaderboard_top.id,
       aws_api_gateway_integration.options_create_game.id,
       aws_api_gateway_integration.options_join_game.id,
+      aws_api_gateway_integration.options_leave_game.id,
       aws_api_gateway_integration.options_start_game.id,
       aws_api_gateway_integration.options_state.id,
       aws_api_gateway_integration.options_leaderboard_session.id,

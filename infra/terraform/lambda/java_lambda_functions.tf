@@ -62,6 +62,33 @@ resource "aws_lambda_alias" "join_game_live" {
   function_version = aws_lambda_function.join_game.version
 }
 
+resource "aws_lambda_function" "leave_game" {
+  tags          = { project = var.project_name }
+  role          = aws_iam_role.lambda_exec.arn
+  function_name = "${var.project_name}-leave-game"
+  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
+  runtime       = "java17"
+  filename      = local.jar_path
+  source_code_hash = filebase64sha256(local.jar_path)
+  timeout       = 30
+  memory_size   = 512
+  publish       = true
+
+  snap_start { apply_on = "PublishedVersions" }
+
+  environment {
+    variables = merge(local.java_common_env, {
+      SPRING_CLOUD_FUNCTION_DEFINITION = "leaveGame"
+    })
+  }
+}
+
+resource "aws_lambda_alias" "leave_game_live" {
+  name             = "LIVE"
+  function_name    = aws_lambda_function.leave_game.function_name
+  function_version = aws_lambda_function.leave_game.version
+}
+
 resource "aws_lambda_function" "start_game" {
   tags          = { project = var.project_name }
   role          = aws_iam_role.lambda_exec.arn

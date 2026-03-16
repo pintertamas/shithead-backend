@@ -51,6 +51,22 @@
   border-radius: 10px;
   padding: 10px;
   text-align: center;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-selectable {
+  cursor: pointer;
+}
+
+.card-selectable:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.card-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(255, 183, 77, 0.4);
+  transform: translateY(-4px);
 }
 
 .pile {
