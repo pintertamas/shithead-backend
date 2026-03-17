@@ -180,6 +180,8 @@ jobs:
         run: |
           terraform import module.lambda.aws_lambda_function.leave_game shithead-leave-game 2>/dev/null || echo "Already in state or does not exist"
           terraform import module.lambda.aws_lambda_alias.leave_game_live shithead-leave-game/LIVE 2>/dev/null || echo "Already in state or does not exist"
+          terraform import module.api_gateway.aws_api_gateway_integration.leave_game s6wenbbv4g/arvc4d/POST 2>/dev/null || echo "Already in state or does not exist"
+          terraform import 'module.api_gateway.aws_lambda_permission.allow_leave_game' shithead-leave-game/AllowAPIGatewayInvokeLeaveGame 2>/dev/null || echo "Already in state or does not exist"
 
       - name: Terraform apply
         run: terraform apply -auto-approve -input=false -parallelism=3
