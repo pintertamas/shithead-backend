@@ -148,42 +148,25 @@ jobs:
           [ -n "${TF_VAR_vpc_id}" ] || (echo "Missing variable: VPC_ID" && exit 1)
           [ -n "${TF_VAR_subnets}" ] || (echo "Missing variable: SUBNETS_JSON (example: [\"subnet-a\",\"subnet-b\"])" && exit 1)
 
-      - name: Stabilize and disable SnapStart on Lambda functions
+      - name: Stabilize Lambda functions
         run: |
           echo "=== Stabilizing Lambda functions ==="
           FUNCTIONS=$(aws lambda list-functions --query "Functions[?starts_with(FunctionName, 'shithead-')].FunctionName" --output text)
           for fn in $FUNCTIONS; do
             STATE=$(aws lambda get-function --function-name "$fn" --query 'Configuration.State' --output text)
             LAST_STATUS=$(aws lambda get-function --function-name "$fn" --query 'Configuration.LastUpdateStatus' --output text)
-            SNAP=$(aws lambda get-function-configuration --function-name "$fn" --query 'SnapStart.ApplyOn' --output text 2>/dev/null || echo "None")
-            echo "  $fn: State=$STATE LastUpdateStatus=$LAST_STATUS SnapStart=$SNAP"
+            echo "  $fn: State=$STATE LastUpdateStatus=$LAST_STATUS"
             if [ "$STATE" != "Active" ] || [ "$LAST_STATUS" = "InProgress" ]; then
-              echo "    ⏳ Waiting for $fn to stabilize..."
+              echo "    Waiting for $fn to stabilize..."
               aws lambda wait function-active-v2 --function-name "$fn" || true
               aws lambda wait function-updated-v2 --function-name "$fn" || true
             fi
-            if [ "$SNAP" = "PublishedVersions" ]; then
-              echo "    🔧 Disabling SnapStart on $fn..."
-              aws lambda update-function-configuration --function-name "$fn" --snap-start ApplyOn=None > /dev/null
-              aws lambda wait function-updated-v2 --function-name "$fn" || true
-              echo "    ✓ SnapStart disabled on $fn"
-            fi
           done
-          echo "✅ All functions stabilized and SnapStart disabled"
+          echo "All functions stabilized"
 
       - name: Terraform init
         run: terraform init -input=false
         working-directory: infra/terraform
-
-      - name: Import existing leave_game Lambda if needed
-        working-directory: infra/terraform
-        run: |
-          terraform import module.lambda.aws_lambda_function.leave_game shithead-leave-game 2>/dev/null || echo "Already in state or does not exist"
-          terraform import module.lambda.aws_lambda_alias.leave_game_live shithead-leave-game/LIVE 2>/dev/null || echo "Already in state or does not exist"
-          terraform import module.api_gateway.aws_api_gateway_integration.leave_game s6wenbbv4g/arvc4d/POST 2>/dev/null || echo "Already in state or does not exist"
-          # Remove conflicting permissions then import the correct qualified one
-          aws lambda remove-permission --function-name shithead-leave-game --statement-id AllowAPIGatewayInvokeLeaveGame 2>/dev/null || true
-          aws lambda remove-permission --function-name shithead-leave-game --qualifier LIVE --statement-id AllowAPIGatewayInvokeLeaveGame 2>/dev/null || true
 
       - name: Terraform apply
         run: terraform apply -auto-approve -input=false -parallelism=3
