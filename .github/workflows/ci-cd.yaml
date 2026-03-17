@@ -148,17 +148,23 @@ jobs:
           [ -n "${TF_VAR_vpc_id}" ] || (echo "Missing variable: VPC_ID" && exit 1)
           [ -n "${TF_VAR_subnets}" ] || (echo "Missing variable: SUBNETS_JSON (example: [\"subnet-a\",\"subnet-b\"])" && exit 1)
 
-      - name: Stabilize Lambda functions
+      - name: Stabilize Lambda functions and disable SnapStart
         run: |
           echo "=== Stabilizing Lambda functions ==="
           FUNCTIONS=$(aws lambda list-functions --query "Functions[?starts_with(FunctionName, 'shithead-')].FunctionName" --output text)
           for fn in $FUNCTIONS; do
             STATE=$(aws lambda get-function --function-name "$fn" --query 'Configuration.State' --output text)
             LAST_STATUS=$(aws lambda get-function --function-name "$fn" --query 'Configuration.LastUpdateStatus' --output text)
-            echo "  $fn: State=$STATE LastUpdateStatus=$LAST_STATUS"
+            SNAP=$(aws lambda get-function-configuration --function-name "$fn" --query 'SnapStart.ApplyOn' --output text 2>/dev/null || echo "None")
+            echo "  $fn: State=$STATE LastUpdateStatus=$LAST_STATUS SnapStart=$SNAP"
             if [ "$STATE" != "Active" ] || [ "$LAST_STATUS" = "InProgress" ]; then
               echo "    Waiting for $fn to stabilize..."
               aws lambda wait function-active-v2 --function-name "$fn" || true
+              aws lambda wait function-updated-v2 --function-name "$fn" || true
+            fi
+            if [ "$SNAP" = "PublishedVersions" ]; then
+              echo "    Disabling SnapStart on $fn..."
+              aws lambda update-function-configuration --function-name "$fn" --snap-start ApplyOn=None > /dev/null
               aws lambda wait function-updated-v2 --function-name "$fn" || true
             fi
           done
