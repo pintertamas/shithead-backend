@@ -148,6 +148,31 @@ jobs:
           [ -n "${TF_VAR_vpc_id}" ] || (echo "Missing variable: VPC_ID" && exit 1)
           [ -n "${TF_VAR_subnets}" ] || (echo "Missing variable: SUBNETS_JSON (example: [\"subnet-a\",\"subnet-b\"])" && exit 1)
 
+      - name: Check Lambda function states
+        run: |
+          echo "=== Checking Lambda function states ==="
+          FUNCTIONS=$(aws lambda list-functions --query "Functions[?starts_with(FunctionName, 'shithead-')].FunctionName" --output text)
+          ALL_ACTIVE=true
+          for fn in $FUNCTIONS; do
+            STATE=$(aws lambda get-function --function-name "$fn" --query 'Configuration.State' --output text)
+            LAST_STATUS=$(aws lambda get-function --function-name "$fn" --query 'Configuration.LastUpdateStatus' --output text)
+            echo "  $fn: State=$STATE LastUpdateStatus=$LAST_STATUS"
+            if [ "$STATE" != "Active" ] || [ "$LAST_STATUS" = "InProgress" ]; then
+              ALL_ACTIVE=false
+              echo "    ⏳ Waiting for $fn to stabilize..."
+              aws lambda wait function-active-v2 --function-name "$fn" || true
+              aws lambda wait function-updated-v2 --function-name "$fn" || true
+              NEW_STATE=$(aws lambda get-function --function-name "$fn" --query 'Configuration.State' --output text)
+              NEW_STATUS=$(aws lambda get-function --function-name "$fn" --query 'Configuration.LastUpdateStatus' --output text)
+              echo "    ✓ $fn: State=$NEW_STATE LastUpdateStatus=$NEW_STATUS"
+            fi
+          done
+          if [ "$ALL_ACTIVE" = "true" ]; then
+            echo "✅ All Lambda functions are Active"
+          else
+            echo "⚠️ Some functions needed stabilization — now proceeding"
+          fi
+
       - name: Terraform init
         run: terraform init -input=false
         working-directory: infra/terraform
