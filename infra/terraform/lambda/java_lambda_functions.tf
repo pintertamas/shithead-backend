@@ -20,8 +20,6 @@ resource "aws_lambda_function" "pickup_pile_ws" {
   memory_size      = 512
   publish          = true
 
-  snap_start { apply_on = "PublishedVersions" }
-
   environment {
     variables = merge(local.java_common_env, {
       SPRING_CLOUD_FUNCTION_DEFINITION = "pickupPileWS"
@@ -46,8 +44,6 @@ resource "aws_lambda_function" "join_game" {
   timeout       = 30
   memory_size   = 512
   publish       = true
-
-  snap_start { apply_on = "PublishedVersions" }
 
   environment {
     variables = merge(local.java_common_env, {
@@ -74,8 +70,6 @@ resource "aws_lambda_function" "leave_game" {
   memory_size   = 512
   publish       = true
 
-  snap_start { apply_on = "PublishedVersions" }
-
   environment {
     variables = merge(local.java_common_env, {
       SPRING_CLOUD_FUNCTION_DEFINITION = "leaveGame"
@@ -100,8 +94,6 @@ resource "aws_lambda_function" "start_game" {
   timeout       = 30
   memory_size   = 512
   publish       = true
-
-  snap_start { apply_on = "PublishedVersions" }
 
   environment {
     variables = merge(local.java_common_env, {
@@ -128,8 +120,6 @@ resource "aws_lambda_function" "get_state" {
   memory_size   = 512
   publish       = true
 
-  snap_start { apply_on = "PublishedVersions" }
-
   environment {
     variables = merge(local.java_common_env, {
       SPRING_CLOUD_FUNCTION_DEFINITION = "getState"
@@ -154,8 +144,6 @@ resource "aws_lambda_function" "leaderboard_session" {
   timeout       = 30
   memory_size   = 512
   publish       = true
-
-  snap_start { apply_on = "PublishedVersions" }
 
   environment {
     variables = merge(local.java_common_env, {
@@ -182,8 +170,6 @@ resource "aws_lambda_function" "leaderboard_top" {
   memory_size   = 512
   publish       = true
 
-  snap_start { apply_on = "PublishedVersions" }
-
   environment {
     variables = merge(local.java_common_env, {
       SPRING_CLOUD_FUNCTION_DEFINITION = "leaderboardTop"
@@ -208,8 +194,6 @@ resource "aws_lambda_function" "play_card_ws" {
   timeout       = 30
   memory_size   = 512
   publish       = true
-
-  snap_start { apply_on = "PublishedVersions" }
 
   environment {
     variables = merge(local.java_common_env, {
