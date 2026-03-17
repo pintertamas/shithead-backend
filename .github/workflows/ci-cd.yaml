@@ -181,7 +181,9 @@ jobs:
           terraform import module.lambda.aws_lambda_function.leave_game shithead-leave-game 2>/dev/null || echo "Already in state or does not exist"
           terraform import module.lambda.aws_lambda_alias.leave_game_live shithead-leave-game/LIVE 2>/dev/null || echo "Already in state or does not exist"
           terraform import module.api_gateway.aws_api_gateway_integration.leave_game s6wenbbv4g/arvc4d/POST 2>/dev/null || echo "Already in state or does not exist"
-          terraform import 'module.api_gateway.aws_lambda_permission.allow_leave_game' shithead-leave-game/AllowAPIGatewayInvokeLeaveGame 2>/dev/null || echo "Already in state or does not exist"
+          # Remove conflicting permissions then import the correct qualified one
+          aws lambda remove-permission --function-name shithead-leave-game --statement-id AllowAPIGatewayInvokeLeaveGame 2>/dev/null || true
+          aws lambda remove-permission --function-name shithead-leave-game --qualifier LIVE --statement-id AllowAPIGatewayInvokeLeaveGame 2>/dev/null || true
 
       - name: Terraform apply
         run: terraform apply -auto-approve -input=false -parallelism=3
