@@ -9,6 +9,7 @@ import lombok.Setter;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +39,7 @@ public class GameSessionEntity {
     private Long ttl;
 
     @DynamoDbAttribute("user_id")
+    @DynamoDbSecondaryPartitionKey(indexNames = "user_id-index")
     public String getOwnerId() {
         return ownerId;
     }
