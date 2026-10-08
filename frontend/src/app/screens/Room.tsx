@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchState, startGame, leaveGame, GameStateView } from "../api/game";
+import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
 
@@ -12,6 +13,7 @@ export default function Room() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const failCount = useRef(0);
+  const startRequestInProgress = useRef(false);
   const transitionStarted = useRef(false);
   const transitionTimer = useRef<number | null>(null);
 
@@ -37,9 +39,18 @@ export default function Room() {
         failCount.current = 0;
         if (data.started) {
           showStartingScreen();
+        } else if (data.starting) {
+          setLoading("starting");
         }
-      } catch {
+      } catch (cause) {
         if (cancelled) return;
+        if (cause instanceof ApiError && cause.status === 404) {
+          navigate("/lobby", {
+            replace: true,
+            state: { error: "This game is no longer available. It may have been cleared or already ended." }
+          });
+          return;
+        }
         failCount.current++;
         if (failCount.current >= 3) {
           setError("Failed to load lobby state.");
@@ -54,7 +65,7 @@ export default function Room() {
       clearInterval(handle);
       if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);
     };
-  }, [sessionId, token, showStartingScreen]);
+  }, [sessionId, token, showStartingScreen, navigate]);
 
   const canStart = useMemo(() => {
     if (!state) return false;
@@ -63,11 +74,24 @@ export default function Room() {
 
   const onStart = async () => {
     if (!sessionId) return;
+    startRequestInProgress.current = true;
     setLoading("starting");
     try {
-      await startGame(token, sessionId);
+      await startGame(token, sessionId, "prepare");
+      // Give every lobby a chance to receive the persisted starting state before dealing completes.
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      await startGame(token, sessionId, "start");
+      startRequestInProgress.current = false;
       showStartingScreen();
     } catch (cause) {
+      startRequestInProgress.current = false;
+      if (cause instanceof ApiError && cause.status === 404) {
+        navigate("/lobby", {
+          replace: true,
+          state: { error: "This game is no longer available. It may have been cleared or already ended." }
+        });
+        return;
+      }
       setError(cause instanceof Error ? cause.message : "Failed to start game.");
       setLoading(null);
     }
@@ -83,8 +107,10 @@ export default function Room() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {canStart && (
-            <button className="button" onClick={onStart} disabled={loading !== null}>
-              {loading === "starting" ? "Starting..." : "Start Game"}
+            <button className="button" onClick={onStart} disabled={loading !== null && startRequestInProgress.current}>
+              {loading === "starting" && startRequestInProgress.current
+                ? "Starting..."
+                : state.starting ? "Continue Start" : "Start Game"}
             </button>
           )}
           <button className="button secondary" disabled={loading !== null} onClick={async () => {

@@ -28,6 +28,7 @@ public class GameSessionEntity {
     private List<CardEntity> deck = new ArrayList<>();
     private String currentPlayerId;
     private boolean started;
+    private boolean starting;
     private boolean finished;
     private String shitheadId;
     @Getter(AccessLevel.NONE)

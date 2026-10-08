@@ -22,6 +22,7 @@ export type PlayerState = {
 export type GameStateView = {
   sessionId: string;
   started: boolean;
+  starting: boolean;
   finished: boolean;
   currentPlayerId: string | null;
   shitheadId: string | null;
@@ -56,10 +57,10 @@ export async function joinGame(token: string, sessionId: string) {
   await throwForError(res, "join the game");
 }
 
-export async function startGame(token: string, sessionId: string) {
+export async function startGame(token: string, sessionId: string, phase?: "prepare" | "start") {
   const res = await apiFetch("/start-game", token, {
     method: "POST",
-    body: JSON.stringify({ sessionId })
+    body: JSON.stringify({ sessionId, ...(phase ? { phase } : {}) })
   });
   await throwForError(res, "start the game");
 }
