@@ -137,6 +137,21 @@ input, select {
   box-shadow: none;
 }
 
+.button.danger {
+  background: #c94b58;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(201, 75, 88, 0.25);
+}
+
+.success-alert {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid rgba(87, 211, 200, 0.5);
+  border-radius: 12px;
+  background: rgba(87, 211, 200, 0.12);
+  color: #d6fffa;
+}
+
 .button:hover {
   transform: translateY(-2px);
 }

@@ -44,4 +44,10 @@ public class GameSessionRepository {
     public void delete(String sessionId) {
         table.deleteItem(r -> r.key(k -> k.partitionValue(sessionId)));
     }
+
+    public List<GameSessionEntity> findAll() {
+        List<GameSessionEntity> results = new ArrayList<>();
+        table.scan().forEach(page -> results.addAll(page.items()));
+        return results;
+    }
 }

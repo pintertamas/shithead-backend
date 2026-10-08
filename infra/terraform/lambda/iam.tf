@@ -99,3 +99,52 @@ resource "aws_iam_role_policy" "lambda_apigw" {
     ]
   })
 }
+
+resource "aws_iam_role" "account_management_exec" {
+  name = "${var.project_name}-account-management-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "account_management" {
+  name = "${var.project_name}-account-management-policy"
+  role = aws_iam_role.account_management_exec.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = var.aws_dynamodb_table_users_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Scan", "dynamodb:DeleteItem"]
+        Resource = var.aws_dynamodb_table_games_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Scan", "dynamodb:DeleteItem"]
+        Resource = var.aws_dynamodb_table_ws_connections_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["execute-api:ManageConnections"]
+        Resource = "${var.aws_apigateway_ws_execution_arn}/*/*/@connections/*"
+      }
+    ]
+  })
+}

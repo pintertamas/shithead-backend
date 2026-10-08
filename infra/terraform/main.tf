@@ -20,14 +20,14 @@ provider "aws" {
 }
 
 module "cognito" {
-  source                          = "./cognito"
-  project_name                    = var.project_name
-  app_url                         = var.app_url
-  google_client_id                = var.google_client_id
-  google_client_secret            = var.google_client_secret
+  source                  = "./cognito"
+  project_name            = var.project_name
+  app_url                 = var.app_url
+  google_client_id        = var.google_client_id
+  google_client_secret    = var.google_client_secret
   init_user_function_name = module.lambda.init_user_function_name
   init_user_lambda_arn    = module.lambda.init_user_lambda_arn
-  api_gateway_game_api_id         = module.api_gateway.api_gateway_game_api_id
+  api_gateway_game_api_id = module.api_gateway.api_gateway_game_api_id
 }
 
 module "lambda" {
@@ -38,6 +38,7 @@ module "lambda" {
   aws_dynamodb_table_games_name         = "${var.project_name}-game-sessions"
   aws_dynamodb_table_games_arn          = module.dynamodb.aws_dynamodb_table_games_arn
   aws_apigateway_ws_execution_arn       = module.api_gateway.apigateway_ws_execution_arn
+  websocket_api_endpoint                = module.api_gateway.websocket_endpoint
   aws_dynamodb_table_ws_connection_name = module.dynamodb.aws_dynamodb_table_ws_connections_name
   aws_dynamodb_table_ws_connections_arn = module.dynamodb.aws_dynamodb_table_ws_connections_arn
   cognito_user_pool_client_id           = module.cognito.user_pool_client_id
@@ -82,6 +83,8 @@ module "api_gateway" {
   play_card_ws_function_name                      = module.lambda.play_card_ws_function_name
   pickup_pile_ws_invoke_arn                       = module.lambda.pickup_pile_ws_alias_arn
   pickup_pile_ws_function_name                    = module.lambda.pickup_pile_ws_function_name
+  account_management_invoke_arn                   = module.lambda.account_management_alias_arn
+  account_management_function_name                = module.lambda.account_management_function_name
 }
 
 

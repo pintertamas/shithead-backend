@@ -3,7 +3,7 @@
 > **SINGLE SOURCE OF TRUTH** for AI models working with this codebase.
 > Update this file when patterns change, new components are added, or architectural decisions are made.
 >
-> Last Updated: 2026-02-20 | Model: Claude Sonnet 4.6
+> Last Updated: 2026-10-08
 
 ---
 
@@ -79,7 +79,7 @@ shithead-backend/
 | `model.websocket` | Immutable message Records: `PlayMessage`, `PickupMessage`, `GameEnded` |
 | `entity` | DynamoDB-annotated POJOs |
 | `mapper` | `SessionMapper` — domain ↔ entity conversion |
-| `config` | `GameFunctionConfig` — all Lambda `@Bean` definitions |
+| `config` | `GameFunctionConfig` — game, profile, and admin Lambda `@Bean` definitions |
 | `repository` | `GameSessionRepository`, `UserProfileRepository` |
 | `service` | `EloService` — pure stateless computations |
 | `exception` | Custom exception hierarchy |
@@ -132,6 +132,8 @@ All three fail the build on violations. To suppress a specific violation inline:
 ```
 Client
   ├── REST (HTTP)  → API Gateway → Lambda (@Bean Function<Req, Res>)
+  │                                  ├── Profile API (/profile)
+  │                                  └── Admin cleanup (/admin/doomsday; Cognito game-admin only)
   └── WebSocket    → API Gateway → Lambda (@Bean Function<WSEvent, Res>)
                                          ↓
                                    GameSession (state machine)
@@ -317,6 +319,14 @@ private GameSessionRepository sessionRepo;
 2. The method name is the Spring Cloud Function route name.
 3. JWT claims are extracted from: `req.getRequestContext().getAuthorizer().get("claims")`.
 4. Wire the API Gateway route in Terraform under `infra/`.
+
+### Profiles and Administrative Cleanup
+
+- `UserProfileRepository` persists display names and Elo ratings in the users table.
+- `GET /profile` and `PUT /profile` read/update the authenticated user's display name. A name change is also copied to that user's active game entries.
+- `POST /admin/doomsday` deletes active game sessions and closes WebSocket connections. It does not delete user profiles or Elo ratings.
+- The route checks the Cognito `game-admin` group in JWT claims. Terraform creates the group but does not assign members; membership must be granted deliberately.
+- The account management Lambda uses a dedicated IAM role scoped to profiles, game cleanup, connection cleanup, and API Gateway connection management.
 
 ### Adding a New Repository
 
@@ -594,6 +604,7 @@ log.info("Game {} ended — shithead: {}", sessionId, shitheadId);
 
 - JWT claims (`sub`, `username`) come from the API Gateway authorizer context — **never** trust user-supplied player IDs in the request body.
 - Use least-privilege IAM roles per Lambda (defined in Terraform).
+- Keep global game deletion behind Cognito `game-admin`; do not expose it to ordinary authenticated players.
 - Validate all external inputs at the Lambda handler boundary.
 - Never log sensitive data (tokens, full request bodies).
 
@@ -619,11 +630,9 @@ log.info("Game {} ended — shithead: {}", sessionId, shitheadId);
 | `mapper/SessionMapper.java` | Domain ↔ DynamoDB; has a known bug (see below) |
 | `backend/pom.xml` | Dependency versions |
 
-### Known Issue: Suit Not Persisted by SessionMapper
+### SessionMapper Card Serialization
 
-`SessionMapper.cardsToEntities()` serializes `value`, `rule`, and `alwaysPlayable` but **does not serialize `Suit`**. Cards restored from DynamoDB have `suit = null`. Tests deliberately avoid asserting suit after a round-trip.
-
-Do not add logic that depends on `Suit` being non-null after deserialization until this is fixed.
+`SessionMapper` persists all card fields, including `Suit`, and restores them when loading a session.
 
 ### GameSession Invariants
 

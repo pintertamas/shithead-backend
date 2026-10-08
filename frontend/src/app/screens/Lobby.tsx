@@ -1,15 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGame, joinGame } from "../api/game";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
+import { fetchProfile } from "../api/profile";
 
 export default function Lobby() {
   const navigate = useNavigate();
-  const { token, username, logout } = useAuth();
+  const { token, logout } = useAuth();
   const [joinCode, setJoinCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
+
+  useEffect(() => {
+    fetchProfile(token).then((profile) => setDisplayName(profile.username)).catch(() => undefined);
+  }, [token]);
 
   const handleCreate = async () => {
     setStatus(null);
@@ -45,8 +51,11 @@ export default function Lobby() {
       <div className="topbar">
         <div>
           <div className="badge">Signed In</div>
-          <h2 className="title">Welcome, {username || "Player"}</h2>
+          <h2 className="title">Welcome, {displayName || "Player"}</h2>
         </div>
+        <button className="button secondary" onClick={() => navigate("/profile")}>
+          Profile
+        </button>
         <button
           className="button secondary"
           onClick={() => {

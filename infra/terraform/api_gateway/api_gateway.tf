@@ -185,6 +185,153 @@ resource "aws_api_gateway_integration" "leaderboard_top" {
   uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.leaderboard_top_invoke_arn}/invocations"
 }
 
+resource "aws_api_gateway_resource" "profile" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  parent_id   = aws_api_gateway_rest_api.game_api.root_resource_id
+  path_part   = "profile"
+}
+
+resource "aws_api_gateway_method" "get_profile" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.profile.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = var.cognito_authorizer_id
+}
+
+resource "aws_api_gateway_integration" "get_profile" {
+  rest_api_id             = aws_api_gateway_rest_api.game_api.id
+  resource_id             = aws_api_gateway_resource.profile.id
+  http_method             = aws_api_gateway_method.get_profile.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.account_management_invoke_arn}/invocations"
+}
+
+resource "aws_api_gateway_method" "put_profile" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.profile.id
+  http_method   = "PUT"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = var.cognito_authorizer_id
+}
+
+resource "aws_api_gateway_integration" "put_profile" {
+  rest_api_id             = aws_api_gateway_rest_api.game_api.id
+  resource_id             = aws_api_gateway_resource.profile.id
+  http_method             = aws_api_gateway_method.put_profile.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.account_management_invoke_arn}/invocations"
+}
+
+resource "aws_api_gateway_resource" "admin" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  parent_id   = aws_api_gateway_rest_api.game_api.root_resource_id
+  path_part   = "admin"
+}
+
+resource "aws_api_gateway_resource" "admin_doomsday" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  parent_id   = aws_api_gateway_resource.admin.id
+  path_part   = "doomsday"
+}
+
+resource "aws_api_gateway_method" "admin_doomsday" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.admin_doomsday.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = var.cognito_authorizer_id
+}
+
+resource "aws_api_gateway_integration" "admin_doomsday" {
+  rest_api_id             = aws_api_gateway_rest_api.game_api.id
+  resource_id             = aws_api_gateway_resource.admin_doomsday.id
+  http_method             = aws_api_gateway_method.admin_doomsday.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.account_management_invoke_arn}/invocations"
+}
+
+resource "aws_api_gateway_method" "options_profile" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.profile.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_profile" {
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.profile.id
+  http_method       = aws_api_gateway_method.options_profile.http_method
+  type              = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_profile" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.profile.id
+  http_method = aws_api_gateway_method.options_profile.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_profile" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.profile.id
+  http_method = aws_api_gateway_method.options_profile.http_method
+  status_code = aws_api_gateway_method_response.options_profile.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+resource "aws_api_gateway_method" "options_admin_doomsday" {
+  rest_api_id   = aws_api_gateway_rest_api.game_api.id
+  resource_id   = aws_api_gateway_resource.admin_doomsday.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "options_admin_doomsday" {
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.admin_doomsday.id
+  http_method       = aws_api_gateway_method.options_admin_doomsday.http_method
+  type              = "MOCK"
+  request_templates = { "application/json" = "{\"statusCode\": 200}" }
+}
+
+resource "aws_api_gateway_method_response" "options_admin_doomsday" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.admin_doomsday.id
+  http_method = aws_api_gateway_method.options_admin_doomsday.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options_admin_doomsday" {
+  rest_api_id = aws_api_gateway_rest_api.game_api.id
+  resource_id = aws_api_gateway_resource.admin_doomsday.id
+  http_method = aws_api_gateway_method.options_admin_doomsday.http_method
+  status_code = aws_api_gateway_method_response.options_admin_doomsday.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
 # ── CORS gateway-level responses (covers auth failures and other 4XX/5XX) ──────
 
 resource "aws_api_gateway_gateway_response" "cors_4xx" {
@@ -193,7 +340,7 @@ resource "aws_api_gateway_gateway_response" "cors_4xx" {
   response_parameters = {
     "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
     "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
-    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,GET,OPTIONS'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,GET,PUT,OPTIONS'"
   }
 }
 
@@ -203,7 +350,7 @@ resource "aws_api_gateway_gateway_response" "cors_5xx" {
   response_parameters = {
     "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
     "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
-    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,GET,OPTIONS'"
+    "gatewayresponse.header.Access-Control-Allow-Methods" = "'POST,GET,PUT,OPTIONS'"
   }
 }
 
@@ -217,10 +364,10 @@ resource "aws_api_gateway_method" "options_create_game" {
 }
 
 resource "aws_api_gateway_integration" "options_create_game" {
-  rest_api_id = aws_api_gateway_rest_api.game_api.id
-  resource_id = aws_api_gateway_resource.create_game.id
-  http_method = aws_api_gateway_method.options_create_game.http_method
-  type        = "MOCK"
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.create_game.id
+  http_method       = aws_api_gateway_method.options_create_game.http_method
+  type              = "MOCK"
   request_templates = { "application/json" = "{\"statusCode\": 200}" }
 }
 
@@ -256,10 +403,10 @@ resource "aws_api_gateway_method" "options_join_game" {
 }
 
 resource "aws_api_gateway_integration" "options_join_game" {
-  rest_api_id = aws_api_gateway_rest_api.game_api.id
-  resource_id = aws_api_gateway_resource.join_game.id
-  http_method = aws_api_gateway_method.options_join_game.http_method
-  type        = "MOCK"
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.join_game.id
+  http_method       = aws_api_gateway_method.options_join_game.http_method
+  type              = "MOCK"
   request_templates = { "application/json" = "{\"statusCode\": 200}" }
 }
 
@@ -295,10 +442,10 @@ resource "aws_api_gateway_method" "options_leave_game" {
 }
 
 resource "aws_api_gateway_integration" "options_leave_game" {
-  rest_api_id = aws_api_gateway_rest_api.game_api.id
-  resource_id = aws_api_gateway_resource.leave_game.id
-  http_method = aws_api_gateway_method.options_leave_game.http_method
-  type        = "MOCK"
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.leave_game.id
+  http_method       = aws_api_gateway_method.options_leave_game.http_method
+  type              = "MOCK"
   request_templates = { "application/json" = "{\"statusCode\": 200}" }
 }
 
@@ -334,10 +481,10 @@ resource "aws_api_gateway_method" "options_start_game" {
 }
 
 resource "aws_api_gateway_integration" "options_start_game" {
-  rest_api_id = aws_api_gateway_rest_api.game_api.id
-  resource_id = aws_api_gateway_resource.start_game.id
-  http_method = aws_api_gateway_method.options_start_game.http_method
-  type        = "MOCK"
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.start_game.id
+  http_method       = aws_api_gateway_method.options_start_game.http_method
+  type              = "MOCK"
   request_templates = { "application/json" = "{\"statusCode\": 200}" }
 }
 
@@ -373,10 +520,10 @@ resource "aws_api_gateway_method" "options_state" {
 }
 
 resource "aws_api_gateway_integration" "options_state" {
-  rest_api_id = aws_api_gateway_rest_api.game_api.id
-  resource_id = aws_api_gateway_resource.state_session.id
-  http_method = aws_api_gateway_method.options_state.http_method
-  type        = "MOCK"
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.state_session.id
+  http_method       = aws_api_gateway_method.options_state.http_method
+  type              = "MOCK"
   request_templates = { "application/json" = "{\"statusCode\": 200}" }
 }
 
@@ -412,10 +559,10 @@ resource "aws_api_gateway_method" "options_leaderboard_session" {
 }
 
 resource "aws_api_gateway_integration" "options_leaderboard_session" {
-  rest_api_id = aws_api_gateway_rest_api.game_api.id
-  resource_id = aws_api_gateway_resource.leaderboard_session_id.id
-  http_method = aws_api_gateway_method.options_leaderboard_session.http_method
-  type        = "MOCK"
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.leaderboard_session_id.id
+  http_method       = aws_api_gateway_method.options_leaderboard_session.http_method
+  type              = "MOCK"
   request_templates = { "application/json" = "{\"statusCode\": 200}" }
 }
 
@@ -451,10 +598,10 @@ resource "aws_api_gateway_method" "options_leaderboard_top" {
 }
 
 resource "aws_api_gateway_integration" "options_leaderboard_top" {
-  rest_api_id = aws_api_gateway_rest_api.game_api.id
-  resource_id = aws_api_gateway_resource.leaderboard_top.id
-  http_method = aws_api_gateway_method.options_leaderboard_top.http_method
-  type        = "MOCK"
+  rest_api_id       = aws_api_gateway_rest_api.game_api.id
+  resource_id       = aws_api_gateway_resource.leaderboard_top.id
+  http_method       = aws_api_gateway_method.options_leaderboard_top.http_method
+  type              = "MOCK"
   request_templates = { "application/json" = "{\"statusCode\": 200}" }
 }
 
@@ -501,6 +648,11 @@ resource "aws_api_gateway_deployment" "deployment" {
       aws_api_gateway_integration.options_state.id,
       aws_api_gateway_integration.options_leaderboard_session.id,
       aws_api_gateway_integration.options_leaderboard_top.id,
+      aws_api_gateway_integration.get_profile.id,
+      aws_api_gateway_integration.put_profile.id,
+      aws_api_gateway_integration.options_profile.id,
+      aws_api_gateway_integration.admin_doomsday.id,
+      aws_api_gateway_integration.options_admin_doomsday.id,
     ]))
   }
 
@@ -516,9 +668,9 @@ resource "aws_api_gateway_stage" "prod" {
 }
 
 resource "aws_apigatewayv2_authorizer" "ws" {
-  api_id          = aws_apigatewayv2_api.game_ws.id
-  name            = "WebSocketJwtAuthorizer"
-  authorizer_type = "REQUEST"
-  authorizer_uri  = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.aws_lambda_function_ws_authorizer_arn}/invocations"
+  api_id           = aws_apigatewayv2_api.game_ws.id
+  name             = "WebSocketJwtAuthorizer"
+  authorizer_type  = "REQUEST"
+  authorizer_uri   = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${var.aws_lambda_function_ws_authorizer_arn}/invocations"
   identity_sources = ["route.request.querystring.token"]
 }
