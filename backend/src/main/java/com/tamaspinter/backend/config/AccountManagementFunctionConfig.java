@@ -8,6 +8,7 @@ import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
+import com.tamaspinter.backend.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -43,6 +44,7 @@ public class AccountManagementFunctionConfig {
 
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
+    private final UserProfileService profileService;
     private final ObjectMapper mapper;
     private final DynamoDbClient dynamoClient = DynamoDbClient.create();
     private final String wsConnectionsTable = System.getenv("WS_CONNECTIONS_TABLE");
@@ -78,7 +80,7 @@ public class AccountManagementFunctionConfig {
 
     private APIGatewayProxyResponseEvent readProfile(Map<String, Object> claims) {
         String userId = (String) claims.get("sub");
-        UserProfile profile = getOrCreateProfile(userId, claims);
+        UserProfile profile = profileService.getOrCreateProfile(userId, claims);
         Map<String, Object> result = Map.of(
                 "username", profile.getUsername(),
                 "canClearGames", hasAdminGroup(claims));
@@ -106,7 +108,7 @@ public class AccountManagementFunctionConfig {
         if (!username.matches("[\\p{L}\\p{N}_ -]{2,24}")) {
             return corsResponse(400, "{\"message\":\"Choose a name between 2 and 24 letters, numbers, spaces, hyphens, or underscores.\"}");
         }
-        UserProfile profile = getOrCreateProfile((String) claims.get("sub"), claims);
+        UserProfile profile = profileService.getOrCreateProfile((String) claims.get("sub"), claims);
         if (!userRepo.updateUsernameIfAvailable(profile, username)) {
             return corsResponse(409, "{\"message\":\"That nickname is already taken. Please choose another.\"}");
         }
@@ -126,30 +128,6 @@ public class AccountManagementFunctionConfig {
                 sessionRepo.save(game);
             }
         }
-    }
-
-    private UserProfile getOrCreateProfile(String userId, Map<String, Object> claims) {
-        UserProfile profile = userRepo.get(userId);
-        if (profile != null && profile.getUsername() != null && !profile.getUsername().isBlank()) {
-            return profile;
-        }
-        Object claimName = claims.getOrDefault("preferred_username", claims.get("cognito:username"));
-        if (claimName == null) {
-            claimName = claims.get("email");
-        }
-        if (profile == null) {
-            profile = UserProfile.builder().userId(userId).eloScore(1000).build();
-            userRepo.save(profile);
-        }
-        String defaultName = claimName instanceof String name ? name : "Player";
-        if (!userRepo.updateUsernameIfAvailable(profile, defaultName)) {
-            String suffix = userId.substring(Math.max(0, userId.length() - 6));
-            String uniqueFallback = defaultName.substring(0, Math.min(defaultName.length(), 17)) + "-" + suffix;
-            if (!userRepo.updateUsernameIfAvailable(profile, uniqueFallback)) {
-                throw new IllegalStateException("Could not reserve a unique default nickname");
-            }
-        }
-        return profile;
     }
 
     private APIGatewayProxyResponseEvent clearActiveGames(Map<String, Object> claims) {
