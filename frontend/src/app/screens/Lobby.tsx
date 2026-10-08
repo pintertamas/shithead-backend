@@ -91,33 +91,24 @@ export default function Lobby() {
       </div>
 
       <div className="layout lobby-layout">
-        <div className="glass card">
-          <h3 className="title">Create a Game</h3>
-          <p style={{ color: "var(--ink-dim)" }}>
-            Generate a short join code and invite friends.
-          </p>
-          <p className="config-note">New games use your saved configuration.</p>
+        <div className="glass card lobby-actions-card">
           <button className="button" onClick={handleCreate} disabled={loading !== null}>
             {loading === "creating" ? "Creating..." : "Create Game"}
           </button>
-        </div>
-
-        <div className="glass card">
-          <h3 className="title">Join a Game</h3>
-          <p style={{ color: "var(--ink-dim)" }}>
-            Enter a join code to hop into a lobby.
-          </p>
-          <input
-            className="input"
-            placeholder="Enter join code"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value)}
-            disabled={loading !== null}
-          />
-          <div style={{ height: 12 }} />
-          <button className="button" onClick={handleJoin} disabled={loading !== null}>
-            {loading === "joining" ? "Joining..." : "Join Game"}
-          </button>
+          <form className="lobby-join-form" onSubmit={(event) => { event.preventDefault(); void handleJoin(); }}>
+            <input
+              className="input"
+              aria-label="Game join code"
+              placeholder="Enter join code"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              disabled={loading !== null}
+            />
+            <button className="button secondary" type="submit" disabled={loading !== null || !joinCode.trim()}>
+              {loading === "joining" ? "Joining..." : "Join Game"}
+            </button>
+          </form>
+          <p className="config-note">New games use your saved configuration.</p>
         </div>
 
         <div className="glass card leaderboard-card">
