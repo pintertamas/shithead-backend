@@ -62,7 +62,7 @@ export default function GameTable() {
     }
     setError(ws?.readyState === WebSocket.CONNECTING
       ? "The game connection is still opening. Please try again in a moment."
-      : "The game connection is unavailable. Reload the page to reconnect.");
+      : "The live game connection is closed. Refresh the page to reconnect.");
     return false;
   }, []);
 
@@ -100,8 +100,19 @@ export default function GameTable() {
 
   useEffect(() => {
     if (!sessionId || !token) return;
-    const url = `${WS_BASE}?game_session_id=${sessionId}&token=${encodeURIComponent(token)}`;
-    const ws = new WebSocket(url);
+    let ws: WebSocket;
+    try {
+      const url = new URL(WS_BASE);
+      if (url.pathname === "/" || url.pathname === "") {
+        url.pathname = "/$default";
+      }
+      url.searchParams.set("game_session_id", sessionId);
+      url.searchParams.set("token", token);
+      ws = new WebSocket(url.toString());
+    } catch {
+      setError("The live game URL is invalid. Check the WebSocket endpoint configuration.");
+      return;
+    }
     wsRef.current = ws;
 
     ws.onmessage = (evt) => {
