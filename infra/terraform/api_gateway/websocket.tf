@@ -81,8 +81,10 @@ resource "aws_apigatewayv2_stage" "default_stage" {
   name   = "$default"
 
   default_route_settings {
-    logging_level      = "INFO"
-    data_trace_enabled = false
+    logging_level          = "INFO"
+    data_trace_enabled     = false
+    throttling_burst_limit = 100
+    throttling_rate_limit  = 50
   }
 
   access_log_settings {
