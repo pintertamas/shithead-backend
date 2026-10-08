@@ -96,9 +96,9 @@ public class GameSession {
         return false;
     }
 
-    private List<Card> matchSelectedCards(List<Card> available, List<Card> selected) {
+    private Optional<List<Card>> matchSelectedCards(List<Card> available, List<Card> selected) {
         if (selected == null || selected.isEmpty()) {
-            return null;
+            return Optional.empty();
         }
         List<Card> unmatched = new ArrayList<>(available);
         List<Card> matched = new ArrayList<>();
@@ -111,11 +111,11 @@ public class GameSession {
                 }
             }
             if (match < 0) {
-                return null;
+                return Optional.empty();
             }
             matched.add(unmatched.remove(match));
         }
-        return matched;
+        return Optional.of(matched);
     }
 
     private boolean sameCard(Card left, Card right) {
@@ -174,10 +174,11 @@ public class GameSession {
         if (player.getHand().isEmpty()) {
             return PlayResult.INVALID;
         }
-        List<Card> matched = matchSelectedCards(new ArrayList<>(player.getHand()), cards);
-        if (matched == null) {
+        Optional<List<Card>> matchedCards = matchSelectedCards(new ArrayList<>(player.getHand()), cards);
+        if (matchedCards.isEmpty()) {
             return PlayResult.INVALID;
         }
+        List<Card> matched = matchedCards.get();
         if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
             return PlayResult.INVALID;
         }
@@ -192,10 +193,11 @@ public class GameSession {
         if (!player.getHand().isEmpty() || player.getFaceUp().isEmpty()) {
             return PlayResult.INVALID;
         }
-        List<Card> matched = matchSelectedCards(new ArrayList<>(player.getFaceUp()), cards);
-        if (matched == null) {
+        Optional<List<Card>> matchedCards = matchSelectedCards(new ArrayList<>(player.getFaceUp()), cards);
+        if (matchedCards.isEmpty()) {
             return PlayResult.INVALID;
         }
+        List<Card> matched = matchedCards.get();
         if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
             return PlayResult.INVALID;
         }
@@ -210,10 +212,11 @@ public class GameSession {
         if (!player.getHand().isEmpty() || !player.getFaceUp().isEmpty() || player.getFaceDown().isEmpty()) {
             return PlayResult.INVALID;
         }
-        List<Card> matched = matchSelectedCards(new ArrayList<>(player.getFaceDown()), cards);
-        if (matched == null) {
+        Optional<List<Card>> matchedCards = matchSelectedCards(new ArrayList<>(player.getFaceDown()), cards);
+        if (matchedCards.isEmpty()) {
             return PlayResult.INVALID;
         }
+        List<Card> matched = matchedCards.get();
         matched.forEach(player.getFaceDown()::remove);
         if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
             matched.forEach(player.getHand()::addLast);
