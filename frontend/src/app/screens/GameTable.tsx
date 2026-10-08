@@ -182,6 +182,7 @@ export default function GameTable() {
         <div>
           <div className="badge">Game</div>
           <h2 className="title">Session {state.sessionId}</h2>
+          <div className="game-player-name">You are playing as <strong>{you.username}</strong></div>
         </div>
         {currentName && <TurnBadge name={currentName} />}
       </div>

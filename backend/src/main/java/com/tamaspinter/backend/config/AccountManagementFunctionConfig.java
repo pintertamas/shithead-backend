@@ -107,8 +107,9 @@ public class AccountManagementFunctionConfig {
             return corsResponse(400, "{\"message\":\"Choose a name between 2 and 24 letters, numbers, spaces, hyphens, or underscores.\"}");
         }
         UserProfile profile = getOrCreateProfile((String) claims.get("sub"), claims);
-        profile.setUsername(username);
-        userRepo.save(profile);
+        if (!userRepo.updateUsernameIfAvailable(profile, username)) {
+            return corsResponse(409, "{\"message\":\"That nickname is already taken. Please choose another.\"}");
+        }
         renamePlayerInActiveGames(profile.getUserId(), username);
         return readProfile(claims);
     }
@@ -138,9 +139,16 @@ public class AccountManagementFunctionConfig {
         }
         if (profile == null) {
             profile = UserProfile.builder().userId(userId).eloScore(1000).build();
+            userRepo.save(profile);
         }
-        profile.setUsername(claimName instanceof String name ? name : "Player");
-        userRepo.save(profile);
+        String defaultName = claimName instanceof String name ? name : "Player";
+        if (!userRepo.updateUsernameIfAvailable(profile, defaultName)) {
+            String suffix = userId.substring(Math.max(0, userId.length() - 6));
+            String uniqueFallback = defaultName.substring(0, Math.min(defaultName.length(), 17)) + "-" + suffix;
+            if (!userRepo.updateUsernameIfAvailable(profile, uniqueFallback)) {
+                throw new IllegalStateException("Could not reserve a unique default nickname");
+            }
+        }
         return profile;
     }
 

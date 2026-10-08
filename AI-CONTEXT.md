@@ -143,9 +143,11 @@ Client
                                    GameSession (state machine)
                                          ↓
                                    DynamoDB (save entity)
-                                         ↓
+                                        ↓
                                    broadcastState() → WebSocket clients
 ```
+
+User nicknames are stored in the users DynamoDB table. `UserProfileRepository.updateUsernameIfAvailable` normalizes nicknames case-insensitively, checks existing profile rows (including legacy rows), and transactionally reserves the name with a hidden same-table claim record while updating the profile. The account-management Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. The lobby polls game state once per second and shows a brief blocking “Starting game” screen as soon as it observes the started state; the owner sees it as soon as the start request succeeds.
 
 ### Game State Machine (`GameSession`)
 
@@ -158,6 +160,8 @@ Client
 | `INVALID` | Move rejected — wrong turn, illegal card, or game finished |
 
 Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty.
+
+The WebSocket `playSelections` path must run `finishSuccessfulPlay` after a successful hand, face-up, face-down, or mixed selection so after-effects execute and turn ownership advances. Keep this in sync if adding another selection source.
 
 The frontend's `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
 

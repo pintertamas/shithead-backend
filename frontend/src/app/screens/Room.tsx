@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchState, startGame, leaveGame, GameStateView } from "../api/game";
 import { useAuth } from "../auth/useAuth";
@@ -12,6 +12,17 @@ export default function Room() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const failCount = useRef(0);
+  const transitionStarted = useRef(false);
+  const transitionTimer = useRef<number | null>(null);
+
+  const showStartingScreen = useCallback(() => {
+    setLoading("starting");
+    if (transitionStarted.current || !sessionId) return;
+    transitionStarted.current = true;
+    transitionTimer.current = window.setTimeout(() => {
+      navigate(`/game/${sessionId}`);
+    }, 500);
+  }, [navigate, sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -25,7 +36,7 @@ export default function Room() {
         setError(null);
         failCount.current = 0;
         if (data.started) {
-          navigate(`/game/${sessionId}`);
+          showStartingScreen();
         }
       } catch {
         if (cancelled) return;
@@ -37,12 +48,13 @@ export default function Room() {
     };
 
     refresh();
-    const handle = setInterval(refresh, 3000);
+    const handle = setInterval(refresh, 1000);
     return () => {
       cancelled = true;
       clearInterval(handle);
+      if (transitionTimer.current !== null) window.clearTimeout(transitionTimer.current);
     };
-  }, [sessionId, token]);
+  }, [sessionId, token, showStartingScreen]);
 
   const canStart = useMemo(() => {
     if (!state) return false;
@@ -54,9 +66,9 @@ export default function Room() {
     setLoading("starting");
     try {
       await startGame(token, sessionId);
-    } catch {
-      setError("Failed to start game.");
-    } finally {
+      showStartingScreen();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to start game.");
       setLoading(null);
     }
   };
@@ -101,6 +113,17 @@ export default function Room() {
           </div>
         </div>
       </div>
+      {loading === "starting" && (
+        <div className="game-starting-overlay" role="status" aria-live="polite">
+          <div className="game-starting-message">
+            <div className="game-starting-spinner" aria-hidden="true" />
+            <div>
+              <h2 className="title">Starting game…</h2>
+              <p style={{ color: "var(--ink-dim)", marginBottom: 0 }}>The owner started the game. Getting everyone to the table.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

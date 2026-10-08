@@ -127,7 +127,7 @@ resource "aws_iam_role_policy" "account_management" {
       },
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Scan", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:TransactWriteItems"]
         Resource = var.aws_dynamodb_table_users_arn
       },
       {
