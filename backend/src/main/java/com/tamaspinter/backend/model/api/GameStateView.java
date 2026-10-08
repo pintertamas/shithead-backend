@@ -9,6 +9,7 @@ import java.util.List;
 public record GameStateView(
         String sessionId,
         boolean started,
+        boolean starting,
         boolean finished,
         String currentPlayerId,
         String shitheadId,

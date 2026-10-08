@@ -124,6 +124,7 @@ public class GameFunctionConfig {
         };
     }
 
+    @SuppressWarnings("PMD.CognitiveComplexity")
     @Bean
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> startGame() {
         return req -> {
@@ -146,13 +147,28 @@ public class GameFunctionConfig {
                 return corsResponse(403);
             }
 
-            GameSession session = SessionMapper.fromEntity(entity);
-            if (session.getPlayers().size() < 2) {
+            if (entity.getPlayers().size() < 2) {
                 return corsResponse(400);
             }
+            String phase = (String) data.get("phase");
+            if ("prepare".equals(phase)) {
+                if (!entity.isStarted() && !entity.isStarting()) {
+                    entity.setStarting(true);
+                    sessionRepo.save(entity);
+                }
+                return corsResponse(200, "{\"starting\":true}");
+            }
+            if (entity.isStarted()) {
+                return corsResponse(200);
+            }
+            GameSession session = SessionMapper.fromEntity(entity);
             try {
                 session.start();
             } catch (IllegalStateException e) {
+                if (entity.isStarting()) {
+                    entity.setStarting(false);
+                    sessionRepo.save(entity);
+                }
                 return corsResponse(409);
             }
             sessionRepo.save(session.toEntity());
@@ -470,6 +486,7 @@ public class GameFunctionConfig {
         return GameStateView.builder()
                 .sessionId(entity.getSessionId())
                 .started(entity.isStarted())
+                .starting(entity.isStarting())
                 .finished(entity.isFinished())
                 .currentPlayerId(entity.getCurrentPlayerId())
                 .shitheadId(entity.getShitheadId())

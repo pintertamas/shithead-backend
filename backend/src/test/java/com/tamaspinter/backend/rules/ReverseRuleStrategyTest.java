@@ -41,9 +41,9 @@ class ReverseRuleStrategyTest {
         strategy.afterEffect(pile, players, currentPlayer);
 
         // Then
-        assertEquals("test4", players.get(0).getUsername());
-        assertEquals("test3", players.get(1).getUsername());
-        assertEquals("test2", players.get(2).getUsername());
-        assertEquals("test1", players.get(3).getUsername());
+        assertEquals("test3", players.get(0).getUsername());
+        assertEquals("test2", players.get(1).getUsername());
+        assertEquals("test1", players.get(2).getUsername());
+        assertEquals("test4", players.get(3).getUsername());
     }
 }

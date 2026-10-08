@@ -394,12 +394,40 @@ class GameSessionTest {
         // When
         s.playCards(List.of(reverseCard));
 
-        // Then — list reversed to [carol, bob, alice]; currentIndex was 0,
-        //         nextPlayer() advances to index 1 → bob's turn
-        assertEquals("carol", s.getPlayers().get(0).getUsername());
-        assertEquals("bob",   s.getPlayers().get(1).getUsername());
-        assertEquals("alice", s.getPlayers().get(2).getUsername());
+        // Then — reverse order is anchored on Alice, so Carol takes the next turn.
+        assertEquals("alice", s.getPlayers().get(0).getUsername());
+        assertEquals("carol", s.getPlayers().get(1).getUsername());
+        assertEquals("bob",   s.getPlayers().get(2).getUsername());
+        assertEquals("p3", s.getCurrentPlayerId());
+    }
+
+    @Test
+    void testReverseCard_playedByMiddlePlayer_reversesOrderFromThatPlayer() {
+        // Given — A has already played; B is playing in the original A → B → C order.
+        GameSession s = GameSession.builder().sessionId("reverse-middle-session").build();
+        s.addPlayer("p1", "alice");
+        s.addPlayer("p2", "bob");
+        s.addPlayer("p3", "carol");
+        s.setStarted(true);
+        s.setDeck(new Deck(List.of()));
+        s.setCurrentIndex(1);
+        Player alice = s.getPlayers().get(0);
+        Player bob = s.getPlayers().get(1);
+        Player carol = s.getPlayers().get(2);
+        alice.getHand().addAll(List.of(card(14), card(14), card(14)));
+        Card reverseCard = Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.REVERSE).alwaysPlayable(false).build();
+        bob.getHand().addAll(List.of(reverseCard, card(14), card(14)));
+        carol.getHand().addAll(List.of(card(14), card(14), card(14)));
+
+        // When/Then — the resulting turn sequence is A, C, B, A after B reverses.
+        assertEquals(PlayResult.SUCCESS, s.playCards(List.of(reverseCard)));
+        assertEquals("p1", s.getCurrentPlayerId());
+        assertEquals(PlayResult.SUCCESS, s.playCards(List.of(card(14))));
+        assertEquals("p3", s.getCurrentPlayerId());
+        assertEquals(PlayResult.SUCCESS, s.playCards(List.of(card(14))));
         assertEquals("p2", s.getCurrentPlayerId());
+        assertEquals(PlayResult.SUCCESS, s.playCards(List.of(card(14))));
+        assertEquals("p1", s.getCurrentPlayerId());
     }
 
     // =========================================================================

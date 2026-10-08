@@ -125,9 +125,9 @@ class RuleEngineTest {
         RuleEngine.playAfterEffect(reverse, pile, current, players);
 
         // Then
-        assertEquals("carol", players.get(0).getUsername());
-        assertEquals("bob", players.get(1).getUsername());
-        assertEquals("alice", players.get(2).getUsername());
+        assertEquals("alice", players.get(0).getUsername());
+        assertEquals("carol", players.get(1).getUsername());
+        assertEquals("bob", players.get(2).getUsername());
     }
 
     @Test

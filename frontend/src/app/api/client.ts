@@ -23,7 +23,7 @@ export async function throwForError(response: Response, action: string): Promise
   } catch {
     // Fall back to a status-based message when the response has no JSON body.
   }
-  if (serverMessage) throw new Error(serverMessage);
+  if (serverMessage) throw new ApiError(serverMessage, response.status);
   const explanation = response.status === 401 || response.status === 403
     ? "Please sign in again and check that you have access."
     : response.status === 404
@@ -35,7 +35,14 @@ export async function throwForError(response: Response, action: string): Promise
         : response.status === 429
           ? "The game is receiving too many requests. Please wait a moment and try again."
           : "The game service is having trouble. Please try again in a moment.";
-  throw new Error(`Couldn't ${action}. ${explanation}`);
+  throw new ApiError(`Couldn't ${action}. ${explanation}`, response.status);
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
 }
 
 export function useApi() {

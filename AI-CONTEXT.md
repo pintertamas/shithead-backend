@@ -147,7 +147,7 @@ Client
                                    broadcastState() → WebSocket clients
 ```
 
-User nicknames are stored in the users DynamoDB table. `UserProfileService` creates profiles and reserves unique default nicknames; `UsernameReservationRepository` normalizes nickname comparisons case-insensitively, checks legacy profile rows, and transactionally reserves a nickname with a hidden same-table claim record. The account-management Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. The lobby polls game state once per second and shows a brief blocking “Starting game” screen as soon as it observes the started state; the owner sees it as soon as the start request succeeds.
+User nicknames are stored in the users DynamoDB table. `UserProfileService` creates profiles and reserves unique default nicknames; `UsernameReservationRepository` normalizes nickname comparisons case-insensitively, checks legacy profile rows, and transactionally reserves a nickname with a hidden same-table claim record. The account-management Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. Starting a game is a two-phase flow: the owner first persists `starting=true`, which lobby clients poll once per second to show the blocking “Starting game” screen, then the owner finalizes the deal after a short transition. The final game state sets `started=true` and clears `starting`.
 
 ### Game State Machine (`GameSession`)
 

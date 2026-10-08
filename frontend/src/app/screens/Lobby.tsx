@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { createGame, joinGame } from "../api/game";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
@@ -8,11 +8,20 @@ import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
 
 export default function Lobby() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { token, logout } = useAuth();
   const [joinCode, setJoinCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
+
+  useEffect(() => {
+    const navigationError = (location.state as { error?: unknown } | null)?.error;
+    if (typeof navigationError === "string") {
+      setStatus(navigationError);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
     fetchProfile(token).then((profile) => setDisplayName(profile.username)).catch(() => undefined);

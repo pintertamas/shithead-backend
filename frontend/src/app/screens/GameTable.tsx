@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CardSelection, fetchState, GameStateView } from "../api/game";
+import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
-import Hand from "../components/Hand";
-import FaceUp from "../components/FaceUp";
-import FaceDownCount from "../components/FaceDownCount";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
 import TurnBadge from "../components/TurnBadge";
@@ -39,6 +37,17 @@ export default function GameTable() {
   const selectedHasHand = selected.some((item) => item.source === "hand");
   const selectedHasFaceUp = selected.some((item) => item.source === "faceUp");
   const mixedSelectionIncomplete = canMixHandAndFaceUp && hand.length > 0 && selectedHasFaceUp && !selectedHasHand;
+
+  const redirectIfGameMissing = useCallback((cause: unknown) => {
+    if (cause instanceof ApiError && cause.status === 404) {
+      navigate("/lobby", {
+        replace: true,
+        state: { error: "This game is no longer available. It may have been cleared or already ended." }
+      });
+      return true;
+    }
+    return false;
+  }, [navigate]);
 
   const applyState = useCallback((next: GameStateView) => {
     const previous = stateRef.current;
@@ -98,19 +107,21 @@ export default function GameTable() {
   useEffect(() => {
     if (!sessionId) return;
     fetchState(token, sessionId).then(applyState).catch((cause: unknown) => {
+      if (redirectIfGameMissing(cause)) return;
       setError(cause instanceof Error ? cause.message : "Couldn't load the game state.");
     });
-  }, [sessionId, token, applyState]);
+  }, [sessionId, token, applyState, redirectIfGameMissing]);
 
   useEffect(() => {
     if (!sessionId) return;
     const handle = setInterval(() => {
       fetchState(token, sessionId).then(applyState).catch((cause: unknown) => {
+        if (redirectIfGameMissing(cause)) return;
         setError(cause instanceof Error ? cause.message : "Couldn't refresh the game state.");
       });
     }, 4000);
     return () => clearInterval(handle);
-  }, [sessionId, token, applyState]);
+  }, [sessionId, token, applyState, redirectIfGameMissing]);
 
   useEffect(() => {
     if (!sessionId || !token) return;
@@ -133,7 +144,15 @@ export default function GameTable() {
       try {
         const data = JSON.parse(evt.data) as GameStateView;
         if ((data as unknown as { type?: string }).type === "error") {
-          const message = (data as unknown as { message?: string }).message;
+          const errorData = data as unknown as { message?: string; status?: number };
+          if (errorData.status === 404) {
+            navigate("/lobby", {
+              replace: true,
+              state: { error: "This game is no longer available. It may have been cleared or already ended." }
+            });
+            return;
+          }
+          const message = errorData.message;
           setError(message || "The game rejected that action.");
           setPendingAction(false);
           return;
@@ -159,7 +178,7 @@ export default function GameTable() {
       ws.close();
       wsRef.current = null;
     };
-  }, [sessionId, token, applyState]);
+  }, [sessionId, token, applyState, navigate]);
 
   useEffect(() => {
     if (state?.finished && state.shitheadId) {
@@ -176,7 +195,7 @@ export default function GameTable() {
   }
 
   return (
-    <div className="page fade-in">
+    <div className="page fade-in game-page">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <div className="topbar">
         <div>
@@ -187,61 +206,48 @@ export default function GameTable() {
         {currentName && <TurnBadge name={currentName} />}
       </div>
 
-      <div className="layout">
-        <div className="glass card">
-          <h3 className="title">Opponents</h3>
-          <div className="player-list">
-            {others.map((player) => (
-              <PlayerPanel key={player.playerId} player={player} />
-            ))}
-          </div>
+      <main className="game-board">
+        <div className="game-opponents" aria-label="Other players">
+          {others.map((player) => (
+            <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId} />
+          ))}
         </div>
 
-        <div className="glass card">
-          <h3 className="title">Table</h3>
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-            <Pile title="Draw Pile" count={state.deckCount} />
-            <Pile title="Discard" count={state.discardCount} cards={state.discardPile} />
-            <FaceDownCount
-              count={you.faceDownCount}
-              selectable={hand.length === 0 && you.faceUp.length === 0}
-              selected={selected.filter((item) => item.source === "faceDown").map((item) => item.index)}
-              onToggle={(idx) => toggleCard("faceDown", idx)}
-            />
+        <section className="game-middle" aria-label="Game table">
+          <div className="game-piles">
+            <Pile title="Draw pile" count={state.deckCount} />
+            <Pile title="Discard pile" count={state.discardCount} cards={state.discardPile} />
           </div>
-          <div style={{ height: 20 }} />
-          <h4 className="title">Your Face Up</h4>
-          <FaceUp
-            cards={you.faceUp}
-            selected={selected.filter((item) => item.source === "faceUp").map((item) => item.index)}
-            onToggle={canSelectFaceUp || canMixHandAndFaceUp ? (idx) => toggleCard("faceUp", idx) : undefined}
-          />
-        </div>
-
-        <div className="glass card">
-          <h3 className="title">Your Hand</h3>
-          <Hand
-            cards={hand}
-            selected={selected.filter((item) => item.source === "hand").map((item) => item.index)}
-            onToggle={(idx) => toggleCard("hand", idx)}
-          />
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <div className="game-actions">
             <button className="button" disabled={selected.length === 0 || mixedSelectionIncomplete || pendingAction || !yourTurn} onClick={playSelected}>
               {pendingAction ? "Sending..." : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
             <button className="button secondary" disabled={!yourTurn || !pileHasCards || pendingAction} onClick={pickup}>
               Pick Up Pile
             </button>
+            <p className="game-hint">
+              {!yourTurn
+                ? `Waiting for ${currentName || "the current player"}'s turn.`
+                : selected.length === 0
+                  ? "Select cards, then press Play."
+                  : "Selected cards are highlighted. Press Play to submit your move."}
+            </p>
           </div>
-          <p className="game-hint">
-            {!yourTurn
-              ? `Waiting for ${currentName || "the current player"}'s turn.`
-              : selected.length === 0
-                ? "Select one or more cards from your hand, then press Play."
-                : "Selected cards are highlighted. Press Play to submit your move."}
-          </p>
-        </div>
-      </div>
+        </section>
+
+        <PlayerPanel
+          player={you}
+          isCurrentTurn={yourTurn}
+          canSelectFaceUp={canSelectFaceUp || canMixHandAndFaceUp}
+          canSelectFaceDown={hand.length === 0 && you.faceUp.length === 0}
+          selectedFaceUp={selected.filter((item) => item.source === "faceUp").map((item) => item.index)}
+          selectedFaceDown={selected.filter((item) => item.source === "faceDown").map((item) => item.index)}
+          selectedHand={selected.filter((item) => item.source === "hand").map((item) => item.index)}
+          onToggleFaceUp={(idx) => toggleCard("faceUp", idx)}
+          onToggleFaceDown={(idx) => toggleCard("faceDown", idx)}
+          onToggleHand={(idx) => toggleCard("hand", idx)}
+        />
+      </main>
 
       {showModal && state.shitheadId && (
         <ShitheadModal
