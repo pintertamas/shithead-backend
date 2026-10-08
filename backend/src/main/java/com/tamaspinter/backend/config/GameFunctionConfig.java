@@ -234,7 +234,7 @@ public class GameFunctionConfig {
             PlayResult result = session.playCards(msg.cards());
             if (result == PlayResult.INVALID) {
                 return websocketError(ev, 400,
-                        "Move rejected. Check that it is your turn and the selected cards follow the rules.");
+                        "That play can't be made right now. Check that it's your turn and the cards are allowed.");
             }
 
             GameSessionEntity updated = session.toEntity();
@@ -269,7 +269,7 @@ public class GameFunctionConfig {
             GameSession session = SessionMapper.fromEntity(entity);
             PlayResult result = session.pickupPile();
             if (result == PlayResult.INVALID) {
-                return websocketError(ev, 400, "You can't pick up the pile right now.");
+                return websocketError(ev, 400, "You can't pick up the pile right now. It may be empty or not your turn.");
             }
 
             GameSessionEntity updated = session.toEntity();

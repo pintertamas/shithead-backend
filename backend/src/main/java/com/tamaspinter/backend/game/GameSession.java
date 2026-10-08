@@ -96,6 +96,35 @@ public class GameSession {
         return false;
     }
 
+    private boolean selectedCardsBelongTo(List<Card> available, List<Card> selected) {
+        if (selected == null || selected.isEmpty()) {
+            return false;
+        }
+        List<Card> unmatched = new ArrayList<>(available);
+        for (Card selectedCard : selected) {
+            int match = -1;
+            for (int i = 0; i < unmatched.size(); i++) {
+                if (sameCard(unmatched.get(i), selectedCard)) {
+                    match = i;
+                    break;
+                }
+            }
+            if (match < 0) {
+                return false;
+            }
+            unmatched.remove(match);
+        }
+        return true;
+    }
+
+    private boolean sameCard(Card left, Card right) {
+        return left != null && right != null
+                && left.getSuit() == right.getSuit()
+                && left.getValue() == right.getValue()
+                && left.getRule() == right.getRule()
+                && left.isAlwaysPlayable() == right.isAlwaysPlayable();
+    }
+
     public PlayResult playCards(List<Card> cards) {
         if (finished) {
             return PlayResult.INVALID;
@@ -129,7 +158,7 @@ public class GameSession {
     }
 
     public PlayResult pickupPile() {
-        if (finished) {
+        if (finished || discardPile.isEmpty()) {
             return PlayResult.INVALID;
         }
         Player player = players.get(currentIndex);
@@ -144,7 +173,7 @@ public class GameSession {
         if (player.getHand().isEmpty()) {
             return PlayResult.INVALID;
         }
-        if (!player.getHand().containsAll(cards)) {
+        if (!selectedCardsBelongTo(player.getHand().stream().toList(), cards)) {
             return PlayResult.INVALID;
         }
         if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
@@ -161,7 +190,7 @@ public class GameSession {
         if (!player.getHand().isEmpty() || player.getFaceUp().isEmpty()) {
             return PlayResult.INVALID;
         }
-        if (!player.getFaceUp().containsAll(cards)) {
+        if (!selectedCardsBelongTo(player.getFaceUp().stream().toList(), cards)) {
             return PlayResult.INVALID;
         }
         if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
@@ -178,7 +207,7 @@ public class GameSession {
         if (!player.getHand().isEmpty() || !player.getFaceUp().isEmpty() || player.getFaceDown().isEmpty()) {
             return PlayResult.INVALID;
         }
-        if (!player.getFaceDown().containsAll(cards)) {
+        if (!selectedCardsBelongTo(player.getFaceDown().stream().toList(), cards)) {
             return PlayResult.INVALID;
         }
         player.getFaceDown().removeAll(cards);
@@ -255,5 +284,4 @@ public class GameSession {
                 + '}';
     }
 }
-
 
