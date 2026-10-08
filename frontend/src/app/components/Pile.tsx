@@ -8,7 +8,23 @@ function suitSymbol(suit: string) {
   return ({ CLUBS: "♣", DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠" } as Record<string, string>)[suit] || suit;
 }
 
-export default function Pile({ title, count, cards }: { title: string; count: number; cards?: Card[] }) {
+export default function Pile({
+  title,
+  count,
+  cards,
+  onClick,
+  selectable = false,
+  selected = false,
+  disabled = false
+}: {
+  title: string;
+  count: number;
+  cards?: Card[];
+  onClick?: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+  disabled?: boolean;
+}) {
   const pileCards = cards || [];
   const topCard = pileCards[pileCards.length - 1];
   let transparentStart = pileCards.length - 1;
@@ -22,7 +38,21 @@ export default function Pile({ title, count, cards }: { title: string; count: nu
     : topCard ? [topCard] : [];
 
   return (
-    <div className={`card pile${hasTransparentTop ? " pile-with-transparent" : ""}`}>
+    <div
+      className={`card pile${hasTransparentTop ? " pile-with-transparent" : ""}${selectable ? " pile-selectable" : ""}${selected ? " pile-selected" : ""}${disabled ? " pile-disabled" : ""}`}
+      role={selectable ? "button" : undefined}
+      tabIndex={selectable && !disabled ? 0 : undefined}
+      aria-label={selectable ? `${title}, ${count} cards${disabled ? ", unavailable" : ""}` : undefined}
+      aria-pressed={selectable ? selected : undefined}
+      aria-disabled={selectable ? disabled : undefined}
+      onClick={selectable && !disabled ? onClick : undefined}
+      onKeyDown={selectable && !disabled ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick?.();
+        }
+      } : undefined}
+    >
       <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>{title}</div>
       {visibleCards.length > 0 && (
         <div className="pile-visible-cards" aria-label={hasTransparentTop ? "Latest transparent cards and the card beneath them" : "Top card"}>

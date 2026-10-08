@@ -396,6 +396,11 @@ button.playing-card { cursor: pointer; }
 .game-piles .pile { min-width: 82px; padding: 7px; color: #f5edda; }
 .game-piles .pile > div:first-child { color: rgba(245, 237, 218, 0.72) !important; font-size: 11px !important; }
 .game-piles .pile-count { font-size: 18px; }
+.game-piles .pile-selectable { cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease; }
+.game-piles .pile-selectable:hover:not(.pile-disabled),
+.game-piles .pile-selected { border-color: var(--gold, #e6c36a); box-shadow: 0 0 0 2px rgba(230, 195, 106, 0.32); }
+.game-piles .pile-selectable:focus-visible { outline: 2px solid var(--gold, #e6c36a); outline-offset: 3px; }
+.game-piles .pile-disabled { cursor: not-allowed; opacity: 0.72; }
 .game-piles .pile-with-transparent { min-width: min(45vw, 280px); }
 .pile-visible-cards {
   display: flex;

@@ -312,6 +312,7 @@ public class GameSession {
         Player player = players.get(currentIndex);
         discardPile.forEach(player.getHand()::addLast);
         discardPile.clear();
+        player.sortHand();
         nextPlayer();
         return PlayResult.PICKUP;
     }
@@ -369,6 +370,7 @@ public class GameSession {
             matched.forEach(player.getHand()::addLast);
             discardPile.forEach(player.getHand()::addLast);
             discardPile.clear();
+            player.sortHand();
             nextPlayer();
             return PlayResult.PICKUP;
         }

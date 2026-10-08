@@ -112,7 +112,8 @@ export default function Room() {
     startRequestInProgress.current = true;
     setLoading("starting");
     try {
-      await startGame(token, sessionId, "prepare");
+      // Announce over the already-open lobby socket first so other players see the
+      // transition while the REST start request is still running.
       await announceStarting();
       // Allow the server's WebSocket broadcast to reach every lobby before finalizing the deal.
       await new Promise((resolve) => window.setTimeout(resolve, 450));
