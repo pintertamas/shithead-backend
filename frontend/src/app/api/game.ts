@@ -1,4 +1,4 @@
-﻿import { apiFetch } from "./client";
+﻿import { apiFetch, throwForError } from "./client";
 
 export type Card = {
   suit: string;
@@ -32,7 +32,7 @@ export type GameStateView = {
 
 export async function createGame(token: string) {
   const res = await apiFetch("/create-game", token, { method: "POST" });
-  if (!res.ok) throw new Error("Failed to create game");
+  await throwForError(res, "create the game");
   return res.json() as Promise<{ sessionId: string }>;
 }
 
@@ -41,7 +41,7 @@ export async function joinGame(token: string, sessionId: string) {
     method: "POST",
     body: JSON.stringify({ sessionId })
   });
-  if (!res.ok) throw new Error("Failed to join game");
+  await throwForError(res, "join the game");
 }
 
 export async function startGame(token: string, sessionId: string) {
@@ -49,7 +49,7 @@ export async function startGame(token: string, sessionId: string) {
     method: "POST",
     body: JSON.stringify({ sessionId })
   });
-  if (!res.ok) throw new Error("Failed to start game");
+  await throwForError(res, "start the game");
 }
 
 export async function leaveGame(token: string, sessionId: string) {
@@ -57,12 +57,11 @@ export async function leaveGame(token: string, sessionId: string) {
     method: "POST",
     body: JSON.stringify({ sessionId })
   });
-  if (!res.ok) throw new Error("Failed to leave game");
+  await throwForError(res, "leave the game");
 }
 
 export async function fetchState(token: string, sessionId: string) {
   const res = await apiFetch(`/state/${sessionId}`, token, { method: "GET" });
-  if (!res.ok) throw new Error("Failed to fetch state");
+  await throwForError(res, "load game state");
   return res.json() as Promise<GameStateView>;
 }
-

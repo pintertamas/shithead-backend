@@ -222,18 +222,19 @@ public class GameFunctionConfig {
             try {
                 msg = mapper.readValue(ev.getBody(), PlayMessage.class);
             } catch (JsonProcessingException e) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+                return websocketError(ev, 400, "Couldn't read the play request. Please try again.");
             }
 
             GameSessionEntity entity = sessionRepo.get(msg.sessionId());
             if (entity == null) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+                return websocketError(ev, 404, "This game session no longer exists.");
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
             PlayResult result = session.playCards(msg.cards());
             if (result == PlayResult.INVALID) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+                return websocketError(ev, 400,
+                        "Move rejected. Check that it is your turn and the selected cards follow the rules.");
             }
 
             GameSessionEntity updated = session.toEntity();
@@ -257,18 +258,18 @@ public class GameFunctionConfig {
             try {
                 msg = mapper.readValue(ev.getBody(), PickupMessage.class);
             } catch (JsonProcessingException e) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+                return websocketError(ev, 400, "Couldn't read the pickup request. Please try again.");
             }
 
             GameSessionEntity entity = sessionRepo.get(msg.sessionId());
             if (entity == null) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(404);
+                return websocketError(ev, 404, "This game session no longer exists.");
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
             PlayResult result = session.pickupPile();
             if (result == PlayResult.INVALID) {
-                return new APIGatewayProxyResponseEvent().withStatusCode(400);
+                return websocketError(ev, 400, "You can't pick up the pile right now.");
             }
 
             GameSessionEntity updated = session.toEntity();
@@ -406,6 +407,27 @@ public class GameFunctionConfig {
                 }
             }
         }
+    }
+
+    private APIGatewayProxyResponseEvent websocketError(
+            APIGatewayV2WebSocketEvent event, int statusCode, String message) {
+        String connectionId = event.getRequestContext().getConnectionId();
+        String endpoint = "https://" + event.getRequestContext().getDomainName()
+                + "/" + event.getRequestContext().getStage();
+        try (ApiGatewayManagementApiClient client = ApiGatewayManagementApiClient.builder()
+                .endpointOverride(URI.create(endpoint))
+                .build()) {
+            client.postToConnection(PostToConnectionRequest.builder()
+                    .connectionId(connectionId)
+                    .data(SdkBytes.fromByteArray(mapper.writeValueAsBytes(Map.of(
+                            "type", "error",
+                            "status", statusCode,
+                            "message", message))))
+                    .build());
+        } catch (JsonProcessingException | SdkException e) {
+            log.error("Failed to send WebSocket error to connection {}", connectionId, e);
+        }
+        return new APIGatewayProxyResponseEvent().withStatusCode(statusCode);
     }
 
     private GameStateView buildGameStateView(GameSessionEntity entity, String viewerId) {

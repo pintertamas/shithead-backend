@@ -12,14 +12,17 @@ export default function Hand({ cards, selected = [], onToggle }: Props) {
       {cards.map((card, idx) => {
         const isSelected = selected.includes(idx);
         return (
-          <div
+          <button
+            type="button"
             key={`${card.suit}-${card.value}-${idx}`}
             className={`card-tile${isSelected ? " card-selected" : ""}${onToggle ? " card-selectable" : ""}`}
             onClick={() => onToggle?.(idx)}
+            aria-pressed={isSelected}
+            aria-label={`${card.value} of ${card.suit}${isSelected ? ", selected" : ""}`}
           >
             <div style={{ fontWeight: 700 }}>{card.value}</div>
             <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>{card.suit}</div>
-          </div>
+          </button>
         );
       })}
     </div>

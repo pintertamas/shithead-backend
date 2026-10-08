@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchState, startGame, leaveGame, GameStateView } from "../api/game";
 import { useAuth } from "../auth/useAuth";
+import ErrorAlert from "../components/ErrorAlert";
 
 export default function Room() {
   const { sessionId } = useParams();
@@ -62,6 +63,7 @@ export default function Room() {
 
   return (
     <div className="page fade-in">
+      <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <div className="topbar">
         <div>
           <div className="badge">Lobby</div>
@@ -97,7 +99,6 @@ export default function Room() {
               </div>
             ))}
           </div>
-          {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
         </div>
       </div>
     </div>
