@@ -22,15 +22,16 @@ import java.util.List;
 @Repository
 public class UserProfileRepository {
     public static final String LEADERBOARD_PARTITION = "global";
-
     private final DynamoDbTable<UserProfile> table;
-
     private final DynamoDbEnhancedClient enhancedClient;
+    private final UsernameReservationRepository usernameRepository;
 
     public UserProfileRepository(
             DynamoDbEnhancedClient enhancedClient,
+            UsernameReservationRepository usernameRepository,
             @Value("${dynamodb.users.table}") String tableName) {
         this.enhancedClient = enhancedClient;
+        this.usernameRepository = usernameRepository;
         this.table = enhancedClient.table(
                 tableName,
                 TableSchema.fromBean(UserProfile.class)
@@ -46,6 +47,10 @@ public class UserProfileRepository {
 
     public UserProfile get(String userId) {
         return table.getItem(r -> r.key(k -> k.partitionValue(userId)));
+    }
+
+    public boolean updateUsernameIfAvailable(UserProfile profile, String username) {
+        return usernameRepository.updateUsernameIfAvailable(profile, username);
     }
 
     public List<UserProfile> batchGet(List<String> userIds) {

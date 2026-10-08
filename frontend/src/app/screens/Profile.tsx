@@ -34,7 +34,7 @@ export default function Profile() {
       const updated = await updateProfile(token, username.trim());
       setProfile(updated);
       setUsername(updated.username);
-      setNotice("Your display name has been saved.");
+      setNotice("Your nickname has been saved.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't save your profile.");
     } finally {
@@ -75,13 +75,13 @@ export default function Profile() {
 
       <div className="layout single">
         <form className="glass card" onSubmit={saveProfile}>
-          <h3 className="title">Display Name</h3>
+          <h3 className="title">Nickname</h3>
           <p style={{ color: "var(--ink-dim)" }}>
-            This name appears to other players instead of your email address.
+            This name appears to other players instead of your email address. Nicknames must be unique.
           </p>
           <input
             className="input"
-            aria-label="Display name"
+            aria-label="Nickname"
             minLength={2}
             maxLength={24}
             title="Use 2–24 letters, numbers, spaces, hyphens, or underscores."
@@ -92,7 +92,7 @@ export default function Profile() {
           />
           <div style={{ height: 12 }} />
           <button className="button" type="submit" disabled={!profile || saving || username.trim().length < 2}>
-            {saving ? "Saving..." : "Save Display Name"}
+            {saving ? "Saving..." : "Save Nickname"}
           </button>
         </form>
 

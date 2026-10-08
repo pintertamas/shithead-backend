@@ -155,17 +155,22 @@ public class GameSession {
         if (resolved == null) {
             return PlayResult.INVALID;
         }
+        PlayResult result;
         if (resolved.sources().contains(CardSource.FACE_DOWN)) {
-            return selections.size() == 1 && resolved.sources().size() == 1
+            result = selections.size() == 1 && resolved.sources().size() == 1
                     ? playFromFaceDown(resolved.cards())
                     : PlayResult.INVALID;
+        } else if (isMixedHandAndFaceUp(resolved.sources())) {
+            result = playMixedHandAndFaceUp(player, selections, resolved.cards());
+        } else {
+            result = resolved.sources().contains(CardSource.HAND)
+                    ? playFromHand(resolved.cards())
+                    : playFromFaceUp(resolved.cards());
         }
-        if (isMixedHandAndFaceUp(resolved.sources())) {
-            return playMixedHandAndFaceUp(player, selections, resolved.cards());
+        if (result == PlayResult.SUCCESS) {
+            finishSuccessfulPlay(resolved.cards().get(0), player);
         }
-        return resolved.sources().contains(CardSource.HAND)
-                ? playFromHand(resolved.cards())
-                : playFromFaceUp(resolved.cards());
+        return result;
     }
 
     private ResolvedSelections resolveSelections(Player player, List<CardSelection> selections) {
@@ -213,7 +218,6 @@ public class GameSession {
         removeMixedSelections(player, selections, selectedCards);
         selectedCards.forEach(discardPile::addLast);
         postPlayCleanup(player);
-        finishSuccessfulPlay(selectedCards.get(0), player);
         return PlayResult.SUCCESS;
     }
 
