@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 @Getter
 @Builder
 public class GameConfig {
+    @Builder.Default
+    private final int decksCount = 1;
     private final int faceDownCount;
     private final int faceUpCount;
     private final int handCount;
@@ -27,6 +29,7 @@ public class GameConfig {
 
     public static GameConfig defaultGameConfig() {
         GameConfig config = GameConfig.builder()
+                .decksCount(1)
                 .faceDownCount(3)
                 .faceUpCount(3)
                 .handCount(3)
@@ -46,6 +49,7 @@ public class GameConfig {
 
     public static GameConfig fromEntity(GameConfigEntity e) {
         GameConfig config = GameConfig.builder()
+                .decksCount(e.getDecksCount())
                 .faceDownCount(e.getFaceDownCount())
                 .faceUpCount(e.getFaceUpCount())
                 .handCount(e.getHandCount())
@@ -63,6 +67,7 @@ public class GameConfig {
         Map<String, String> rules = new HashMap<>();
         this.cardRuleMap.forEach((key, value) -> rules.put(String.valueOf(key), value.name()));
         return GameConfigEntity.builder()
+                .decksCount(this.decksCount)
                 .burnCount(this.burnCount)
                 .allowMixedHandAndFaceUpWhenDeckEmpty(this.allowMixedHandAndFaceUpWhenDeckEmpty)
                 .faceDownCount(this.faceDownCount)

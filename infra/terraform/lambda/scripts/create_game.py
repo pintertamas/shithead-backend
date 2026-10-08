@@ -9,6 +9,7 @@ import string
 dynamodb = boto3.resource('dynamodb')
 
 DEFAULT_CONFIG = {
+    'decksCount':    1,
     'burnCount':     4,
     'faceDownCount': 3,
     'faceUpCount':   3,
@@ -24,6 +25,37 @@ DEFAULT_CONFIG = {
     'alwaysPlayable': [2, 8],
     'canPlayAgain':   [10]
 }
+
+CARD_RULES = {'DEFAULT', 'JOKER', 'SMALLER', 'TRANSPARENT', 'REVERSE', 'BURNER'}
+
+def normalize_config(requested):
+    if not isinstance(requested, dict):
+        raise ValueError('config must be an object')
+    config = {**DEFAULT_CONFIG, **requested}
+    decks_count = config.get('decksCount')
+    if decks_count not in (1, 2):
+        raise ValueError('decksCount must be 1 or 2')
+    config['decksCount'] = decks_count
+    config['burnCount'] = 4 if decks_count == 1 else 6
+
+    requested_rules = requested.get('cardRules')
+    if requested_rules is not None:
+        if not isinstance(requested_rules, dict):
+            raise ValueError('cardRules must be an object')
+        rules = {}
+        for value in range(2, 15):
+            rule = requested_rules.get(str(value), 'DEFAULT')
+            if rule not in CARD_RULES:
+                raise ValueError('cardRules contains an unsupported rule')
+            rules[str(value)] = rule
+        config['cardRules'] = rules
+        config['alwaysPlayable'] = [
+            int(value) for value, rule in rules.items() if rule in ('JOKER', 'TRANSPARENT')
+        ]
+        config['canPlayAgain'] = [
+            int(value) for value, rule in rules.items() if rule == 'BURNER'
+        ]
+    return config
 
 def cleanup_old_sessions(sessions_table, user_id):
     """Remove user from any non-started sessions they own or are in."""
@@ -53,7 +85,19 @@ def lambda_handler(event, context):
     user_id = event['requestContext']['authorizer']['claims']['sub']
 
     body = json.loads(event.get('body') or '{}')
-    config = {**DEFAULT_CONFIG, **body.get('config', {})}
+    try:
+        config = normalize_config(body.get('config', {}))
+    except (TypeError, ValueError):
+        return {
+            'statusCode': 400,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+                'Access-Control-Allow-Methods': 'POST,OPTIONS',
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps({'error': 'Invalid game configuration'})
+        }
 
     sessions_table = dynamodb.Table(os.environ['GAME_SESSIONS_TABLE'])
     users_table = dynamodb.Table(os.environ['USERS_TABLE'])

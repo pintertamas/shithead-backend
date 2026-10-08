@@ -61,8 +61,11 @@ public class GameSession {
     }
 
     public void start() {
-        int decks = 1 + (players.size() - 1) / 5;
-        deck = new Deck(decks, config);
+        int cardsPerPlayer = config.getFaceDownCount() + config.getFaceUpCount() + config.getHandCount();
+        if (players.size() * cardsPerPlayer > config.getDecksCount() * 52) {
+            throw new IllegalStateException("Not enough cards in the selected deck count");
+        }
+        deck = new Deck(config.getDecksCount(), config);
         for (Player player : players) {
             for (int i = 0; i < config.getFaceDownCount(); i++) {
                 player.getFaceDown().add(deck.draw().orElseThrow());

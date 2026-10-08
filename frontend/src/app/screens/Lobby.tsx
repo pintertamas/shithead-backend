@@ -4,6 +4,7 @@ import { createGame, joinGame } from "../api/game";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
 import { fetchProfile } from "../api/profile";
+import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -12,7 +13,6 @@ export default function Lobby() {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
-  const [allowMixedHandAndFaceUpWhenDeckEmpty, setAllowMixedHandAndFaceUpWhenDeckEmpty] = useState(false);
 
   useEffect(() => {
     fetchProfile(token).then((profile) => setDisplayName(profile.username)).catch(() => undefined);
@@ -22,7 +22,7 @@ export default function Lobby() {
     setStatus(null);
     setLoading("creating");
     try {
-      const res = await createGame(token, { allowMixedHandAndFaceUpWhenDeckEmpty });
+      const res = await createGame(token, getCreateGameConfig(loadGameConfig()));
       navigate(`/room/${res.sessionId}`);
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : "Failed to create game.");
@@ -54,9 +54,10 @@ export default function Lobby() {
           <div className="badge">Signed In</div>
           <h2 className="title">Welcome, {displayName || "Player"}</h2>
         </div>
-        <button className="button secondary" onClick={() => navigate("/profile")}>
-          Profile
-        </button>
+        <div className="topbar-actions">
+          <button className="button secondary" onClick={() => navigate("/config")}>Game Config</button>
+          <button className="button secondary" onClick={() => navigate("/profile")}>Profile</button>
+        </div>
         <button
           className="button secondary"
           onClick={() => {
@@ -74,14 +75,7 @@ export default function Lobby() {
           <p style={{ color: "var(--ink-dim)" }}>
             Generate a short join code and invite friends.
           </p>
-          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 12 }}>
-            <input
-              type="checkbox"
-              checked={allowMixedHandAndFaceUpWhenDeckEmpty}
-              onChange={(event) => setAllowMixedHandAndFaceUpWhenDeckEmpty(event.target.checked)}
-            />
-            <span>When the draw pile is empty, allow matching face-up cards to be played with cards from your hand.</span>
-          </label>
+          <p className="config-note">New games use your saved configuration.</p>
           <button className="button" onClick={handleCreate} disabled={loading !== null}>
             {loading === "creating" ? "Creating..." : "Create Game"}
           </button>

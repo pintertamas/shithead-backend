@@ -5,6 +5,7 @@ import Room from "./screens/Room";
 import GameTable from "./screens/GameTable";
 import Leaderboard from "./screens/Leaderboard";
 import Profile from "./screens/Profile";
+import GameConfig from "./screens/GameConfig";
 import AuthCallback from "./auth/authCallback";
 import { useAuth } from "./auth/useAuth";
 
@@ -25,6 +26,10 @@ export default function AppRoutes() {
         <Route
           path="/profile"
           element={token ? <Profile /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/config"
+          element={token ? <GameConfig /> : <Navigate to="/login" />}
         />
         <Route
           path="/room/:sessionId"
