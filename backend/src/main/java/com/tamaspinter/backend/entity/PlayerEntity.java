@@ -23,6 +23,8 @@ public class PlayerEntity {
     private List<CardEntity> faceUp;
     private List<CardEntity> faceDown;
     private boolean out;
+    @Builder.Default
+    private boolean ready = true;
 
     @DynamoDbAttribute("playerId")
     public String getPlayerId() {

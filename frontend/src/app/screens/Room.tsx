@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, startGame, leaveGame, GameStateView } from "../api/game";
+import { fetchState, startGame, leaveGame, GameStateView, openGameSocket } from "../api/game";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
@@ -16,6 +16,41 @@ export default function Room() {
   const startRequestInProgress = useRef(false);
   const transitionStarted = useRef(false);
   const transitionTimer = useRef<number | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!sessionId || !token) return;
+    const ws = openGameSocket(sessionId, token);
+    wsRef.current = ws;
+    ws.onmessage = (event) => {
+      try {
+        const next = JSON.parse(event.data) as GameStateView;
+        if ((next as unknown as { type?: string }).type === "error") return;
+        setState(next);
+        if (next.started) showStartingScreen();
+        else if (next.starting) setLoading("starting");
+      } catch { /* REST polling remains the fallback for malformed live messages. */ }
+    };
+    return () => {
+      ws.close();
+      if (wsRef.current === ws) wsRef.current = null;
+    };
+  }, [sessionId, token, showStartingScreen]);
+
+  const announceStarting = async () => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    if (ws.readyState === WebSocket.CONNECTING) {
+      await new Promise<void>((resolve) => {
+        const timeout = window.setTimeout(resolve, 1200);
+        ws.addEventListener("open", () => { window.clearTimeout(timeout); resolve(); }, { once: true });
+        ws.addEventListener("error", () => { window.clearTimeout(timeout); resolve(); }, { once: true });
+      });
+    }
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action: "setup", sessionId, setupAction: "announce" }));
+    }
+  };
 
   const showStartingScreen = useCallback(() => {
     setLoading("starting");
@@ -78,8 +113,9 @@ export default function Room() {
     setLoading("starting");
     try {
       await startGame(token, sessionId, "prepare");
-      // Give every lobby a chance to receive the persisted starting state before dealing completes.
-      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      await announceStarting();
+      // Allow the server's WebSocket broadcast to reach every lobby before finalizing the deal.
+      await new Promise((resolve) => window.setTimeout(resolve, 450));
       await startGame(token, sessionId, "start");
       startRequestInProgress.current = false;
       showStartingScreen();

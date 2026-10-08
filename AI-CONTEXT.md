@@ -147,7 +147,7 @@ Client
                                    broadcastState() → WebSocket clients
 ```
 
-User nicknames are stored in the users DynamoDB table. `UserProfileService` creates profiles and reserves unique default nicknames; `UsernameReservationRepository` normalizes nickname comparisons case-insensitively, checks legacy profile rows, and transactionally reserves a nickname with a hidden same-table claim record. The account-management Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. Starting a game is a two-phase flow: the owner first persists `starting=true`, which lobby clients poll once per second to show the blocking “Starting game” screen, then the owner finalizes the deal after a short transition. The final game state sets `started=true` and clears `starting`.
+User nicknames are stored in the users DynamoDB table. `UserProfileService` creates profiles and reserves unique default nicknames; `UsernameReservationRepository` normalizes nickname comparisons case-insensitively, checks legacy profile rows, and transactionally reserves a nickname with a hidden same-table claim record. The account-management Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. Starting a game is a two-phase flow: the owner persists `starting=true`, then sends a `setup` WebSocket action to broadcast that state immediately (one-second lobby polling remains a fallback), and finalizes the deal after a short transition. Once dealt, the game enters a persisted card-swap/readiness phase; play is blocked until every player is ready.
 
 ### Game State Machine (`GameSession`)
 
@@ -155,13 +155,15 @@ User nicknames are stored in the users DynamoDB table. `UserProfileService` crea
 
 | Result | Meaning |
 |---|---|
-| `SUCCESS` | Cards played; after-effects applied; next player advanced |
+| `SUCCESS` | Cards played; after-effects applied; turn advances unless the card or a pile burn grants a replay |
 | `PICKUP` | Player picks up the pile (explicit or blind flip failure) |
 | `INVALID` | Move rejected — wrong turn, illegal card, or game finished |
 
 Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty.
 
-The WebSocket `playSelections` path must run `finishSuccessfulPlay` after a successful hand, face-up, face-down, or mixed selection so after-effects execute and turn ownership advances. Keep this in sync if adding another selection source.
+After dealing, `GameSession` sorts each player's hand and face-up cards by rank and suit, but preserves face-down order. Players may swap one hand card with one face-up card before marking themselves ready; a ready player cannot alter cards. `setupComplete` gates every play action until all players are ready. Four/six-card burns also grant the player another turn, even when the played rank reverses player order.
+
+The WebSocket `playSelections` path must run `finishSuccessfulPlay` after a successful hand, face-up, face-down, or mixed selection so after-effects execute and turn ownership advances. `setup` actions use the same WebSocket Lambda route for readiness and card swaps. Failed blind flips include a transient revealed card in the broadcast; the browser hides that notice after about one second. Keep these behaviors in sync if adding another selection source.
 
 The frontend's `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
 

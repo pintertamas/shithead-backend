@@ -29,7 +29,10 @@ public class GameSessionEntity {
     private String currentPlayerId;
     private boolean started;
     private boolean starting;
+    @Builder.Default
+    private boolean setupComplete = true;
     private boolean finished;
+    private boolean eloUpdated;
     private String shitheadId;
     @Getter(AccessLevel.NONE)
     private String ownerId;

@@ -62,6 +62,12 @@ resource "aws_apigatewayv2_route" "play_card" {
   target    = "integrations/${aws_apigatewayv2_integration.play_card.id}"
 }
 
+resource "aws_apigatewayv2_route" "setup" {
+  api_id    = aws_apigatewayv2_api.game_ws.id
+  route_key = "setup"
+  target    = "integrations/${aws_apigatewayv2_integration.play_card.id}"
+}
+
 resource "aws_apigatewayv2_integration" "pickup_pile" {
   api_id                 = aws_apigatewayv2_api.game_ws.id
   integration_type       = "AWS_PROXY"

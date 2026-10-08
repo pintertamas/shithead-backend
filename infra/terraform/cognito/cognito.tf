@@ -67,7 +67,7 @@ resource "aws_cognito_user_pool_client" "app_client" {
     "ALLOW_REFRESH_TOKEN_AUTH"
   ]
 
-  # OAuth2 flows (frontend currently uses implicit token flow)
+  # OAuth2 flows (frontend uses authorization code with PKCE; implicit remains enabled for compatibility)
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code", "implicit"]
   allowed_oauth_scopes                 = ["openid", "email", "profile"]

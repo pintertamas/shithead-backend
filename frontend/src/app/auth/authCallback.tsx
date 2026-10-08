@@ -11,13 +11,14 @@ type TokenResponse = {
   access_token?: string;
   id_token?: string;
   expires_in?: number;
+  refresh_token?: string;
 };
 
 function resolveTtlSeconds(expiresIn?: number): number {
   return Number.isFinite(expiresIn) && (expiresIn || 0) > 0 ? Number(expiresIn) : 3600;
 }
 
-async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; accessToken: string; expiresIn: number } | null> {
+async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; accessToken: string; expiresIn: number; refreshToken?: string } | null> {
   const verifier = localStorage.getItem(PKCE_VERIFIER_KEY);
   console.log("[auth] verifier present:", !!verifier);
   if (!verifier) {
@@ -63,7 +64,8 @@ async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; a
   return {
     idToken,
     accessToken,
-    expiresIn: resolveTtlSeconds(tokens.expires_in)
+    expiresIn: resolveTtlSeconds(tokens.expires_in),
+    refreshToken: tokens.refresh_token
   };
 }
 
@@ -147,7 +149,8 @@ export default function AuthCallback() {
         saveAuth({
           idToken: exchanged.idToken,
           accessToken: exchanged.accessToken,
-          expiresAt: Date.now() + exchanged.expiresIn * 1000
+          expiresAt: Date.now() + exchanged.expiresIn * 1000,
+          refreshToken: exchanged.refreshToken
         });
       } catch (saveErr) {
         console.error("[auth] failed to save tokens", saveErr);

@@ -67,6 +67,47 @@ class GameSessionTest {
     }
 
     @Test
+    void start_opensCardSetupAndPreservesFaceDownOrder() {
+        session.start();
+        Player player = session.getPlayers().get(0);
+        List<Card> faceDownBefore = List.copyOf(player.getFaceDown());
+
+        assertFalse(session.isSetupComplete());
+        assertFalse(player.isReady());
+        assertEquals(faceDownBefore, List.copyOf(player.getFaceDown()));
+        assertTrue(isSorted(player.getHand()));
+        assertTrue(isSorted(player.getFaceUp()));
+        assertEquals(PlayResult.INVALID, session.playCards(List.of(player.getHand().getFirst())));
+    }
+
+    @Test
+    void swapStartingCards_onlyChangesOwnCardsAndReadinessGatesTheGame() {
+        session.start();
+        Player alice = session.getPlayers().get(0);
+        Card handCard = alice.getHand().getFirst();
+        Card faceUpCard = alice.getFaceUp().getFirst();
+        List<Card> faceDown = List.copyOf(alice.getFaceDown());
+
+        assertTrue(session.swapStartingCards("p1", 0, 0));
+        assertTrue(alice.getHand().contains(faceUpCard));
+        assertTrue(alice.getFaceUp().contains(handCard));
+        assertEquals(faceDown, List.copyOf(alice.getFaceDown()));
+        assertTrue(session.markReady("p1"));
+        assertFalse(session.isSetupComplete());
+        assertFalse(session.swapStartingCards("p1", 0, 0));
+        assertTrue(session.markReady("p2"));
+        assertTrue(session.isSetupComplete());
+    }
+
+    private boolean isSorted(Iterable<Card> cards) {
+        List<Card> values = new java.util.ArrayList<>();
+        cards.forEach(values::add);
+        List<Card> sorted = new java.util.ArrayList<>(values);
+        sorted.sort(java.util.Comparator.comparingInt(Card::getValue).thenComparing(card -> card.getSuit().name()));
+        return values.equals(sorted);
+    }
+
+    @Test
     void testAddPlayer_afterStart_throwsException() {
         session.start();
         assertThrows(IllegalStateException.class, () -> session.addPlayer("p3", "carol"));
@@ -399,6 +440,41 @@ class GameSessionTest {
         assertEquals("carol", s.getPlayers().get(1).getUsername());
         assertEquals("bob",   s.getPlayers().get(2).getUsername());
         assertEquals("p3", s.getCurrentPlayerId());
+    }
+
+    @Test
+    void burnerRuleOnCustomRank_grantsReplayWithoutRankConfiguration() {
+        prepareStartedGame();
+        Player alice = session.getPlayers().get(0);
+        Card customBurner = Card.builder().suit(Suit.CLUBS).value(5).rule(CardRule.BURNER).build();
+        alice.getHand().add(customBurner);
+        alice.getHand().add(card(4));
+        session.getDiscardPile().add(card(3));
+
+        assertEquals(PlayResult.SUCCESS, session.playCards(List.of(customBurner)));
+
+        assertEquals(0, session.getDiscardPile().size());
+        assertEquals("p1", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void fourOfAKindBurnWithReverseCard_grantsThePlayerAnotherTurn() {
+        prepareStartedGame();
+        Player alice = session.getPlayers().get(0);
+        Card firstNine = card(9);
+        Card secondNine = Card.builder().suit(Suit.DIAMONDS).value(9).rule(CardRule.REVERSE).alwaysPlayable(false).build();
+        Card thirdNine = Card.builder().suit(Suit.CLUBS).value(9).rule(CardRule.REVERSE).alwaysPlayable(false).build();
+        Card fourthNine = Card.builder().suit(Suit.SPADES).value(9).rule(CardRule.REVERSE).alwaysPlayable(false).build();
+        session.getDiscardPile().add(firstNine);
+        session.getDiscardPile().add(secondNine);
+        alice.getHand().add(thirdNine);
+        alice.getHand().add(fourthNine);
+        alice.getHand().add(card(5));
+
+        assertEquals(PlayResult.SUCCESS, session.playCards(List.of(thirdNine, fourthNine)));
+
+        assertEquals(0, session.getDiscardPile().size());
+        assertEquals("p1", session.getCurrentPlayerId());
     }
 
     @Test

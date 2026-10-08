@@ -3,6 +3,7 @@ package com.tamaspinter.backend.game;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Card;
+import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Deck;
 import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.rules.RuleEngine;
@@ -34,6 +35,9 @@ public class GameSession {
     @Builder.Default
     private GameConfig config = GameConfig.defaultGameConfig();
     private boolean started;
+    @Builder.Default
+    private boolean setupComplete = true;
+    private boolean lastPlayBurned;
     private boolean finished;
     private String shitheadId;
     private String ownerId;
@@ -76,8 +80,46 @@ public class GameSession {
             for (int i = 0; i < config.getHandCount(); i++) {
                 player.getHand().add(deck.draw().orElseThrow());
             }
+            player.sortHand();
+            player.sortFaceUp();
+            player.setReady(false);
         }
         started = true;
+        setupComplete = false;
+    }
+
+    public boolean swapStartingCards(String playerId, int handIndex, int faceUpIndex) {
+        Player player = findPlayer(playerId);
+        if (!started || setupComplete || player == null || player.isReady()
+                || handIndex < 0 || faceUpIndex < 0
+                || handIndex >= player.getHand().size() || faceUpIndex >= player.getFaceUp().size()) {
+            return false;
+        }
+        List<Card> hand = new ArrayList<>(player.getHand());
+        List<Card> faceUp = new ArrayList<>(player.getFaceUp());
+        Card handCard = hand.set(handIndex, faceUp.get(faceUpIndex));
+        faceUp.set(faceUpIndex, handCard);
+        player.getHand().clear();
+        player.getHand().addAll(hand);
+        player.getFaceUp().clear();
+        player.getFaceUp().addAll(faceUp);
+        player.sortHand();
+        player.sortFaceUp();
+        return true;
+    }
+
+    public boolean markReady(String playerId) {
+        Player player = findPlayer(playerId);
+        if (!started || setupComplete || player == null) {
+            return false;
+        }
+        player.setReady(true);
+        setupComplete = players.stream().allMatch(Player::isReady);
+        return true;
+    }
+
+    private Player findPlayer(String playerId) {
+        return players.stream().filter(player -> player.getPlayerId().equals(playerId)).findFirst().orElse(null);
     }
 
     private boolean notAllCardsAreTheSameValue(List<Card> cards) {
@@ -133,7 +175,7 @@ public class GameSession {
     }
 
     public PlayResult playCards(List<Card> cards) {
-        if (finished) {
+        if (finished || !setupComplete) {
             return PlayResult.INVALID;
         }
         Player player = players.get(currentIndex);
@@ -147,7 +189,7 @@ public class GameSession {
     }
 
     public PlayResult playSelections(List<CardSelection> selections) {
-        if (finished || selections == null || selections.isEmpty()) {
+        if (finished || !setupComplete || selections == null || selections.isEmpty()) {
             return PlayResult.INVALID;
         }
         Player player = players.get(currentIndex);
@@ -240,8 +282,11 @@ public class GameSession {
     }
 
     private void finishSuccessfulPlay(Card card, Player player) {
+        boolean burnedByCount = lastPlayBurned;
+        lastPlayBurned = false;
         RuleEngine.playAfterEffect(card, discardPile, player, players);
-        if (!config.canPlayAgain(card.getValue()) || player.isOut()) {
+        boolean burnedByRule = card.getRule() == CardRule.BURNER;
+        if ((!burnedByCount && !burnedByRule && !config.canPlayAgain(card.getValue())) || player.isOut()) {
             nextPlayer();
         }
         checkGameEnd();
@@ -261,7 +306,7 @@ public class GameSession {
     }
 
     public PlayResult pickupPile() {
-        if (finished || discardPile.isEmpty()) {
+        if (finished || !setupComplete || discardPile.isEmpty()) {
             return PlayResult.INVALID;
         }
         Player player = players.get(currentIndex);
@@ -333,7 +378,8 @@ public class GameSession {
     }
 
     private void postPlayCleanup(Player player) {
-        if (RuleEngine.shouldBurn(discardPile, config.getBurnCount())) {
+        lastPlayBurned = RuleEngine.shouldBurn(discardPile, config.getBurnCount());
+        if (lastPlayBurned) {
             discardPile.clear();
         }
         while (player.getHand().size() < config.getHandCount()) {
@@ -343,6 +389,7 @@ public class GameSession {
             }
             player.getHand().addLast(drawn.get());
         }
+        player.sortHand();
         if (player.getHand().isEmpty() && player.getFaceUp().isEmpty() && player.getFaceDown().isEmpty()) {
             player.setOut(true);
         }

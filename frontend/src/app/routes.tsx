@@ -40,6 +40,10 @@ export default function AppRoutes() {
           element={token ? <GameTable /> : <Navigate to="/login" />}
         />
         <Route
+          path="/leaderboard"
+          element={token ? <Leaderboard /> : <Navigate to="/login" />}
+        />
+        <Route
           path="/leaderboard/:sessionId"
           element={token ? <Leaderboard /> : <Navigate to="/login" />}
         />

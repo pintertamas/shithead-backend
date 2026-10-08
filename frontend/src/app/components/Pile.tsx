@@ -37,6 +37,7 @@ export default function Pile({ title, count, cards }: { title: string; count: nu
                 aria-label={`${cardRank(card.value)} of ${card.suit}${isUnderlyingCard ? ", beneath transparent cards" : ""}`}
               >
                 <span className="playing-card-corner">{cardRank(card.value)}<br />{suitSymbol(card.suit)}</span>
+                <span className="playing-card-corner-opposite" aria-hidden="true">{cardRank(card.value)}<br />{suitSymbol(card.suit)}</span>
                 <span className="playing-card-center">{suitSymbol(card.suit)}</span>
               </div>
             );

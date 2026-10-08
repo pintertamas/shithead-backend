@@ -29,6 +29,7 @@ function VisibleCard({ card, index, selected, onToggle }: {
 }) {
   const content = <>
     <span className="playing-card-corner">{cardLabel(card.value)}<br />{suitSymbol(card.suit)}</span>
+    <span className="playing-card-corner-opposite" aria-hidden="true">{cardLabel(card.value)}<br />{suitSymbol(card.suit)}</span>
     <span className="playing-card-center">{suitSymbol(card.suit)}</span>
   </>;
   const className = `playing-card face-up-card${selected ? " card-selected" : ""}${onToggle ? " card-selectable" : ""}`;
@@ -47,7 +48,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, canSelectFa
   return (
     <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${isCurrentTurn ? " game-seat-active" : ""}`}>
       <header className="game-seat-header">
-        <div className="game-seat-name" title={player.username}>{player.username}{player.isYou ? <span className="you-tag">You</span> : null}</div>
+        <div className="game-seat-name" title={player.username}>{player.username}{player.isYou ? <span className="you-tag">You</span> : null}<span className="elo-badge">{Math.round(player.eloScore)}</span></div>
         {isCurrentTurn && <span className="seat-turn">Playing</span>}
         {!player.isYou && <div className="seat-card-counts">{player.handCount} in hand <span>·</span> {player.faceDownCount} hidden</div>}
       </header>
@@ -64,7 +65,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, canSelectFa
                     aria-label={`Select face-down card ${index + 1}`} />
                 ) : <div className="playing-card face-down-card" aria-label="Face-down card" />)}
                 {faceUpCard && <VisibleCard card={faceUpCard} index={index} selected={selectedFaceUp.includes(index)}
-                  onToggle={canSelectFaceUp ? onToggleFaceUp : undefined} />}
+                  onToggle={player.isYou && canSelectFaceUp ? onToggleFaceUp : undefined} />}
               </div>
             );
           })}

@@ -21,6 +21,7 @@ public class SessionMapper {
         return GameSessionEntity.builder()
                 .sessionId(session.getSessionId())
                 .started(session.isStarted())
+                .setupComplete(session.isSetupComplete())
                 .finished(session.isFinished())
                 .shitheadId(session.getShitheadId())
                 .ownerId(session.getOwnerId())
@@ -45,6 +46,7 @@ public class SessionMapper {
         if (entity.isStarted()) {
             session.setStarted(true);
         }
+        session.setSetupComplete(entity.isSetupComplete());
         if (entity.isFinished()) {
             session.setFinished(true);
         }
@@ -62,6 +64,7 @@ public class SessionMapper {
             Player player = Player.builder()
                     .playerId(playerEntity.getPlayerId())
                     .username(playerEntity.getUsername())
+                    .ready(playerEntity.isReady())
                     .build();
             entitiesToCards(playerEntity.getHand()).forEach(player.getHand()::addLast);
             entitiesToCards(playerEntity.getFaceUp()).forEach(player.getFaceUp()::addLast);
@@ -113,6 +116,7 @@ public class SessionMapper {
                         .playerId(player.getPlayerId())
                         .username(player.getUsername())
                         .out(player.isOut())
+                        .ready(player.isReady())
                         .hand(cardsToEntities(player.getHand()))
                         .faceUp(cardsToEntities(player.getFaceUp()))
                         .faceDown(cardsToEntities(player.getFaceDown()))
