@@ -35,7 +35,9 @@ resource "aws_lambda_permission" "allow_ws_authorizer" {
   action        = "lambda:InvokeFunction"
   function_name = var.aws_lambda_function_ws_authorizer_function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.game_ws.execution_arn}/*/connect"
+  # API Gateway invokes Lambda authorizers through the authorizer resource ARN,
+  # not the WebSocket route ARN. Restrict this permission to this authorizer.
+  source_arn = "${aws_apigatewayv2_api.game_ws.execution_arn}/authorizers/${aws_apigatewayv2_authorizer.ws.id}"
 }
 
 resource "aws_lambda_permission" "allow_join_game" {
