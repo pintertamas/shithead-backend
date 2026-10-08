@@ -59,15 +59,15 @@ def lambda_handler(event, context):
         logger.error("JWT validation failed: %s", e, exc_info=False)
         raise Exception("Unauthorized")
 
-    proto_header = headers.get("sec-websocket-protocol")
-
     return {
-        "isAuthorized": True,
         "principalId": claims.get("sub"),
-        "websocketResponse": {
-            "headers": {
-                "Sec-WebSocket-Protocol": proto_header
-            }
+        "policyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Action": "execute-api:Invoke",
+                "Effect": "Allow",
+                "Resource": event["methodArn"],
+            }],
         },
         "context": {
             "username": claims.get("cognito:username"),
