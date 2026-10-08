@@ -13,15 +13,16 @@ import lombok.Setter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.HashSet;
 import java.util.Set;
 
 @Getter
 @Setter
 @Builder
-@SuppressWarnings("PMD.TooManyMethods")
+@SuppressWarnings({"PMD.TooManyMethods", "PMD.CyclomaticComplexity"})
 public class GameSession {
     private final String sessionId;
     @Builder.Default
@@ -138,12 +139,7 @@ public class GameSession {
         if (result != PlayResult.SUCCESS) {
             return result;
         }
-        Card card = cards.get(0);
-        RuleEngine.playAfterEffect(card, discardPile, player, players);
-        if (!config.canPlayAgain(card.getValue()) || player.isOut()) {
-            nextPlayer();
-        }
-        checkGameEnd();
+        finishSuccessfulPlay(cards.get(0), player);
         return result;
     }
 
@@ -152,74 +148,96 @@ public class GameSession {
             return PlayResult.INVALID;
         }
         Player player = players.get(currentIndex);
+        ResolvedSelections resolved = resolveSelections(player, selections);
+        if (resolved == null) {
+            return PlayResult.INVALID;
+        }
+        if (resolved.sources().contains(CardSource.FACE_DOWN)) {
+            return selections.size() == 1 && resolved.sources().size() == 1
+                    ? playFromFaceDown(resolved.cards())
+                    : PlayResult.INVALID;
+        }
+        if (isMixedHandAndFaceUp(resolved.sources())) {
+            return playMixedHandAndFaceUp(player, selections, resolved.cards());
+        }
+        return resolved.sources().contains(CardSource.HAND)
+                ? playFromHand(resolved.cards())
+                : playFromFaceUp(resolved.cards());
+    }
+
+    private ResolvedSelections resolveSelections(Player player, List<CardSelection> selections) {
+        List<Card> hand = new ArrayList<>(player.getHand());
+        List<Card> faceUp = new ArrayList<>(player.getFaceUp());
+        List<Card> faceDown = new ArrayList<>(player.getFaceDown());
         List<Card> selectedCards = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        boolean hasHand = false;
-        boolean hasFaceUp = false;
-        boolean hasFaceDown = false;
+        Set<CardSelection> seen = new HashSet<>();
+        Set<CardSource> sources = EnumSet.noneOf(CardSource.class);
         for (CardSelection selection : selections) {
             if (selection == null || selection.source() == null || selection.index() < 0
-                    || !seen.add(selection.source() + ":" + selection.index())) {
-                return PlayResult.INVALID;
+                    || !seen.add(selection)) {
+                return null;
             }
-            List<Card> available = switch (selection.source()) {
-                case HAND -> {
-                    hasHand = true;
-                    yield new ArrayList<>(player.getHand());
-                }
-                case FACE_UP -> {
-                    hasFaceUp = true;
-                    yield new ArrayList<>(player.getFaceUp());
-                }
-                case FACE_DOWN -> {
-                    hasFaceDown = true;
-                    yield new ArrayList<>(player.getFaceDown());
-                }
-            };
+            sources.add(selection.source());
+            List<Card> available = cardsForSource(selection.source(), hand, faceUp, faceDown);
             if (selection.index() >= available.size()) {
-                return PlayResult.INVALID;
+                return null;
             }
             selectedCards.add(available.get(selection.index()));
         }
+        return new ResolvedSelections(sources, selectedCards);
+    }
 
-        if (hasFaceDown) {
-            return selections.size() == 1 && !hasHand && !hasFaceUp
-                    ? playFromFaceDown(selectedCards)
-                    : PlayResult.INVALID;
-        }
-        if (hasHand && hasFaceUp) {
-            return playMixedHandAndFaceUp(player, selections, selectedCards);
-        }
-        return hasHand ? playFromHand(selectedCards) : playFromFaceUp(selectedCards);
+    private boolean isMixedHandAndFaceUp(Set<CardSource> sources) {
+        return sources.contains(CardSource.HAND) && sources.contains(CardSource.FACE_UP);
+    }
+
+    private record ResolvedSelections(Set<CardSource> sources, List<Card> cards) { }
+
+    private List<Card> cardsForSource(
+            CardSource source, List<Card> hand, List<Card> faceUp, List<Card> faceDown) {
+        return switch (source) {
+            case HAND -> hand;
+            case FACE_UP -> faceUp;
+            case FACE_DOWN -> faceDown;
+        };
     }
 
     private PlayResult playMixedHandAndFaceUp(
             Player player, List<CardSelection> selections, List<Card> selectedCards) {
-        if (!config.isAllowMixedHandAndFaceUpWhenDeckEmpty()
-                || deck == null || !deck.getCards().isEmpty()
-                || notAllCardsAreTheSameValue(selectedCards)
-                || playerCannotPlayAllSelectedCards(selectedCards)) {
+        if (!isValidMixedPlay(selectedCards)) {
             return PlayResult.INVALID;
         }
+        removeMixedSelections(player, selections, selectedCards);
+        selectedCards.forEach(discardPile::addLast);
+        postPlayCleanup(player);
+        finishSuccessfulPlay(selectedCards.get(0), player);
+        return PlayResult.SUCCESS;
+    }
+
+    private boolean isValidMixedPlay(List<Card> selectedCards) {
+        return config.isAllowMixedHandAndFaceUpWhenDeckEmpty()
+                && deck != null && deck.getCards().isEmpty()
+                && !notAllCardsAreTheSameValue(selectedCards)
+                && !playerCannotPlayAllSelectedCards(selectedCards);
+    }
+
+    private void removeMixedSelections(Player player, List<CardSelection> selections, List<Card> selectedCards) {
         for (int i = 0; i < selections.size(); i++) {
             CardSelection selection = selections.get(i);
             if (selection.source() == CardSource.HAND) {
                 player.getHand().remove(selectedCards.get(i));
-            } else if (selection.source() == CardSource.FACE_UP) {
-                player.getFaceUp().remove(selectedCards.get(i));
             } else {
-                return PlayResult.INVALID;
+                player.getFaceUp().remove(selectedCards.get(i));
             }
         }
-        selectedCards.forEach(discardPile::addLast);
-        postPlayCleanup(player);
-        Card card = selectedCards.get(0);
+    }
+
+    private void finishSuccessfulPlay(Card card, Player player) {
         RuleEngine.playAfterEffect(card, discardPile, player, players);
         if (!config.canPlayAgain(card.getValue()) || player.isOut()) {
             nextPlayer();
         }
         checkGameEnd();
-        return PlayResult.SUCCESS;
     }
 
     private PlayResult resolvePlayResult(Player player, List<Card> cards) {
