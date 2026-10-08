@@ -5,6 +5,7 @@ import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
 import { fetchProfile } from "../api/profile";
 import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
+import { fetchGlobalLeaderboard, LeaderboardEntry } from "../api/leaderboard";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -14,6 +15,8 @@ export default function Lobby() {
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
 
   useEffect(() => {
     const navigationError = (location.state as { error?: unknown } | null)?.error;
@@ -25,6 +28,15 @@ export default function Lobby() {
 
   useEffect(() => {
     fetchProfile(token).then((profile) => setDisplayName(profile.username)).catch(() => undefined);
+  }, [token]);
+
+  useEffect(() => {
+    let active = true;
+    fetchGlobalLeaderboard(token, 10)
+      .then((entries) => { if (active) setLeaders(entries); })
+      .catch(() => { if (active) setLeaders([]); })
+      .finally(() => { if (active) setLeaderboardLoading(false); });
+    return () => { active = false; };
   }, [token]);
 
   const handleCreate = async () => {
@@ -78,7 +90,7 @@ export default function Lobby() {
         </button>
       </div>
 
-      <div className="layout">
+      <div className="layout lobby-layout">
         <div className="glass card">
           <h3 className="title">Create a Game</h3>
           <p style={{ color: "var(--ink-dim)" }}>
@@ -108,12 +120,16 @@ export default function Lobby() {
           </button>
         </div>
 
-        <div className="glass card">
-          <h3 className="title">How it works</h3>
-          <p style={{ color: "var(--ink-dim)" }}>
-            You'll see your hand, face-up cards, and counts for hidden cards.
-            Enemy hands remain hidden. The game table updates in real time.
-          </p>
+        <div className="glass card leaderboard-card">
+          <div className="leaderboard-card-heading">
+            <div><div className="badge">Rankings</div><h3 className="title">Top players</h3></div>
+            <button className="button secondary" onClick={() => navigate("/leaderboard")}>Full leaderboard</button>
+          </div>
+          {leaderboardLoading ? <p className="config-note">Loading leaderboard…</p> : leaders.length === 0 ? <p className="config-note">Leaderboard is unavailable right now.</p> : (
+            <div className="player-list">
+              {leaders.map((entry, index) => <div className="player-item" key={entry.userId}><span>{index + 1}. {entry.username}</span><strong>{Math.round(entry.eloScore)}</strong></div>)}
+            </div>
+          )}
         </div>
       </div>
     </div>

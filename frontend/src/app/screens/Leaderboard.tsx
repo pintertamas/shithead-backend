@@ -8,23 +8,30 @@ import ErrorAlert from "../components/ErrorAlert";
 export default function Leaderboard() {
   const { sessionId } = useParams();
   const { token } = useAuth();
-  const [tab, setTab] = useState("Session");
+  const [tab, setTab] = useState(sessionId ? "Session" : "Global");
   const [sessionData, setSessionData] = useState<LeaderboardEntry[]>([]);
   const [globalData, setGlobalData] = useState<LeaderboardEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(Boolean(sessionId));
+  const [globalLoading, setGlobalLoading] = useState(true);
 
   useEffect(() => {
     if (!sessionId) return;
-    fetchSessionLeaderboard(token, sessionId).then(setSessionData).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : "Couldn't load the session leaderboard.");
-    });
-  }, [sessionId]);
+    let active = true;
+    setSessionLoading(true);
+    fetchSessionLeaderboard(token, sessionId).then((rows) => { if (active) setSessionData(rows); }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : "Couldn't load the session leaderboard.");
+    }).finally(() => { if (active) setSessionLoading(false); });
+    return () => { active = false; };
+  }, [sessionId, token]);
 
   useEffect(() => {
-    fetchGlobalLeaderboard(token, 20).then(setGlobalData).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : "Couldn't load the global leaderboard.");
-    });
-  }, []);
+    let active = true;
+    fetchGlobalLeaderboard(token, 20).then((rows) => { if (active) setGlobalData(rows); }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : "Couldn't load the global leaderboard.");
+    }).finally(() => { if (active) setGlobalLoading(false); });
+    return () => { active = false; };
+  }, [token]);
 
   const rows = tab === "Session" ? sessionData : globalData;
 
@@ -39,16 +46,11 @@ export default function Leaderboard() {
       </div>
 
       <div className="glass card">
-        <Tabs tabs={["Session", "Global"]} active={tab} onChange={setTab} />
+        {sessionId && <Tabs tabs={["Session", "Global"]} active={tab} onChange={setTab} />}
         <div className="player-list">
-          {rows.map((entry, idx) => (
-            <div key={entry.userId} className="player-item">
-              <span>
-                {idx + 1}. {entry.username}
-              </span>
-              <strong>{Math.round(entry.eloScore)}</strong>
-            </div>
-          ))}
+          {(tab === "Session" ? sessionLoading : globalLoading) ? <div className="leaderboard-loading" role="status"><span className="game-starting-spinner" />Loading rankings…</div>
+            : rows.length === 0 ? <p className="config-note">No rankings are available yet.</p>
+              : rows.map((entry, idx) => <div key={entry.userId} className="player-item"><span>{idx + 1}. {entry.username}</span><strong>{Math.round(entry.eloScore)}</strong></div>)}
         </div>
       </div>
     </div>

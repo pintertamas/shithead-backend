@@ -17,12 +17,15 @@ export type PlayerState = {
   faceDownCount: number;
   isYou: boolean;
   hand?: Card[];
+  eloScore: number;
+  ready: boolean;
 };
 
 export type GameStateView = {
   sessionId: string;
   started: boolean;
   starting: boolean;
+  setupComplete: boolean;
   finished: boolean;
   currentPlayerId: string | null;
   shitheadId: string | null;
@@ -31,6 +34,7 @@ export type GameStateView = {
   discardCount: number;
   discardPile: Card[];
   allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
+  revealedCard?: Card | null;
   players: PlayerState[];
 };
 
@@ -77,4 +81,12 @@ export async function fetchState(token: string, sessionId: string) {
   const res = await apiFetch(`/state/${sessionId}`, token, { method: "GET" });
   await throwForError(res, "load game state");
   return res.json() as Promise<GameStateView>;
+}
+
+export function openGameSocket(sessionId: string, token: string) {
+  const url = new URL(import.meta.env.VITE_WS_BASE_URL);
+  if (url.pathname === "/" || url.pathname === "") url.pathname = "/$default";
+  url.searchParams.set("game_session_id", sessionId);
+  url.searchParams.set("token", token);
+  return new WebSocket(url.toString());
 }

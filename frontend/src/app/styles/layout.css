@@ -485,6 +485,129 @@ button.playing-card { cursor: pointer; }
   color: #1b1b1b;
 }
 
+/* Responsive table and matching lobby surface */
+.game-page { max-width: 1480px; }
+.game-board {
+  position: relative;
+  overflow: visible;
+  background: radial-gradient(ellipse at 50% 42%, #356247 0%, #214b38 62%, #173a2e 100%);
+  border-color: rgba(230, 215, 173, 0.26);
+}
+.game-middle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 300px);
+  align-items: center;
+  gap: clamp(18px, 4vw, 54px);
+  min-height: 190px;
+}
+.game-piles { justify-content: center; gap: clamp(16px, 4vw, 48px); min-width: 0; }
+.game-piles .pile { min-width: 94px; }
+.game-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+.game-actions .game-hint { margin: 0; min-height: 34px; }
+.game-actions .button { width: 100%; }
+.playing-card {
+  box-sizing: border-box;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 5 / 7;
+  flex-shrink: 0;
+}
+.playing-card-corner-opposite {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  z-index: 1;
+  font-size: 11px;
+  line-height: .95;
+  font-weight: 700;
+  text-align: right;
+  transform: rotate(180deg);
+}
+.playing-hand { min-height: 92px; padding: 10px 5px 8px 4px; overflow-y: visible; }
+.playing-hand .playing-card { height: auto; min-height: 0; }
+.playing-hand .playing-card + .playing-card { margin-left: -24px; }
+.card-selected { transform: translateY(-6px); }
+.game-seat-name { display: flex; align-items: center; gap: 5px; }
+.elo-badge {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid rgba(229, 189, 112, .35);
+  border-radius: 999px;
+  color: #f0d99e;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.header-player-name { color: #e6d8bb; font-family: "Space Grotesk", sans-serif; font-size: .55em; }
+.setup-controls { display: flex; flex-direction: column; gap: 9px; }
+.setup-controls h3, .setup-controls p { margin: 0; }
+.setup-controls p { color: rgba(245, 237, 218, .78); font-size: 12px; line-height: 1.45; }
+.setup-controls .button { margin-top: 2px; }
+.setup-waiting { padding-top: 6px; border-top: 1px solid rgba(245, 237, 218, .16); }
+.ready-confirmation { color: #f0d99e !important; }
+.lobby-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.leaderboard-card { grid-column: 1 / -1; }
+.leaderboard-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+.leaderboard-card-heading .title { margin-bottom: 0; }
+.leaderboard-loading { display: flex; min-height: 100px; align-items: center; justify-content: center; gap: 12px; color: var(--ink-dim); }
+.leaderboard-loading .game-starting-spinner { width: 22px; height: 22px; border-width: 3px; }
+.game-starting-overlay { background: rgba(12, 37, 27, .9); }
+.playing-card-center { pointer-events: none; }
+.failed-blind-reveal {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 8;
+  padding: 8px 14px;
+  border: 1px solid rgba(229, 189, 112, .52);
+  border-radius: 999px;
+  background: rgba(13, 35, 26, .94);
+  color: #f0d99e;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .3);
+  font-size: 12px;
+  transform: translateX(-50%);
+  animation: fadeIn .15s ease;
+}
+
+@media (max-width: 700px) {
+  .page { padding: 18px 12px 28px; }
+  .lobby-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .leaderboard-card { grid-column: auto; }
+  .leaderboard-card-heading { align-items: flex-start; flex-direction: column; }
+  .game-page { padding: 14px 8px 24px; }
+  .game-board { padding: 9px; gap: 10px; border-radius: 16px; }
+  .game-opponents { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .game-seat { padding: 7px; }
+  .game-seat-header { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .seat-turn { justify-self: start; }
+  .game-seat-name { font-size: 12px; }
+  .game-seat-content, .game-seat-own .game-seat-content { display: flex; flex-direction: column; gap: 8px; }
+  .player-card-stacks { max-width: 100%; min-height: 62px; overflow-x: auto; }
+  .paired-card-stack { flex-basis: 35px; width: 35px; height: 53px; }
+  .playing-card { width: 35px; flex-basis: 35px; }
+  .playing-card-corner, .playing-card-corner-opposite { font-size: 8px; }
+  .playing-card-center { font-size: 17px; }
+  .own-hand-area { width: 100%; }
+  .playing-hand { min-height: 78px; max-width: 100%; padding-top: 9px; }
+  .playing-hand .playing-card { width: 46px; flex-basis: 46px; }
+  .playing-hand .playing-card + .playing-card { margin-left: -23px; }
+  .game-middle { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px 4px; }
+  .game-piles { justify-content: center; gap: clamp(14px, 8vw, 40px); }
+  .game-actions { width: 100%; max-width: none; }
+  .setup-controls { max-width: 420px; margin: 0 auto; width: 100%; }
+  .header-player-name { display: block; margin-top: 4px; font-size: .62em; }
+}
+
+@media (max-width: 380px) {
+  .game-opponents { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 960px) {
   .layout {
     grid-template-columns: 1fr;

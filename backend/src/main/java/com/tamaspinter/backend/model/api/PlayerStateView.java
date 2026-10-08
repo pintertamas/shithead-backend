@@ -13,6 +13,8 @@ public record PlayerStateView(
         List<Card> faceUp,
         int faceDownCount,
         boolean isYou,
-        List<Card> hand
+        List<Card> hand,
+        double eloScore,
+        boolean ready
 ) {
 }

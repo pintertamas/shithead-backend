@@ -11,6 +11,8 @@ import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.game.PlayResult;
 import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Player;
+import com.tamaspinter.backend.model.Card;
+import com.tamaspinter.backend.game.CardSource;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.model.api.GameStateView;
 import com.tamaspinter.backend.model.api.LeaderboardEntry;
@@ -32,6 +34,7 @@ import software.amazon.awssdk.services.apigatewaymanagementapi.model.PostToConne
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
@@ -46,6 +49,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
+@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods"})
 public class GameFunctionConfig {
 
     private static final Map<String, String> CORS_HEADERS = Map.of(
@@ -232,6 +236,7 @@ public class GameFunctionConfig {
     }
 
     @Bean
+    @SuppressWarnings("PMD.CognitiveComplexity")
     public Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent> playCardWS() {
         return ev -> {
             PlayMessage msg;
@@ -246,6 +251,19 @@ public class GameFunctionConfig {
                 return websocketError(ev, 404, "This game session no longer exists.");
             }
 
+            String userId = websocketUserId(ev);
+            if (userId == null || entity.getPlayers() == null || entity.getPlayers().stream()
+                    .noneMatch(player -> userId.equals(player.getPlayerId()))) {
+                return websocketError(ev, 403, "Join this game before sending actions.");
+            }
+            if ("setup".equals(msg.action())) {
+                return handleSetupAction(ev, msg, entity, userId);
+            }
+            if (!userId.equals(entity.getCurrentPlayerId())) {
+                return websocketError(ev, 400, "It is not your turn.");
+            }
+
+            final Card revealedCard = blindFlipCard(msg, entity, userId);
             GameSession session = SessionMapper.fromEntity(entity);
             PlayResult result = msg.selections() == null || msg.selections().isEmpty()
                     ? session.playCards(msg.cards())
@@ -257,16 +275,77 @@ public class GameFunctionConfig {
 
             GameSessionEntity updated = session.toEntity();
             sessionRepo.save(updated);
-            String endpoint = "https://" + ev.getRequestContext().getDomainName()
-                    + "/" + ev.getRequestContext().getStage();
-            broadcastState(msg.sessionId(), updated, endpoint);
-
-            if (session.isFinished()) {
-                updateElo(session);
+            if (session.isFinished() && !entity.isEloUpdated() && updateElo(session)) {
+                updated.setEloUpdated(true);
+                sessionRepo.save(updated);
             }
+            String endpoint = websocketEndpoint(ev);
+            broadcastState(msg.sessionId(), updated, endpoint,
+                    result == PlayResult.PICKUP ? revealedCard : null);
 
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
         };
+    }
+
+    private APIGatewayProxyResponseEvent handleSetupAction(
+            APIGatewayV2WebSocketEvent event, PlayMessage message, GameSessionEntity entity, String userId) {
+        if ("announce".equals(message.setupAction())) {
+            if (!userId.equals(entity.getOwnerId())) {
+                return websocketError(event, 403, "Only the game owner can start the game.");
+            }
+            broadcastState(message.sessionId(), entity, websocketEndpoint(event));
+            return new APIGatewayProxyResponseEvent().withStatusCode(200);
+        }
+
+        GameSession session = SessionMapper.fromEntity(entity);
+        boolean accepted;
+        if ("swap".equals(message.setupAction()) && message.handIndex() != null && message.faceUpIndex() != null) {
+            accepted = session.swapStartingCards(userId, message.handIndex(), message.faceUpIndex());
+        } else if ("ready".equals(message.setupAction())) {
+            accepted = session.markReady(userId);
+        } else {
+            accepted = false;
+        }
+        if (!accepted) {
+            return websocketError(event, 400, "That setup action is no longer available.");
+        }
+        GameSessionEntity updated = session.toEntity();
+        updated.setStarting(entity.isStarting());
+        updated.setEloUpdated(entity.isEloUpdated());
+        sessionRepo.save(updated);
+        broadcastState(message.sessionId(), updated, websocketEndpoint(event));
+        return new APIGatewayProxyResponseEvent().withStatusCode(200);
+    }
+
+    private Card blindFlipCard(PlayMessage message, GameSessionEntity entity, String userId) {
+        if (message.selections() == null || message.selections().size() != 1
+                || message.selections().get(0).source() != CardSource.FACE_DOWN) {
+            return null;
+        }
+        int index = message.selections().get(0).index();
+        return entity.getPlayers().stream()
+                .filter(player -> userId.equals(player.getPlayerId()))
+                .findFirst()
+                .filter(player -> player.getFaceDown() != null && index >= 0 && index < player.getFaceDown().size())
+                .map(player -> SessionMapper.entitiesToCardList(List.of(player.getFaceDown().get(index))).get(0))
+                .orElse(null);
+    }
+
+    private String websocketUserId(APIGatewayV2WebSocketEvent event) {
+        if (wsConnectionsTable == null) {
+            return null;
+        }
+        String connectionId = event.getRequestContext().getConnectionId();
+        Map<String, AttributeValue> item = dynamoClient.getItem(GetItemRequest.builder()
+                .tableName(wsConnectionsTable)
+                .key(Map.of("connection_id", AttributeValue.fromS(connectionId)))
+                .build()).item();
+        return item != null && item.containsKey("user_id") ? item.get("user_id").s() : null;
+    }
+
+    private String websocketEndpoint(APIGatewayV2WebSocketEvent event) {
+        return "https://" + event.getRequestContext().getDomainName()
+                + "/" + event.getRequestContext().getStage();
     }
 
     @Bean
@@ -282,6 +361,11 @@ public class GameFunctionConfig {
             GameSessionEntity entity = sessionRepo.get(msg.sessionId());
             if (entity == null) {
                 return websocketError(ev, 404, "This game session no longer exists.");
+            }
+
+            String userId = websocketUserId(ev);
+            if (userId == null || !userId.equals(entity.getCurrentPlayerId())) {
+                return websocketError(ev, 400, "It is not your turn.");
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
@@ -366,7 +450,7 @@ public class GameFunctionConfig {
         };
     }
 
-    private void updateElo(GameSession session) {
+    private boolean updateElo(GameSession session) {
         String shitheadId = session.getShitheadId();
         Map<String, Double> results = new HashMap<>();
         for (var player : session.getPlayers()) {
@@ -376,20 +460,33 @@ public class GameFunctionConfig {
                 .map(Player::getPlayerId)
                 .collect(Collectors.toList());
         try {
-            Map<String, Double> current = userRepo.batchGet(playerIds)
-                    .stream().collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
+            List<UserProfile> profiles = userRepo.batchGet(playerIds);
+            Map<String, Double> current = profiles.stream()
+                    .collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
+            if (current.size() < 2) {
+                log.warn("Skipping Elo update for session {} because fewer than two profiles exist", session.getSessionId());
+                return false;
+            }
             Map<String, Double> updated = EloService.updateRatings(current, results);
             updated.forEach((id, elo) -> {
                 UserProfile userProfile = userRepo.get(id);
-                userProfile.setEloScore(elo);
-                userRepo.save(userProfile);
+                if (userProfile != null) {
+                    userProfile.setEloScore(elo);
+                    userRepo.save(userProfile);
+                }
             });
+            return true;
         } catch (SdkException e) {
             log.error("Elo update failed for session {}", session.getSessionId(), e);
+            return false;
         }
     }
 
     private void broadcastState(String gameSessionId, GameSessionEntity state, String endpoint) {
+        broadcastState(gameSessionId, state, endpoint, null);
+    }
+
+    private void broadcastState(String gameSessionId, GameSessionEntity state, String endpoint, Card revealedCard) {
         if (wsConnectionsTable == null) {
             log.warn("WS_CONNECTIONS_TABLE not set, skipping broadcast");
             return;
@@ -402,6 +499,7 @@ public class GameFunctionConfig {
                 .expressionAttributeValues(Map.of(":gid", AttributeValue.fromS(gameSessionId)))
                 .build());
 
+        Map<String, Double> ratings = loadRatings(state);
         try (ApiGatewayManagementApiClient apigwClient = ApiGatewayManagementApiClient.builder()
                 .endpointOverride(URI.create(endpoint))
                 .build()) {
@@ -409,7 +507,7 @@ public class GameFunctionConfig {
                 String connectionId = item.get("connection_id").s();
                 String userId = item.containsKey("user_id") ? item.get("user_id").s() : null;
                 try {
-                    GameStateView view = buildGameStateView(state, userId);
+                    GameStateView view = buildGameStateView(state, userId, ratings, revealedCard);
                     apigwClient.postToConnection(PostToConnectionRequest.builder()
                             .connectionId(connectionId)
                             .data(SdkBytes.fromByteArray(mapper.writeValueAsBytes(view)))
@@ -448,7 +546,32 @@ public class GameFunctionConfig {
         return new APIGatewayProxyResponseEvent().withStatusCode(statusCode);
     }
 
+    private Map<String, Double> loadRatings(GameSessionEntity entity) {
+        List<String> playerIds = entity.getPlayers() == null ? List.of()
+                : entity.getPlayers().stream().map(PlayerEntity::getPlayerId).toList();
+        if (playerIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return userRepo.batchGet(playerIds).stream()
+                    .collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
+        } catch (SdkException e) {
+            log.warn("Could not load player ratings for game {}", entity.getSessionId(), e);
+            return Map.of();
+        }
+    }
+
     private GameStateView buildGameStateView(GameSessionEntity entity, String viewerId) {
+        return buildGameStateView(entity, viewerId, loadRatings(entity));
+    }
+
+    private GameStateView buildGameStateView(
+            GameSessionEntity entity, String viewerId, Map<String, Double> ratings) {
+        return buildGameStateView(entity, viewerId, ratings, null);
+    }
+
+    private GameStateView buildGameStateView(
+            GameSessionEntity entity, String viewerId, Map<String, Double> ratings, Card revealedCard) {
         List<PlayerEntity> players = entity.getPlayers() == null
                 ? List.of()
                 : entity.getPlayers();
@@ -472,6 +595,8 @@ public class GameFunctionConfig {
                             .faceDownCount(faceDown.size())
                             .isYou(isYou)
                             .hand(isYou ? SessionMapper.entitiesToCardList(hand) : Collections.emptyList())
+                            .eloScore(ratings.getOrDefault(player.getPlayerId(), 1000.0))
+                            .ready(player.isReady())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -487,6 +612,7 @@ public class GameFunctionConfig {
                 .sessionId(entity.getSessionId())
                 .started(entity.isStarted())
                 .starting(entity.isStarting())
+                .setupComplete(entity.isSetupComplete())
                 .finished(entity.isFinished())
                 .currentPlayerId(entity.getCurrentPlayerId())
                 .shitheadId(entity.getShitheadId())
@@ -494,6 +620,7 @@ public class GameFunctionConfig {
                 .deckCount(deck.size())
                 .allowMixedHandAndFaceUpWhenDeckEmpty(entity.getConfig() != null
                         && entity.getConfig().isAllowMixedHandAndFaceUpWhenDeckEmpty())
+                .revealedCard(revealedCard)
                 .discardCount(discard.size())
                 .discardPile(SessionMapper.entitiesToCardList(discard))
                 .players(playerViews)

@@ -1,18 +1,18 @@
 ﻿@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600&display=swap");
 
 :root {
-  --bg-1: #0b0f1a;
-  --bg-2: #111b2a;
-  --bg-3: #17233a;
-  --accent: #ffb74d;
-  --accent-2: #57d3c8;
+  --bg-1: #11251e;
+  --bg-2: #18382c;
+  --bg-3: #28533f;
+  --accent: #e5bd70;
+  --accent-2: #bad3a8;
   --danger: #ff6b6b;
   --ink: #f5f5f5;
   --ink-dim: rgba(245, 245, 245, 0.7);
-  --card: #1a263d;
-  --card-border: rgba(255, 255, 255, 0.08);
-  --shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
-  --radius: 16px;
+  --card: rgba(27, 58, 45, 0.94);
+  --card-border: rgba(225, 213, 174, 0.2);
+  --shadow: 0 18px 38px rgba(5, 18, 13, 0.35);
+  --radius: 18px;
 }
 
 * {
@@ -22,9 +22,9 @@
 body {
   margin: 0;
   font-family: "Space Grotesk", system-ui, sans-serif;
-  background: radial-gradient(1200px 600px at 10% -10%, #283b59 0%, rgba(17, 27, 42, 0.5) 50%, var(--bg-1) 100%),
-    linear-gradient(120deg, var(--bg-1), var(--bg-2));
-  color: var(--ink);
+  background: radial-gradient(ellipse at 50% 0%, #315a43 0%, #1d4334 44%, #10291f 100%);
+  background-attachment: fixed;
+  color: #f5edda;
   min-height: 100vh;
 }
 
@@ -57,11 +57,11 @@ input, select {
 }
 
 .glass {
-  background: rgba(18, 30, 50, 0.8);
+  background: rgba(27, 58, 45, 0.88);
   border: 1px solid var(--card-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(10px);
 }
 
 .badge {
