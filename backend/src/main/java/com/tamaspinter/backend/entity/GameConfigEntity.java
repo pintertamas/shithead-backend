@@ -20,6 +20,8 @@ import java.util.Map;
 @DynamoDbBean
 public class GameConfigEntity {
     @Builder.Default
+    private int decksCount = 1;
+    @Builder.Default
     private int burnCount = 4;
     @Builder.Default
     private int faceDownCount = 3;

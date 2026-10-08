@@ -82,6 +82,89 @@
   font-weight: 700;
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.config-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.config-description,
+.config-note {
+  color: var(--ink-dim);
+  margin-top: 0;
+}
+
+.config-note { font-size: 14px; }
+
+.choice-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(10, 17, 28, 0.7);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+}
+
+.choice-switch-option {
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 18px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.choice-switch-option.active {
+  background: var(--accent);
+  color: #1b1b1b;
+  font-weight: 700;
+}
+
+.config-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.5;
+}
+
+.config-toggle-row input { margin-top: 5px; }
+
+.config-rules-card { grid-column: 1 / -1; }
+
+.rules-table-scroll { overflow-x: auto; }
+
+.rules-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rules-table th,
+.rules-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--card-border);
+  text-align: left;
+}
+
+.rules-select { padding: 8px 10px; }
+
+.config-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+}
+
+.config-saved { color: var(--accent-2); }
+
 .pile-top-card {
   justify-self: center;
   min-width: 64px;
@@ -150,4 +233,11 @@
   .layout {
     grid-template-columns: 1fr;
   }
+
+  .config-layout { grid-template-columns: 1fr; }
+
+  .config-rules-card,
+  .config-actions { grid-column: 1; }
+
+  .topbar { align-items: flex-start; flex-wrap: wrap; }
 }

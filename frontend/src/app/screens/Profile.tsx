@@ -96,19 +96,17 @@ export default function Profile() {
           </button>
         </form>
 
-        <div className="glass card">
-          <h3 className="title">Game Maintenance</h3>
-          <p style={{ color: "var(--ink-dim)" }}>
-            Clear all active game sessions and disconnect their players. Player profiles and ratings stay saved.
-          </p>
-          {profile?.canClearGames ? (
+        {profile?.canClearGames && (
+          <div className="glass card">
+            <h3 className="title">Game Maintenance</h3>
+            <p style={{ color: "var(--ink-dim)" }}>
+              Clear all active game sessions and disconnect their players. Player profiles and ratings stay saved.
+            </p>
             <button className="button danger" type="button" onClick={() => setShowDoomsdayConfirmation(true)}>
               Clear All Active Games
             </button>
-          ) : (
-            <p className="game-hint">Administrator access is required for this action.</p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {showDoomsdayConfirmation && (

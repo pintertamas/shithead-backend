@@ -66,6 +66,10 @@ shithead-backend/
 │   └── src/test/java/com/tamaspinter/backend/
 │       └── <mirrors source package structure exactly>
 ├── infra/                   # Terraform
+├── frontend/
+│   └── src/app/
+│       ├── config/           # Browser-local next-game settings
+│       └── screens/          # Lobby, profile, game configuration, and game UI
 └── AI-CONTEXT.md
 ```
 
@@ -154,6 +158,8 @@ Client
 | `INVALID` | Move rejected — wrong turn, illegal card, or game finished |
 
 Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty.
+
+The frontend's `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
 
 ### Card Rule Engine
 
@@ -313,6 +319,8 @@ private GameSessionRepository sessionRepo;
 4. Register card value → rule in `GameConfig.defaultGameConfig()`.
 5. Add tests in `com.tamaspinter.backend.rules`.
 
+The existing card-rule picker can assign the existing `CardRule` values to any rank per game. `JOKER` and `TRANSPARENT` ranks are marked always-playable, while `BURNER` ranks also receive the play-again effect. Adding new rule types still requires implementing their backend strategy/effects.
+
 ### Adding a New Lambda Function
 
 1. Add a `@Bean` method returning `Function<InputEvent, OutputEvent>` in `GameFunctionConfig`.
@@ -327,6 +335,7 @@ private GameSessionRepository sessionRepo;
 - `POST /admin/doomsday` deletes active game sessions and closes WebSocket connections. It does not delete user profiles or Elo ratings.
 - The route checks the Cognito `game-admin` group in JWT claims. Terraform creates the group but does not assign members; membership must be granted deliberately.
 - The account management Lambda uses a dedicated IAM role scoped to profiles, game cleanup, connection cleanup, and API Gateway connection management.
+- The profile screen renders the Game Maintenance card only when `/profile` reports `canClearGames` for a `game-admin` member.
 
 ### Adding a New Repository
 

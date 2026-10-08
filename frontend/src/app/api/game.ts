@@ -33,7 +33,16 @@ export type GameStateView = {
   players: PlayerState[];
 };
 
-export async function createGame(token: string, config: { allowMixedHandAndFaceUpWhenDeckEmpty: boolean }) {
+export type CreateGameConfig = {
+  allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
+  decksCount: 1 | 2;
+  burnCount: 4 | 6;
+  cardRules: Record<string, string>;
+  alwaysPlayable: number[];
+  canPlayAgain: number[];
+};
+
+export async function createGame(token: string, config: CreateGameConfig) {
   const res = await apiFetch("/create-game", token, { method: "POST", body: JSON.stringify({ config }) });
   await throwForError(res, "create the game");
   return res.json() as Promise<{ sessionId: string }>;
