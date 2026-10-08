@@ -32,6 +32,7 @@ export default function GameTable() {
     return state.players.find((p) => p.playerId === state.currentPlayerId)?.username || "";
   }, [state]);
   const yourTurn = Boolean(state && you && state.currentPlayerId === you.playerId);
+  const pileHasCards = (state?.discardCount ?? 0) > 0;
 
   const applyState = useCallback((next: GameStateView) => {
     const previous = stateRef.current;
@@ -76,10 +77,10 @@ export default function GameTable() {
   }, [sessionId, selected, you, yourTurn, sendWs]);
 
   const pickup = useCallback(() => {
-    if (!sessionId || !yourTurn) return;
+    if (!sessionId || !yourTurn || !pileHasCards) return;
     setError(null);
     if (sendWs({ action: "pickup", sessionId })) setPendingAction(true);
-  }, [sessionId, yourTurn, sendWs]);
+  }, [sessionId, yourTurn, pileHasCards, sendWs]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -201,7 +202,7 @@ export default function GameTable() {
             <button className="button" disabled={selected.length === 0 || pendingAction || !yourTurn} onClick={playSelected}>
               {pendingAction ? "Sending..." : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
-            <button className="button secondary" disabled={!yourTurn || pendingAction} onClick={pickup}>
+            <button className="button secondary" disabled={!yourTurn || !pileHasCards || pendingAction} onClick={pickup}>
               Pick Up Pile
             </button>
           </div>
