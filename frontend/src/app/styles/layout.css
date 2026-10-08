@@ -552,6 +552,16 @@ button.playing-card { cursor: pointer; }
 .setup-waiting { padding-top: 6px; border-top: 1px solid rgba(245, 237, 218, .16); }
 .ready-confirmation { color: #f0d99e !important; }
 .lobby-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lobby-actions-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px 14px;
+  padding: 14px;
+}
+.lobby-join-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.lobby-actions-card .config-note { grid-column: 1 / -1; margin: 0; }
 .leaderboard-card { grid-column: 1 / -1; }
 .leaderboard-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
 .leaderboard-card-heading .title { margin-bottom: 0; }
@@ -578,6 +588,9 @@ button.playing-card { cursor: pointer; }
 @media (max-width: 700px) {
   .page { padding: 18px 12px 28px; }
   .lobby-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .lobby-actions-card { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .lobby-actions-card > .button { width: 100%; }
+  .lobby-join-form { grid-template-columns: minmax(0, 1fr) auto; }
   .leaderboard-card { grid-column: auto; }
   .leaderboard-card-heading { align-items: flex-start; flex-direction: column; }
   .game-page { padding: 14px 8px 24px; }

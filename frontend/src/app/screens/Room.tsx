@@ -18,6 +18,15 @@ export default function Room() {
   const transitionTimer = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
+  const showStartingScreen = useCallback(() => {
+    setLoading("starting");
+    if (transitionStarted.current || !sessionId) return;
+    transitionStarted.current = true;
+    transitionTimer.current = window.setTimeout(() => {
+      navigate(`/game/${sessionId}`);
+    }, 500);
+  }, [navigate, sessionId]);
+
   useEffect(() => {
     if (!sessionId || !token) return;
     const ws = openGameSocket(sessionId, token);
@@ -51,15 +60,6 @@ export default function Room() {
       ws.send(JSON.stringify({ action: "setup", sessionId, setupAction: "announce" }));
     }
   };
-
-  const showStartingScreen = useCallback(() => {
-    setLoading("starting");
-    if (transitionStarted.current || !sessionId) return;
-    transitionStarted.current = true;
-    transitionTimer.current = window.setTimeout(() => {
-      navigate(`/game/${sessionId}`);
-    }, 500);
-  }, [navigate, sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;
