@@ -111,3 +111,12 @@ resource "aws_lambda_permission" "allow_pickup_pile_ws" {
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.game_ws.execution_arn}/*/pickup"
 }
+
+resource "aws_lambda_permission" "allow_account_management" {
+  statement_id  = "AllowAccountManagementFromApiGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = var.account_management_function_name
+  qualifier     = "LIVE"
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.game_api.execution_arn}/*/*"
+}

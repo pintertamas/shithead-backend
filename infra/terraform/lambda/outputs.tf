@@ -90,6 +90,14 @@ output "get_state_function_name" {
   value = aws_lambda_function.get_state.function_name
 }
 
+output "account_management_alias_arn" {
+  value = aws_lambda_alias.account_management_live.arn
+}
+
+output "account_management_function_name" {
+  value = aws_lambda_function.account_management.function_name
+}
+
 output "leaderboard_session_alias_arn" {
   value = aws_lambda_alias.leaderboard_session_live.arn
 }

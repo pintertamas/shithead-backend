@@ -51,7 +51,7 @@ public class GameFunctionConfig {
     private static final Map<String, String> CORS_HEADERS = Map.of(
             "Access-Control-Allow-Origin", "*",
             "Access-Control-Allow-Headers", "Content-Type,Authorization",
-            "Access-Control-Allow-Methods", "POST,GET,OPTIONS"
+            "Access-Control-Allow-Methods", "POST,GET,PUT,OPTIONS"
     );
 
     private final GameSessionRepository sessionRepo;
@@ -231,7 +231,9 @@ public class GameFunctionConfig {
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
-            PlayResult result = session.playCards(msg.cards());
+            PlayResult result = msg.selections() == null || msg.selections().isEmpty()
+                    ? session.playCards(msg.cards())
+                    : session.playSelections(msg.selections());
             if (result == PlayResult.INVALID) {
                 return websocketError(ev, 400,
                         "That play can't be made right now. Check that it's your turn and the cards are allowed.");
@@ -473,6 +475,8 @@ public class GameFunctionConfig {
                 .shitheadId(entity.getShitheadId())
                 .isOwner(viewerId != null && viewerId.equals(entity.getOwnerId()))
                 .deckCount(deck.size())
+                .allowMixedHandAndFaceUpWhenDeckEmpty(entity.getConfig() != null
+                        && entity.getConfig().isAllowMixedHandAndFaceUpWhenDeckEmpty())
                 .discardCount(discard.size())
                 .discardPile(SessionMapper.entitiesToCardList(discard))
                 .players(playerViews)

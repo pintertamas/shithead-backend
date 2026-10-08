@@ -4,6 +4,7 @@ import Lobby from "./screens/Lobby";
 import Room from "./screens/Room";
 import GameTable from "./screens/GameTable";
 import Leaderboard from "./screens/Leaderboard";
+import Profile from "./screens/Profile";
 import AuthCallback from "./auth/authCallback";
 import { useAuth } from "./auth/useAuth";
 
@@ -20,6 +21,10 @@ export default function AppRoutes() {
         <Route
           path="/lobby"
           element={token ? <Lobby /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/profile"
+          element={token ? <Profile /> : <Navigate to="/login" />}
         />
         <Route
           path="/room/:sessionId"

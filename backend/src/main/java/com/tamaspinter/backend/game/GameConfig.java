@@ -17,6 +17,8 @@ public class GameConfig {
     private final int handCount;
     private final int burnCount;
     @Builder.Default
+    private final boolean allowMixedHandAndFaceUpWhenDeckEmpty = false;
+    @Builder.Default
     private final Map<Integer, CardRule> cardRuleMap = new HashMap<>();
     @Builder.Default
     private final Map<Integer, Boolean> alwaysPlayableMap = new HashMap<>();
@@ -29,6 +31,7 @@ public class GameConfig {
                 .faceUpCount(3)
                 .handCount(3)
                 .burnCount(4)
+                .allowMixedHandAndFaceUpWhenDeckEmpty(false)
                 .build();
         config.cardRuleMap.put(2, CardRule.JOKER);
         config.cardRuleMap.put(6, CardRule.SMALLER);
@@ -47,6 +50,7 @@ public class GameConfig {
                 .faceUpCount(e.getFaceUpCount())
                 .handCount(e.getHandCount())
                 .burnCount(e.getBurnCount())
+                .allowMixedHandAndFaceUpWhenDeckEmpty(e.isAllowMixedHandAndFaceUpWhenDeckEmpty())
                 .build();
         e.getCardRules().forEach((key, value) ->
                 config.cardRuleMap.put(Integer.parseInt(key), CardRule.valueOf(value)));
@@ -60,6 +64,7 @@ public class GameConfig {
         this.cardRuleMap.forEach((key, value) -> rules.put(String.valueOf(key), value.name()));
         return GameConfigEntity.builder()
                 .burnCount(this.burnCount)
+                .allowMixedHandAndFaceUpWhenDeckEmpty(this.allowMixedHandAndFaceUpWhenDeckEmpty)
                 .faceDownCount(this.faceDownCount)
                 .faceUpCount(this.faceUpCount)
                 .handCount(this.handCount)

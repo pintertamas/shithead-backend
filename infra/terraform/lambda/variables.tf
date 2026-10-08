@@ -39,6 +39,11 @@ variable "aws_apigateway_ws_execution_arn" {
   type        = string
 }
 
+variable "websocket_api_endpoint" {
+  description = "WebSocket API endpoint used for administrative connection cleanup"
+  type        = string
+}
+
 variable "cognito_user_pool_id" {
   description = "ID of the Cognito User Pool"
   type        = string

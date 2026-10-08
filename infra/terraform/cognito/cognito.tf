@@ -2,11 +2,11 @@ resource "aws_cognito_user_pool" "users" {
   name = "${var.project_name}-user-pool"
 
   # Allow users to sign in with email/password
-  username_attributes = ["email"]
+  username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
   lambda_config {
-    post_confirmation  = var.init_user_lambda_arn
+    post_confirmation   = var.init_user_lambda_arn
     post_authentication = var.init_user_lambda_arn
   }
 
@@ -23,27 +23,35 @@ resource "aws_cognito_user_pool" "users" {
 }
 
 resource "aws_api_gateway_authorizer" "cognito_auth" {
-  name          = "CognitoAuthorizer"
-  rest_api_id   = var.api_gateway_game_api_id
+  name            = "CognitoAuthorizer"
+  rest_api_id     = var.api_gateway_game_api_id
   identity_source = "method.request.header.Authorization"
-  type          = "COGNITO_USER_POOLS"
-  provider_arns = [aws_cognito_user_pool.users.arn]
+  type            = "COGNITO_USER_POOLS"
+  provider_arns   = [aws_cognito_user_pool.users.arn]
+}
+
+resource "aws_cognito_user_group" "game_admin" {
+  user_pool_id = aws_cognito_user_pool.users.id
+  name         = "game-admin"
+  description  = "May use administrative game cleanup actions"
+  precedence   = 1
 }
 
 # Google
 resource "aws_cognito_identity_provider" "google" {
-  user_pool_id = aws_cognito_user_pool.users.id
+  user_pool_id  = aws_cognito_user_pool.users.id
   provider_name = "Google"
   provider_type = "Google"
 
   provider_details = {
-    client_id     = var.google_client_id
-    client_secret = var.google_client_secret
+    client_id        = var.google_client_id
+    client_secret    = var.google_client_secret
     authorize_scopes = "openid profile email"
   }
 
   attribute_mapping = {
-    email    = "email"
+    email              = "email"
+    preferred_username = "name"
   }
 }
 
@@ -61,8 +69,8 @@ resource "aws_cognito_user_pool_client" "app_client" {
 
   # OAuth2 flows (frontend currently uses implicit token flow)
   allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_flows  = ["code", "implicit"]
-  allowed_oauth_scopes = ["openid","email","profile"]
+  allowed_oauth_flows                  = ["code", "implicit"]
+  allowed_oauth_scopes                 = ["openid", "email", "profile"]
 
   # All the IdPs we set up
   supported_identity_providers = [

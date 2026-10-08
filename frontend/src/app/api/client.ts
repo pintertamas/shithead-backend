@@ -21,6 +21,8 @@ export async function throwForError(response: Response, action: string): Promise
       ? "This game may have ended or no longer exists."
       : response.status === 409
         ? "That action is not available in the current game state."
+        : response.status === 400
+          ? "Please check the information and try again."
         : response.status === 429
           ? "The game is receiving too many requests. Please wait a moment and try again."
           : "The game service is having trouble. Please try again in a moment.";

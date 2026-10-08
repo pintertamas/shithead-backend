@@ -18,11 +18,11 @@ def lambda_handler(event, context):
         logger.info("init_user triggered for user_id=%s, trigger=%s",
                      user_id, event.get('triggerSource', 'unknown'))
 
-        # Upsert: always refresh username, but only initialise elo/rank on first login
+        # Seed a display name once; user-edited profile names must survive later logins.
         dynamodb.Table(os.environ['USER_TABLE_NAME']).update_item(
             Key={'user_id': user_id},
             UpdateExpression=(
-                'SET username = :u, '
+                'SET username = if_not_exists(username, :u), '
                 'leaderboard_pk = if_not_exists(leaderboard_pk, :lpk), '
                 'elo_score = if_not_exists(elo_score, :elo), '
                 'created_at = if_not_exists(created_at, :ca)'
