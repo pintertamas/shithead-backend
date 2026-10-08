@@ -86,6 +86,50 @@ input, select {
   box-shadow: 0 10px 20px rgba(255, 183, 77, 0.3);
 }
 
+.button:disabled {
+  background: #566174;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  opacity: 0.72;
+}
+
+.button.secondary:disabled {
+  background: #566174;
+  border-color: #69758a;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.error-alert {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 107, 107, 0.55);
+  border-radius: 12px;
+  background: rgba(255, 107, 107, 0.14);
+  color: #ffdada;
+}
+
+.error-alert-dismiss {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.game-hint {
+  margin: 12px 0 0;
+  color: var(--ink-dim);
+  font-size: 14px;
+}
+
 .button.secondary {
   background: transparent;
   border: 1px solid var(--card-border);

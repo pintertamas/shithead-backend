@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGame, joinGame } from "../api/game";
 import { useAuth } from "../auth/useAuth";
+import ErrorAlert from "../components/ErrorAlert";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -16,8 +17,8 @@ export default function Lobby() {
     try {
       const res = await createGame(token);
       navigate(`/room/${res.sessionId}`);
-    } catch {
-      setStatus("Failed to create game.");
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : "Failed to create game.");
     } finally {
       setLoading(null);
     }
@@ -31,8 +32,8 @@ export default function Lobby() {
     try {
       await joinGame(token, trimmed);
       navigate(`/room/${trimmed}`);
-    } catch {
-      setStatus("Failed to join game.");
+    } catch (cause) {
+      setStatus(cause instanceof Error ? cause.message : "Failed to join game.");
     } finally {
       setLoading(null);
     }
@@ -40,6 +41,7 @@ export default function Lobby() {
 
   return (
     <div className="page fade-in">
+      <ErrorAlert message={status} onDismiss={() => setStatus(null)} />
       <div className="topbar">
         <div>
           <div className="badge">Signed In</div>
@@ -83,7 +85,6 @@ export default function Lobby() {
           <button className="button" onClick={handleJoin} disabled={loading !== null}>
             {loading === "joining" ? "Joining..." : "Join Game"}
           </button>
-          {status && <p style={{ color: "var(--danger)" }}>{status}</p>}
         </div>
 
         <div className="glass card">

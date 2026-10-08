@@ -52,6 +52,8 @@
   padding: 10px;
   text-align: center;
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  color: var(--ink);
+  font: inherit;
 }
 
 .card-selectable {
@@ -131,4 +133,3 @@
     grid-template-columns: 1fr;
   }
 }
-
