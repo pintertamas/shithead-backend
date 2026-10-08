@@ -87,7 +87,7 @@ resource "aws_apigatewayv2_stage" "default_stage" {
 
   access_log_settings {
     destination_arn = "${var.aws_cloudwatch_log_group_websocket_apigw_arn}:*"
-    format          = "{ \"requestId\":\"$context.requestId\", \"extendedRequestId\":\"$context.extendedRequestId\", \"ip\":\"$context.identity.sourceIp\", \"caller\":\"$context.identity.caller\", \"user\":\"$context.identity.user\", \"requestTime\":\"$context.requestTime\", \"httpMethod\":\"$context.httpMethod\", \"resourcePath\":\"$context.resourcePath\", \"status\":\"$context.status\", \"protocol\":\"$context.protocol\", \"responseLength\":\"$context.responseLength\" }"
+    format          = "{ \"requestId\":\"$context.requestId\", \"extendedRequestId\":\"$context.extendedRequestId\", \"ip\":\"$context.identity.sourceIp\", \"requestTime\":\"$context.requestTime\", \"routeKey\":\"$context.routeKey\", \"status\":\"$context.status\", \"principalId\":\"$context.authorizer.principalId\", \"integrationError\":\"$context.integrationErrorMessage\", \"responseLength\":\"$context.responseLength\" }"
   }
 
   auto_deploy = true
