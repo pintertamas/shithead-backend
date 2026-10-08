@@ -21,7 +21,7 @@ resource "aws_lambda_function" "account_management" {
       GAME_SESSIONS_TABLE              = var.aws_dynamodb_table_games_name
       USERS_TABLE                      = var.aws_dynamodb_table_users_name
       WS_CONNECTIONS_TABLE             = var.aws_dynamodb_table_ws_connection_name
-      WS_MANAGEMENT_ENDPOINT           = replace(var.websocket_api_endpoint, "wss://", "https://")
+      WS_MANAGEMENT_ENDPOINT           = format("%s/$default", replace(var.websocket_api_endpoint, "wss://", "https://"))
       SPRING_CLOUD_FUNCTION_DEFINITION = "accountManagement"
     }
   }
