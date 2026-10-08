@@ -96,11 +96,12 @@ public class GameSession {
         return false;
     }
 
-    private boolean selectedCardsBelongTo(List<Card> available, List<Card> selected) {
+    private List<Card> matchSelectedCards(List<Card> available, List<Card> selected) {
         if (selected == null || selected.isEmpty()) {
-            return false;
+            return null;
         }
         List<Card> unmatched = new ArrayList<>(available);
+        List<Card> matched = new ArrayList<>();
         for (Card selectedCard : selected) {
             int match = -1;
             for (int i = 0; i < unmatched.size(); i++) {
@@ -110,11 +111,11 @@ public class GameSession {
                 }
             }
             if (match < 0) {
-                return false;
+                return null;
             }
-            unmatched.remove(match);
+            matched.add(unmatched.remove(match));
         }
-        return true;
+        return matched;
     }
 
     private boolean sameCard(Card left, Card right) {
@@ -173,14 +174,15 @@ public class GameSession {
         if (player.getHand().isEmpty()) {
             return PlayResult.INVALID;
         }
-        if (!selectedCardsBelongTo(player.getHand().stream().toList(), cards)) {
+        List<Card> matched = matchSelectedCards(new ArrayList<>(player.getHand()), cards);
+        if (matched == null) {
             return PlayResult.INVALID;
         }
-        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
+        if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
             return PlayResult.INVALID;
         }
-        cards.forEach(discardPile::addLast);
-        player.getHand().removeAll(cards);
+        matched.forEach(discardPile::addLast);
+        matched.forEach(player.getHand()::remove);
         postPlayCleanup(player);
         return PlayResult.SUCCESS;
     }
@@ -190,14 +192,15 @@ public class GameSession {
         if (!player.getHand().isEmpty() || player.getFaceUp().isEmpty()) {
             return PlayResult.INVALID;
         }
-        if (!selectedCardsBelongTo(player.getFaceUp().stream().toList(), cards)) {
+        List<Card> matched = matchSelectedCards(new ArrayList<>(player.getFaceUp()), cards);
+        if (matched == null) {
             return PlayResult.INVALID;
         }
-        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
+        if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
             return PlayResult.INVALID;
         }
-        cards.forEach(discardPile::addLast);
-        player.getFaceUp().removeAll(cards);
+        matched.forEach(discardPile::addLast);
+        matched.forEach(player.getFaceUp()::remove);
         postPlayCleanup(player);
         return PlayResult.SUCCESS;
     }
@@ -207,18 +210,19 @@ public class GameSession {
         if (!player.getHand().isEmpty() || !player.getFaceUp().isEmpty() || player.getFaceDown().isEmpty()) {
             return PlayResult.INVALID;
         }
-        if (!selectedCardsBelongTo(player.getFaceDown().stream().toList(), cards)) {
+        List<Card> matched = matchSelectedCards(new ArrayList<>(player.getFaceDown()), cards);
+        if (matched == null) {
             return PlayResult.INVALID;
         }
-        player.getFaceDown().removeAll(cards);
-        if (notAllCardsAreTheSameValue(cards) || playerCannotPlayAllSelectedCards(cards)) {
-            cards.forEach(player.getHand()::addLast);
+        matched.forEach(player.getFaceDown()::remove);
+        if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
+            matched.forEach(player.getHand()::addLast);
             discardPile.forEach(player.getHand()::addLast);
             discardPile.clear();
             nextPlayer();
             return PlayResult.PICKUP;
         }
-        cards.forEach(discardPile::addLast);
+        matched.forEach(discardPile::addLast);
         postPlayCleanup(player);
         return PlayResult.SUCCESS;
     }
