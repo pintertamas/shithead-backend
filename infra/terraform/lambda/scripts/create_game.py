@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
     'faceDownCount': 3,
     'faceUpCount':   3,
     'handCount':     3,
+    'allowMixedHandAndFaceUpWhenDeckEmpty': False,
     'cardRules': {
         '2':  'JOKER',
         '6':  'SMALLER',

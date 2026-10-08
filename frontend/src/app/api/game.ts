@@ -7,6 +7,8 @@ export type Card = {
   alwaysPlayable: boolean;
 };
 
+export type CardSelection = { source: "hand" | "faceUp" | "faceDown"; index: number };
+
 export type PlayerState = {
   playerId: string;
   username: string;
@@ -27,11 +29,12 @@ export type GameStateView = {
   deckCount: number;
   discardCount: number;
   discardPile: Card[];
+  allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
   players: PlayerState[];
 };
 
-export async function createGame(token: string) {
-  const res = await apiFetch("/create-game", token, { method: "POST" });
+export async function createGame(token: string, config: { allowMixedHandAndFaceUpWhenDeckEmpty: boolean }) {
+  const res = await apiFetch("/create-game", token, { method: "POST", body: JSON.stringify({ config }) });
   await throwForError(res, "create the game");
   return res.json() as Promise<{ sessionId: string }>;
 }

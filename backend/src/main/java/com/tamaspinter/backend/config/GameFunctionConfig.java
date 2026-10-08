@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
 import com.tamaspinter.backend.game.GameSession;
+import com.tamaspinter.backend.game.CardSelection;
 import com.tamaspinter.backend.game.PlayResult;
 import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Player;
@@ -238,7 +239,9 @@ public class GameFunctionConfig {
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
-            PlayResult result = session.playCards(msg.cards());
+            PlayResult result = msg.selections() == null || msg.selections().isEmpty()
+                    ? session.playCards(msg.cards())
+                    : session.playSelections(msg.selections());
             if (result == PlayResult.INVALID) {
                 return websocketError(ev, 400,
                         "That play can't be made right now. Check that it's your turn and the cards are allowed.");
@@ -538,7 +541,7 @@ public class GameFunctionConfig {
     private List<Map<String, AttributeValue>> scanTable(String tableName) {
         List<Map<String, AttributeValue>> items = new ArrayList<>();
         Map<String, AttributeValue> lastKey = null;
-        do {
+        while (true) {
             ScanRequest.Builder request = ScanRequest.builder().tableName(tableName);
             if (lastKey != null && !lastKey.isEmpty()) {
                 request.exclusiveStartKey(lastKey);
@@ -546,7 +549,10 @@ public class GameFunctionConfig {
             ScanResponse response = dynamoClient.scan(request.build());
             items.addAll(response.items());
             lastKey = response.lastEvaluatedKey();
-        } while (lastKey != null && !lastKey.isEmpty());
+            if (lastKey == null || lastKey.isEmpty()) {
+                break;
+            }
+        }
         return items;
     }
 
@@ -675,6 +681,8 @@ public class GameFunctionConfig {
                 .shitheadId(entity.getShitheadId())
                 .isOwner(viewerId != null && viewerId.equals(entity.getOwnerId()))
                 .deckCount(deck.size())
+                .allowMixedHandAndFaceUpWhenDeckEmpty(entity.getConfig() != null
+                        && entity.getConfig().isAllowMixedHandAndFaceUpWhenDeckEmpty())
                 .discardCount(discard.size())
                 .discardPile(SessionMapper.entitiesToCardList(discard))
                 .players(playerViews)

@@ -153,7 +153,7 @@ Client
 | `PICKUP` | Player picks up the pile (explicit or blind flip failure) |
 | `INVALID` | Move rejected — wrong turn, illegal card, or game finished |
 
-Card source priority: **hand → faceUp → faceDown** (blind flip).
+Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty.
 
 ### Card Rule Engine
 

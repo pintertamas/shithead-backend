@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, fetchState, GameStateView } from "../api/game";
+import { CardSelection, fetchState, GameStateView } from "../api/game";
 import { useAuth } from "../auth/useAuth";
 import Hand from "../components/Hand";
 import FaceUp from "../components/FaceUp";
@@ -19,7 +19,7 @@ export default function GameTable() {
   const { token } = useAuth();
   const [state, setState] = useState<GameStateView | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [selected, setSelected] = useState<number[]>([]);
+  const [selected, setSelected] = useState<CardSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -33,6 +33,12 @@ export default function GameTable() {
   }, [state]);
   const yourTurn = Boolean(state && you && state.currentPlayerId === you.playerId);
   const pileHasCards = (state?.discardCount ?? 0) > 0;
+  const hand = you?.hand || [];
+  const canSelectFaceUp = Boolean(you && hand.length === 0);
+  const canMixHandAndFaceUp = Boolean(state?.allowMixedHandAndFaceUpWhenDeckEmpty && state.deckCount === 0);
+  const selectedHasHand = selected.some((item) => item.source === "hand");
+  const selectedHasFaceUp = selected.some((item) => item.source === "faceUp");
+  const mixedSelectionIncomplete = canMixHandAndFaceUp && hand.length > 0 && selectedHasFaceUp && !selectedHasHand;
 
   const applyState = useCallback((next: GameStateView) => {
     const previous = stateRef.current;
@@ -51,8 +57,13 @@ export default function GameTable() {
     setState(next);
   }, []);
 
-  const toggleCard = useCallback((idx: number) => {
-    setSelected((prev) => prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]);
+  const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
+    setSelected((prev) => {
+      const exists = prev.some((item) => item.source === source && item.index === index);
+      if (exists) return prev.filter((item) => item.source !== source || item.index !== index);
+      if (source === "faceDown" || prev.some((item) => item.source === "faceDown")) return [{ source, index }];
+      return [...prev, { source, index }];
+    });
   }, []);
 
   const sendWs = useCallback((payload: object) => {
@@ -69,11 +80,13 @@ export default function GameTable() {
 
   const playSelected = useCallback(() => {
     if (!sessionId || !you) return;
-    const hand: Card[] = you.hand || [];
-    const cards = selected.map((i) => hand[i]).filter(Boolean);
-    if (cards.length === 0 || !yourTurn) return;
+    if (selected.length === 0 || !yourTurn) return;
     setError(null);
-    if (sendWs({ action: "play", sessionId, cards })) setPendingAction(true);
+    const selections = selected.map(({ source, index }) => ({
+      source: source === "faceUp" ? "FACE_UP" : source === "faceDown" ? "FACE_DOWN" : "HAND",
+      index
+    }));
+    if (sendWs({ action: "play", sessionId, selections })) setPendingAction(true);
   }, [sessionId, selected, you, yourTurn, sendWs]);
 
   const pickup = useCallback(() => {
@@ -188,18 +201,31 @@ export default function GameTable() {
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
             <Pile title="Draw Pile" count={state.deckCount} />
             <Pile title="Discard" count={state.discardCount} cards={state.discardPile} />
-            <FaceDownCount count={you.faceDownCount} />
+            <FaceDownCount
+              count={you.faceDownCount}
+              selectable={hand.length === 0 && you.faceUp.length === 0}
+              selected={selected.filter((item) => item.source === "faceDown").map((item) => item.index)}
+              onToggle={(idx) => toggleCard("faceDown", idx)}
+            />
           </div>
           <div style={{ height: 20 }} />
           <h4 className="title">Your Face Up</h4>
-          <FaceUp cards={you.faceUp} />
+          <FaceUp
+            cards={you.faceUp}
+            selected={selected.filter((item) => item.source === "faceUp").map((item) => item.index)}
+            onToggle={canSelectFaceUp || canMixHandAndFaceUp ? (idx) => toggleCard("faceUp", idx) : undefined}
+          />
         </div>
 
         <div className="glass card">
           <h3 className="title">Your Hand</h3>
-          <Hand cards={you.hand || []} selected={selected} onToggle={toggleCard} />
+          <Hand
+            cards={hand}
+            selected={selected.filter((item) => item.source === "hand").map((item) => item.index)}
+            onToggle={(idx) => toggleCard("hand", idx)}
+          />
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button className="button" disabled={selected.length === 0 || pendingAction || !yourTurn} onClick={playSelected}>
+            <button className="button" disabled={selected.length === 0 || mixedSelectionIncomplete || pendingAction || !yourTurn} onClick={playSelected}>
               {pendingAction ? "Sending..." : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
             <button className="button secondary" disabled={!yourTurn || !pileHasCards || pendingAction} onClick={pickup}>

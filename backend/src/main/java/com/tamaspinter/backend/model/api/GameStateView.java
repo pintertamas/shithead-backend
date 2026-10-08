@@ -14,6 +14,7 @@ public record GameStateView(
         String shitheadId,
         boolean isOwner,
         int deckCount,
+        boolean allowMixedHandAndFaceUpWhenDeckEmpty,
         int discardCount,
         List<Card> discardPile,
         List<PlayerStateView> players

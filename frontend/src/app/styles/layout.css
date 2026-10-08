@@ -82,6 +82,24 @@
   font-weight: 700;
 }
 
+.pile-top-card {
+  justify-self: center;
+  min-width: 64px;
+}
+
+.card-back {
+  min-width: 42px;
+  min-height: 58px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: repeating-linear-gradient(135deg, rgba(87, 211, 200, 0.35), rgba(87, 211, 200, 0.35) 5px, rgba(87, 211, 200, 0.12) 5px, rgba(87, 211, 200, 0.12) 10px);
+}
+
+.face-down-cards {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
 .turn {
   display: flex;
   align-items: center;
