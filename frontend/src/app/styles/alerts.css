@@ -1,0 +1,105 @@
+/* Floating message toasts (ErrorAlert / SuccessAlert). Fixed-position, so they never
+   change the layout of the screen underneath. Selectors use two classes so they win
+   over the older .error-alert / .success-alert rules in theme.css. */
+
+.toast-layer {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 0;
+  right: 0;
+  z-index: 950; /* above page content and popups, below full-screen modals (1000) */
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+.toast-alert.error-alert,
+.toast-alert.success-alert {
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: max-content;
+  max-width: min(92vw, 520px);
+  margin: 0;
+  padding: 12px 10px 12px 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.4;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+  animation: toast-in 220ms ease-out both;
+}
+
+.toast-alert.error-alert {
+  border: 1px solid rgba(255, 107, 107, 0.6);
+  background: rgba(58, 22, 28, 0.94);
+  color: #ffdada;
+}
+
+.toast-alert.success-alert {
+  border: 1px solid rgba(87, 211, 200, 0.55);
+  background: rgba(16, 52, 52, 0.94);
+  color: #d6fffa;
+}
+
+.toast-alert.is-closing {
+  animation: toast-out 180ms ease-in both;
+}
+
+.toast-alert-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast-alert-dismiss {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px 0 -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.toast-alert-dismiss:hover,
+.toast-alert-dismiss:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-6px) scale(0.98); }
+}
+
+@keyframes toast-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-alert.error-alert,
+  .toast-alert.success-alert {
+    animation: toast-fade 150ms linear both;
+  }
+
+  .toast-alert.is-closing {
+    animation: toast-fade 150ms linear reverse both;
+  }
+}

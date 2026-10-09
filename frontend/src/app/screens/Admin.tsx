@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminUser, fetchAdminUsers, setUserBlocked } from "../api/admin";
 import { clearAllGames } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
-import ErrorAlert from "../components/ErrorAlert";
+import ErrorAlert, { SuccessAlert } from "../components/ErrorAlert";
 import "../styles/admin.css";
 
 type PendingChange = { user: AdminUser; blocked: boolean };
@@ -91,7 +91,7 @@ export default function Admin() {
   return (
     <div className="admin-page fade-in">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      {notice && <div className="success-alert" role="status">{notice}</div>}
+      <SuccessAlert message={notice} onDismiss={() => setNotice(null)} />
       <header className="lobby-welcome">
         <div>
           <h1>Admin</h1>
