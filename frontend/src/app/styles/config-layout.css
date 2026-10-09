@@ -1,27 +1,19 @@
 /*
  * Game configuration screen (/config) layout.
  *
- * Below 900px the page keeps the single-column stack from layout.css. The wrapper
- * columns are display: contents there, so the cards are laid out exactly as before;
- * `order` restores the original stacking (Decks, How to play, Face-up cards, Card Rules).
+ * The DOM order is the visual and keyboard focus order on every screen size:
+ * How to play, Decks, Face-up cards, Card Rules, then the save controls.
+ *
+ * Below 900px the base single-column layout from layout.css applies unchanged.
  *
  * From 900px up the grid has two columns:
- *   left:  How to play (top), Decks (pushed to the bottom)
- *   right: one panel holding Face-up cards and Card Rules, spanning the full height
+ *   left:  How to play, Decks, Face-up cards (stacked, one row each)
+ *   right: Card Rules, spanning the full height of the left column
  * The save controls sit full width below the grid.
  *
- * Selectors are prefixed with .menu-content so they outrank the max-width: 960px
- * single-column rules in layout.css regardless of stylesheet order.
+ * Selectors are prefixed with .menu-content so they outrank the base rules in
+ * layout.css (grid-column placement and the max-width: 960px overrides).
  */
-
-@media (max-width: 899.98px) {
-  .menu-content .config-column { display: contents; }
-  .menu-content .config-decks { order: 1; }
-  .menu-content .config-howto { order: 2; }
-  .menu-content .config-face-up-card { order: 3; }
-  .menu-content .config-rules-card { order: 4; }
-  .menu-content .config-actions { order: 5; }
-}
 
 @media (min-width: 900px) {
   .menu-content .config-layout {
@@ -29,43 +21,21 @@
     align-items: stretch;
   }
 
-  .menu-content .config-column {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+  .menu-content .config-howto,
+  .menu-content .config-decks,
+  .menu-content .config-face-up-card,
+  .menu-content .config-rules-card {
     min-width: 0;
+    margin: 0;
   }
 
-  .menu-content .config-decks {
-    margin-top: auto;
-  }
-
-  /* One panel for both right-hand sections, styled like .glass. */
-  .menu-content .config-column-right {
-    background: rgba(27, 58, 45, 0.88);
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(10px);
-    padding: 16px;
-  }
-
-  .menu-content .config-column-right > .glass {
-    background: none;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    backdrop-filter: none;
-    padding: 0;
-  }
-
-  .menu-content .config-column-right > .config-rules-card {
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px solid var(--card-border);
-  }
+  .menu-content .config-howto      { grid-column: 1; grid-row: 1; }
+  .menu-content .config-decks      { grid-column: 1; grid-row: 2; }
+  .menu-content .config-face-up-card { grid-column: 1; grid-row: 3; }
+  .menu-content .config-rules-card { grid-column: 2; grid-row: 1 / span 3; }
 
   .menu-content .config-actions {
     grid-column: 1 / -1;
+    grid-row: 4;
   }
 }
