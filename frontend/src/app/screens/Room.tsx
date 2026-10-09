@@ -147,7 +147,7 @@ export default function Room() {
             <button className="button" onClick={onStart} disabled={loading !== null && startRequestInProgress.current}>
               {loading === "starting" && startRequestInProgress.current
                 ? "Starting..."
-                : state.starting ? "Continue Start" : "Start Game"}
+                : state?.starting ? "Continue Start" : "Start Game"}
             </button>
           )}
           <button className="button secondary" disabled={loading !== null} onClick={async () => {
