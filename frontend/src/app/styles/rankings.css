@@ -1,0 +1,80 @@
+/* Filter bar for the full leaderboard list. */
+
+.leaderboard-page .rankings-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 8px 0;
+  background: #1c3a2a;
+}
+
+.leaderboard-page .rankings-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.leaderboard-page .rankings-search-icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #a9bd97;
+  pointer-events: none;
+}
+
+.leaderboard-page .rankings-search-input {
+  min-height: 42px;
+  padding: 9px 40px 9px 38px;
+  box-sizing: border-box;
+  border-color: rgba(183, 204, 178, .26);
+  background: #14291e;
+  color: #f5edda;
+  font-size: 15px;
+}
+
+.leaderboard-page .rankings-search-input::placeholder { color: rgba(245, 237, 218, .5); }
+.leaderboard-page .rankings-search-input:focus { outline: 2px solid #d6b75e; outline-offset: 1px; }
+
+/* Hide the browser's own clear button so only ours shows. */
+.leaderboard-page .rankings-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+
+.leaderboard-page .rankings-search-clear {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #c9d8bd;
+  cursor: pointer;
+}
+
+.leaderboard-page .rankings-search-clear:hover { background: rgba(255, 255, 255, .08); color: #f5edda; }
+.leaderboard-page .rankings-search-clear:focus-visible { outline: 2px solid #d6b75e; outline-offset: 1px; }
+
+.leaderboard-page .rankings-count {
+  flex: 0 0 auto;
+  color: rgba(245, 237, 218, .72);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.leaderboard-page .rankings-no-match { color: #f5edda; }
+
+@media (max-width: 650px) {
+  .leaderboard-page .rankings-toolbar { gap: 8px; margin-bottom: 10px; }
+  .leaderboard-page .rankings-count { font-size: 12px; }
+  .leaderboard-page .rankings-search-input { min-height: 40px; font-size: 14px; }
+}

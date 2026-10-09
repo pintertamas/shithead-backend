@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import ErrorAlert from "../components/ErrorAlert";
+import ErrorAlert, { SuccessAlert } from "../components/ErrorAlert";
 import { fetchProfile, updateProfile, UserProfile } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
 
@@ -40,7 +40,7 @@ export default function Profile() {
   return (
     <div className="menu-content fade-in">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      {notice && <div className="success-alert" role="status">{notice}</div>}
+      <SuccessAlert message={notice} onDismiss={() => setNotice(null)} />
       <div className="topbar">
         <div>
           <div className="badge">Account</div>
