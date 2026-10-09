@@ -1,22 +1,19 @@
-import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { fetchProfile } from "../api/profile";
+import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { useProfileQuery } from "../data/queries";
+import { clearAppCache } from "../data/queryClient";
 import Icon from "./Icon";
 import "../styles/nav-bottom.css";
 
 export default function MenuLayout() {
   const { token, logout } = useAuth();
-  const navigate = useNavigate();
-  const [canAdmin, setCanAdmin] = useState(false);
+  const { data: profile } = useProfileQuery(token);
+  const canAdmin = profile?.canClearGames ?? false;
 
-  useEffect(() => {
-    let active = true;
-    fetchProfile(token)
-      .then((profile) => { if (active) setCanAdmin(profile.canClearGames); })
-      .catch(() => { if (active) setCanAdmin(false); });
-    return () => { active = false; };
-  }, [token]);
+  const handleLogout = () => {
+    clearAppCache();
+    logout();
+  };
 
   return (
     <div className="page fade-in lobby-page">
@@ -46,7 +43,7 @@ export default function MenuLayout() {
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/games" aria-label="Browse games" title="Browse games"><Icon name="list" className="lobby-nav-icon" /><span className="lobby-nav-label">Browse games</span></NavLink>
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/profile" aria-label="Profile" title="Profile"><Icon name="user" className="lobby-nav-icon" /><span className="lobby-nav-label">Profile</span></NavLink>
           {canAdmin && <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/admin" aria-label="Admin" title="Admin"><Icon name="shield" className="lobby-nav-icon" /><span className="lobby-nav-label">Admin</span></NavLink>}
-          <button className="lobby-nav-item lobby-nav-logout" onClick={logout} aria-label="Log out" title="Log out"><Icon name="logout" className="lobby-nav-icon" /><span className="lobby-nav-label">Log out</span></button>
+          <button className="lobby-nav-item lobby-nav-logout" onClick={handleLogout} aria-label="Log out" title="Log out"><Icon name="logout" className="lobby-nav-icon" /><span className="lobby-nav-label">Log out</span></button>
         </nav>
       </aside>
       <main className="lobby-main"><Outlet /></main>
