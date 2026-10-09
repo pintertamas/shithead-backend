@@ -32,6 +32,7 @@ jobs:
           filters: |
             backend:
               - backend/**
+              - glue-go/**
               - infra/**
               - pom.xml
               - Dockerfile
@@ -60,6 +61,18 @@ jobs:
           else
             mvn -q -f backend/pom.xml verify -P codeQuality
           fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: glue-go/go.sum
+
+      - name: Glue verify
+        working-directory: glue-go
+        run: |
+          go vet ./...
+          go test ./...
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -133,13 +146,22 @@ jobs:
             mvn -q -f backend/pom.xml package -DskipTests
           fi
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          python-version: "3.12"
+          go-version: "1.24"
+          cache-dependency-path: glue-go/go.sum
 
-      - name: Package Python Lambda dependencies
-        run: python infra/terraform/lambda/scripts/package.py
+      - name: Build glue Lambda (linux/arm64 bootstrap)
+        working-directory: glue-go
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p build
+          go build -tags lambda.norpc -o build/bootstrap .
+          (cd build && zip -q glue.zip bootstrap)
 
       - name: Validate Terraform variables
         run: |
