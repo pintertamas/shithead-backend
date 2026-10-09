@@ -42,3 +42,14 @@ output "create_game_test_url" {
   description = "Test URL for creating a game session"
   value       = "curl --location --request POST '${module.api_gateway.api_gateway_game_api_url}/create-game' --header 'Authorization: AUTH_TOKEN'"
 }
+
+
+output "go_api_base_url" {
+  description = "Base URL of the Go REST API (set as repo variable VITE_API_BASE_URL_GO)"
+  value       = module.go_api.go_api_base_url
+}
+
+output "go_websocket_url" {
+  description = "WebSocket URL of the Go backend (set as repo variable VITE_WS_BASE_URL_GO)"
+  value       = module.go_api.go_websocket_url
+}

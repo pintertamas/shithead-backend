@@ -92,3 +92,19 @@ module "cloudwatch" {
   source       = "./cloudwatch"
   project_name = var.project_name
 }
+
+
+module "go_api" {
+  source                      = "./go_api"
+  project_name                = var.project_name
+  aws_region                  = var.aws_region
+  cognito_user_pool_id        = module.cognito.user_pool_id
+  cognito_user_pool_arn       = module.cognito.user_pool_arn
+  cognito_user_pool_client_id = module.cognito.user_pool_client_id
+  games_table_name            = module.dynamodb.game_table_name
+  games_table_arn             = module.dynamodb.aws_dynamodb_table_games_arn
+  users_table_name            = module.dynamodb.user_table_name
+  users_table_arn             = module.dynamodb.aws_dynamodb_table_users_arn
+  ws_connections_table_name   = module.dynamodb.aws_dynamodb_table_ws_connections_name
+  ws_connections_table_arn    = module.dynamodb.aws_dynamodb_table_ws_connections_arn
+}
