@@ -1,0 +1,59 @@
+/*
+ * Player panel hands and stacks. Imported by PlayerPanel.tsx and loaded in module order, which can be
+ * before table.css, so the selectors here are one level more specific than the rules they replace.
+ */
+
+/* Opponent fan: centred in the panel. Cards beyond the panel's width overflow equally on both sides
+   because the row centres its content. The row keeps its height when the hand is empty. */
+.game-board .game-seat .seat-fan-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: calc(var(--card-h) + 14px);
+  margin: 0 0 8px;
+  gap: 0;
+}
+
+.game-board .game-seat .seat-fan {
+  flex: 0 0 auto;
+}
+
+/* Own panel: hand above the face-up/face-down row, both centred in the panel (as the opponent fan is). */
+.game-board .game-seat-own .game-seat-content {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.game-board .game-seat .own-hand-area {
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Own hand: centred while it fits. Auto margins on the outer cards stop centring once the hand overflows,
+   so the hand then scrolls from its left edge as before. */
+.game-board .game-seat .hand-row {
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.game-board .game-seat .playing-hand {
+  min-height: calc(var(--card-h) + 18px);
+  padding: 10px 6px 8px;
+  justify-content: flex-start;
+}
+
+.game-board .game-seat .playing-hand > :first-child { margin-left: auto; }
+.game-board .game-seat .playing-hand > :last-child { margin-right: auto; }
+
+/* Table stacks keep one fixed slot per original card position. Empty slots keep their width and height. */
+.game-board .game-seat .player-card-stacks {
+  justify-content: center;
+}
+
+.game-board .game-seat .paired-card-stack {
+  flex: 0 0 var(--card-w);
+}

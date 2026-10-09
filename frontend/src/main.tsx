@@ -5,6 +5,7 @@ import AppRoutes from "./app/routes";
 import "./app/styles/theme.css";
 import "./app/styles/layout.css";
 import "./app/styles/table.css";
+import "./app/styles/table-fit.css";
 
 const basename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL;
 
