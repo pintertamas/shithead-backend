@@ -1,141 +1,86 @@
+### Glue functions (create-game, WebSocket connect/disconnect/default, Cognito init-user).
+# The output names are kept so the api_gateway and cognito module wiring stays unchanged.
+
 output "init_user_lambda_arn" {
-  description = "ARN of the post-registration Lambda function"
-  value       = aws_lambda_function.init_user_function.arn
+  description = "ARN of the Cognito post-confirmation/post-authentication trigger"
+  value       = aws_lambda_function.glue.arn
 }
 
 output "init_user_function_name" {
-  description = "Name of the post-registration Lambda function"
-  value       = aws_lambda_function.init_user_function.function_name
+  description = "Name of the Cognito post-confirmation/post-authentication trigger"
+  value       = aws_lambda_function.glue.function_name
 }
 
 output "create_game_lambda_arn" {
-  description = "ARN of the create game Lambda function"
-  value       = aws_lambda_function.create_game.arn
+  description = "ARN of the create-game function"
+  value       = aws_lambda_function.glue.arn
 }
 
 output "create_game_lambda_invoke_arn" {
-  description = "Invoke ARN of the create game Lambda function"
-  value       = aws_lambda_function.create_game.invoke_arn
+  description = "Invoke ARN of the create-game function"
+  value       = aws_lambda_function.glue.invoke_arn
 }
 
 output "create_game_function_name" {
-  description = "Name of the create game Lambda function"
-  value       = aws_lambda_function.create_game.function_name
+  description = "Name of the create-game function"
+  value       = aws_lambda_function.glue.function_name
 }
 
 output "aws_lambda_function_ws_connect_arn" {
-  description = "ARN of the WebSocket connect Lambda function"
-  value       = aws_lambda_function.ws_connect.arn
+  description = "ARN of the WebSocket connect function"
+  value       = aws_lambda_function.glue.arn
 }
 
 output "aws_lambda_function_ws_connect_function_name" {
-  description = "Name of the WebSocket connect Lambda function"
-  value       = aws_lambda_function.ws_connect.function_name
+  description = "Name of the WebSocket connect function"
+  value       = aws_lambda_function.glue.function_name
 }
 
 output "aws_lambda_function_ws_disconnect_arn" {
-  description = "ARN of the WebSocket disconnect Lambda function"
-  value       = aws_lambda_function.ws_disconnect.arn
+  description = "ARN of the WebSocket disconnect function"
+  value       = aws_lambda_function.glue.arn
 }
 
 output "aws_lambda_function_ws_disconnect_function_name" {
-  description = "Name of the WebSocket disconnect Lambda function"
-  value       = aws_lambda_function.ws_disconnect.function_name
+  description = "Name of the WebSocket disconnect function"
+  value       = aws_lambda_function.glue.function_name
 }
 
 output "aws_lambda_function_ws_default_arn" {
-  description = "ARN of the WebSocket default Lambda function"
-  value       = aws_lambda_function.ws_default.arn
+  description = "ARN of the WebSocket default function"
+  value       = aws_lambda_function.glue.arn
 }
 
 output "aws_lambda_function_ws_default_function_name" {
-  description = "Name of the WebSocket default Lambda function"
-  value       = aws_lambda_function.ws_default.function_name
+  description = "Name of the WebSocket default function"
+  value       = aws_lambda_function.glue.function_name
 }
 
-output "aws_iam_role_lambda_exec_arn" {
-  description = "ARN of the IAM role for Lambda execution"
-  value       = aws_iam_role.lambda_exec.arn
-}
-
-output "join_game_alias_arn" {
-  value = aws_lambda_alias.join_game_live.arn
-}
-
-output "join_game_function_name" {
-  value = aws_lambda_function.join_game.function_name
-}
-
-output "leave_game_alias_arn" {
-  value = aws_lambda_alias.leave_game_live.arn
-}
-
-output "leave_game_function_name" {
-  value = aws_lambda_function.leave_game.function_name
-}
-
-output "start_game_alias_arn" {
-  value = aws_lambda_alias.start_game_live.arn
-}
-
-output "start_game_function_name" {
-  value = aws_lambda_function.start_game.function_name
-}
-
-output "get_state_alias_arn" {
-  value = aws_lambda_alias.get_state_live.arn
-}
-
-output "get_state_function_name" {
-  value = aws_lambda_function.get_state.function_name
-}
-
-output "account_management_alias_arn" {
-  value = aws_lambda_alias.account_management_live.arn
-}
-
-output "account_management_function_name" {
-  value = aws_lambda_function.account_management.function_name
-}
-
-output "leaderboard_session_alias_arn" {
-  value = aws_lambda_alias.leaderboard_session_live.arn
-}
-
-output "leaderboard_session_function_name" {
-  value = aws_lambda_function.leaderboard_session.function_name
-}
-
-output "leaderboard_top_alias_arn" {
-  value = aws_lambda_alias.leaderboard_top_live.arn
-}
-
-output "leaderboard_top_function_name" {
-  value = aws_lambda_function.leaderboard_top.function_name
-}
-
-output "play_card_ws_alias_arn" {
-  value = aws_lambda_alias.play_card_ws_live.arn
-}
-
-output "play_card_ws_function_name" {
-  value = aws_lambda_function.play_card_ws.function_name
-}
+### WebSocket REQUEST authorizer
 
 output "ws_lambda_function_ws_authorizer_arn" {
-  description = "ARN of the WebSocket authorizer Lambda function"
-  value       = aws_lambda_function.ws_authorizer.arn
+  description = "ARN of the WebSocket authorizer function"
+  value       = aws_lambda_function.authorizer.arn
 }
 
 output "ws_lambda_function_ws_authorizer_function_name" {
-  description = "Name of the WebSocket authorizer Lambda function"
-  value       = aws_lambda_function.ws_authorizer.function_name
+  description = "Name of the WebSocket authorizer function"
+  value       = aws_lambda_function.authorizer.function_name
 }
 
-output "pickup_pile_ws_alias_arn" {
-  value = aws_lambda_alias.pickup_pile_ws_live.arn
+### Java game API (one function for every REST and WebSocket gameplay/profile route)
+
+output "game_api_alias_arn" {
+  description = "ARN of the LIVE alias of the Java game API function"
+  value       = aws_lambda_alias.game_api_live.arn
 }
 
-output "pickup_pile_ws_function_name" {
-  value = aws_lambda_function.pickup_pile_ws.function_name
+output "game_api_function_name" {
+  description = "Name of the Java game API function"
+  value       = aws_lambda_function.game_api.function_name
+}
+
+output "aws_iam_role_lambda_exec_arn" {
+  description = "ARN of the IAM role used by the glue functions and the authorizer"
+  value       = aws_iam_role.lambda_exec.arn
 }

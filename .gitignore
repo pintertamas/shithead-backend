@@ -8,6 +8,9 @@
 backend/META-INF/
 backend/dependency-reduced-pom.xml
 
+# Go (glue Lambda) build output
+glue-go/build/
+
 # Terraform
 **/.terraform/
 *.tfvars
