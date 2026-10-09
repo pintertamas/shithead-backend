@@ -1,0 +1,24 @@
+/* Side column on the game table (screens/GameTable.tsx): the game log and the session chat share one width.
+   The column sets the width once (--companion-w); both boxes fill it. feed.css sets align-items: start on the
+   column at 900px and up, which made each box shrink to its own content, so the boxes had different widths. */
+
+.game-page .game-companion {
+  --companion-w: clamp(260px, 22vw, 320px);
+  align-items: stretch;
+}
+
+@media (min-width: 900px) {
+  .game-page .game-companion {
+    flex: 0 0 var(--companion-w);
+    width: var(--companion-w);
+    max-width: var(--companion-w);
+  }
+}
+
+.game-page .game-companion > .game-feed,
+.game-page .game-companion > .chat-panel {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
