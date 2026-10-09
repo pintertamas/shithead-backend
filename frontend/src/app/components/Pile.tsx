@@ -94,7 +94,7 @@ export default function Pile({
 
   const pileElement = (
     <div
-      className={`card pile${topIsTransparent ? " pile-with-transparent" : ""}${selectable ? " pile-selectable" : ""}${selected ? " pile-selected" : ""}${disabled ? " pile-disabled" : ""}`}
+      className={`card pile${pileCards.length === 0 ? " pile-empty" : ""}${topIsTransparent ? " pile-with-transparent" : ""}${selectable ? " pile-selectable" : ""}${selected ? " pile-selected" : ""}${disabled ? " pile-disabled" : ""}`}
       data-fx={fxAnchor}
       role={selectable ? "button" : undefined}
       tabIndex={selectable && !disabled ? 0 : undefined}
@@ -135,7 +135,9 @@ export default function Pile({
     </div>
   );
 
-  if (pileCards.length === 0) return pileElement;
+  // Both states use the same wrapper so the discard pile keeps its size when it is empty. The peek
+  // popover only exists while there are cards to show.
+  if (pileCards.length === 0) return <div className="pile-peek-wrap">{pileElement}</div>;
 
   return (
     <PeekWrap

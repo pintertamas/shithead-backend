@@ -16,7 +16,7 @@ const PULSE_MS = 650;
 const PLAY_TO_DRAW_MS = 260;
 const MAX_FLIGHTS = 6;
 const MAX_DRAWS = 4;
-const DEFAULT_CARD_SIZE = { width: 46, height: 66 };
+const DEFAULT_CARD_SIZE = { width: 52, height: 73 };
 const EASING = "cubic-bezier(0.22, 0.8, 0.3, 1)";
 
 type Point = { x: number; y: number };
@@ -129,7 +129,7 @@ export function playTableTransitions(prev: GameStateView, next: GameStateView, l
   const seatPoint = (playerId: string | null) => (playerId ? centerOf(seatElement(board, playerId), origin) : null);
   const discardPoint = centerOf(board.querySelector('[data-fx="discard"]'), origin);
   const drawPoint = centerOf(board.querySelector('[data-fx="draw"]'), origin);
-  const cardRect = board.querySelector(".game-piles .playing-card")?.getBoundingClientRect();
+  const cardRect = board.querySelector(".game-piles .playing-card, .game-piles .pile-slot")?.getBoundingClientRect();
   const size: Size = cardRect && cardRect.width > 0 ? { width: cardRect.width, height: cardRect.height } : DEFAULT_CARD_SIZE;
 
   const actorId = prev.currentPlayerId;
