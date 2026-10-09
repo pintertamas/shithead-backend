@@ -94,22 +94,46 @@ public class GameSession {
     }
 
     public boolean swapStartingCards(String playerId, int handIndex, int faceUpIndex) {
+        return swapStartingCards(playerId, List.of(handIndex), List.of(faceUpIndex));
+    }
+
+    /**
+     * Swaps the i-th selected hand card with the i-th selected face-up card, during setup only.
+     * Nothing changes unless both lists are non-empty, of equal size, free of duplicates and in range.
+     */
+    public boolean swapStartingCards(String playerId, List<Integer> handIndices, List<Integer> faceUpIndices) {
         Player player = findPlayer(playerId);
         if (!started || setupComplete || player == null || player.isReady()
-                || handIndex < 0 || faceUpIndex < 0
-                || handIndex >= player.getHand().size() || faceUpIndex >= player.getFaceUp().size()) {
+                || handIndices == null || faceUpIndices == null
+                || handIndices.isEmpty() || handIndices.size() != faceUpIndices.size()
+                || !isValidSelection(handIndices, player.getHand().size())
+                || !isValidSelection(faceUpIndices, player.getFaceUp().size())) {
             return false;
         }
         List<Card> hand = new ArrayList<>(player.getHand());
         List<Card> faceUp = new ArrayList<>(player.getFaceUp());
-        Card handCard = hand.set(handIndex, faceUp.get(faceUpIndex));
-        faceUp.set(faceUpIndex, handCard);
+        for (int i = 0; i < handIndices.size(); i++) {
+            int handIndex = handIndices.get(i);
+            int faceUpIndex = faceUpIndices.get(i);
+            Card handCard = hand.set(handIndex, faceUp.get(faceUpIndex));
+            faceUp.set(faceUpIndex, handCard);
+        }
         player.getHand().clear();
         player.getHand().addAll(hand);
         player.getFaceUp().clear();
         player.getFaceUp().addAll(faceUp);
         player.sortHand();
         player.sortFaceUp();
+        return true;
+    }
+
+    private static boolean isValidSelection(List<Integer> indices, int size) {
+        Set<Integer> seen = new HashSet<>();
+        for (Integer index : indices) {
+            if (index == null || index < 0 || index >= size || !seen.add(index)) {
+                return false;
+            }
+        }
         return true;
     }
 

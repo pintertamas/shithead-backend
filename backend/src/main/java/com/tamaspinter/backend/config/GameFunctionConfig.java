@@ -352,6 +352,20 @@ public class GameFunctionConfig {
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
 
+    /**
+     * Applies a setup swap or ready action. Swaps prefer the multi-card lists and fall back to the single indexes
+     * so that older clients keep working.
+     */
+    private boolean applySetupAction(GameSession session, PlayMessage message, String userId) {
+        if ("swap".equals(message.setupAction()) && message.handIndices() != null && message.faceUpIndices() != null) {
+            return session.swapStartingCards(userId, message.handIndices(), message.faceUpIndices());
+        }
+        if ("swap".equals(message.setupAction()) && message.handIndex() != null && message.faceUpIndex() != null) {
+            return session.swapStartingCards(userId, message.handIndex(), message.faceUpIndex());
+        }
+        return "ready".equals(message.setupAction()) && session.markReady(userId);
+    }
+
     private APIGatewayProxyResponseEvent handleSetupAction(
             APIGatewayV2WebSocketEvent event, PlayMessage message, GameSessionEntity entity, String userId) {
         if ("announce".equals(message.setupAction())) {
@@ -359,15 +373,7 @@ public class GameFunctionConfig {
         }
 
         GameSession session = SessionMapper.fromEntity(entity);
-        boolean accepted;
-        if ("swap".equals(message.setupAction()) && message.handIndex() != null && message.faceUpIndex() != null) {
-            accepted = session.swapStartingCards(userId, message.handIndex(), message.faceUpIndex());
-        } else if ("ready".equals(message.setupAction())) {
-            accepted = session.markReady(userId);
-        } else {
-            accepted = false;
-        }
-        if (!accepted) {
+        if (!applySetupAction(session, message, userId)) {
             return websocketError(event, 400, "That setup action is no longer available.");
         }
         GameSessionEntity updated = session.toEntity();
