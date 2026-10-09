@@ -44,7 +44,10 @@ public class GameApiFunctionConfig {
         return this::dispatch;
     }
 
-    Object dispatch(Map<String, Object> rawEvent) {
+    /**
+     * Routes a raw REST or WebSocket event; also used by {@code LambdaHandler}.
+     */
+    public Object dispatch(Map<String, Object> rawEvent) {
         if (isWebSocketEvent(rawEvent)) {
             return dispatchWebSocket(rawEvent);
         }
