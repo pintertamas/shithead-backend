@@ -9,7 +9,7 @@ resource "aws_lambda_function" "game_api" {
   tags             = { project = var.project_name }
   role             = aws_iam_role.game_api_exec.arn
   function_name    = "${var.project_name}-game-api"
-  handler          = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
+  handler          = "com.tamaspinter.backend.LambdaHandler::handleRequest"
   runtime          = "java17"
   filename         = local.jar_path
   source_code_hash = filebase64sha256(local.jar_path)
