@@ -121,6 +121,15 @@ resource "aws_lambda_permission" "allow_chat_ws" {
   source_arn    = "${aws_apigatewayv2_api.game_ws.execution_arn}/*/chat"
 }
 
+resource "aws_lambda_permission" "allow_nudge_ws" {
+  statement_id  = "AllowWebSocketInvokeNudge"
+  action        = "lambda:InvokeFunction"
+  function_name = var.play_card_ws_function_name
+  qualifier     = "LIVE"
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.game_ws.execution_arn}/*/nudge"
+}
+
 resource "aws_lambda_permission" "allow_pickup_pile_ws" {
   statement_id  = "AllowWebSocketInvokePickupPile"
   action        = "lambda:InvokeFunction"

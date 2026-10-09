@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CardSelection, ChatMessage, fetchState, GameStateView, openGameSocket } from "../api/game";
+import { CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket } from "../api/game";
 import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
+import { sendNudge } from "../lib/fartSound";
+import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { playTableTransitions } from "../lib/tableAnimations";
@@ -25,6 +27,7 @@ export default function GameTable() {
   const [pendingAction, setPendingAction] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [socketOpen, setSocketOpen] = useState(false);
+  const [nudgeFrom, showNudge] = useNudgeNotice();
   const wsRef = useRef<WebSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
   const boardRef = useRef<HTMLElement>(null);
@@ -135,6 +138,10 @@ export default function GameTable() {
     return sessionId ? sendChatMessage(wsRef.current, sessionId, text) : false;
   }, [sessionId]);
 
+  const sendNudgeToTable = useCallback(() => {
+    return sessionId ? sendNudge(wsRef.current, sessionId) : false;
+  }, [sessionId]);
+
   useEffect(() => {
     if (!sessionId) return;
     fetchState(token, sessionId).then((next) => { applyState(next); setError(null); }).catch((cause: unknown) => {
@@ -174,6 +181,10 @@ export default function GameTable() {
           setChatMessages((prev) => appendChatMessage(prev, data as unknown as ChatMessage));
           return;
         }
+        if ((data as unknown as { type?: string }).type === "nudge") {
+          showNudge((data as unknown as NudgeMessage).username);
+          return;
+        }
         if ((data as unknown as { type?: string }).type === "error") {
           const errorData = data as unknown as { message?: string; status?: number };
           if (errorData.status === 404) {
@@ -210,7 +221,7 @@ export default function GameTable() {
       ws.close();
       wsRef.current = null;
     };
-  }, [sessionId, token, applyState, navigate]);
+  }, [sessionId, token, applyState, navigate, showNudge]);
 
   useEffect(() => {
     if (state?.finished && state.shitheadId) {
@@ -251,9 +262,10 @@ export default function GameTable() {
       <div className="topbar">
         <div>
           <div className="badge">SHITHEAD</div>
-          <h2 className="title">{state.sessionId} <span className="header-player-name">· {you.username}</span></h2>
+          <h2 className="title">{state.sessionId} <span className="header-player-name">· {you.username}</span><NudgeButton onNudge={sendNudgeToTable} /></h2>
         </div>
       </div>
+      <NudgeBanner username={nudgeFrom} />
 
       <main className="game-board" ref={boardRef}>
         {state.revealedCard && (
