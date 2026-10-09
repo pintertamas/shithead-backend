@@ -1,9 +1,20 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { fetchProfile } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
 
 export default function MenuLayout() {
-  const { logout } = useAuth();
+  const { token, logout } = useAuth();
   const navigate = useNavigate();
+  const [canAdmin, setCanAdmin] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchProfile(token)
+      .then((profile) => { if (active) setCanAdmin(profile.canClearGames); })
+      .catch(() => { if (active) setCanAdmin(false); });
+    return () => { active = false; };
+  }, [token]);
 
   return (
     <div className="page fade-in lobby-page">
@@ -30,7 +41,9 @@ export default function MenuLayout() {
         <nav className="lobby-nav">
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/lobby" aria-label="Home" title="Home"><span className="lobby-nav-icon" aria-hidden="true">⌂</span><span className="lobby-nav-label">Home</span></NavLink>
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/config" aria-label="Game Config" title="Game Config"><span className="lobby-nav-icon" aria-hidden="true">⚙</span><span className="lobby-nav-label">Game Config</span></NavLink>
+          <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/games" aria-label="Browse games" title="Browse games"><span className="lobby-nav-icon" aria-hidden="true">▤</span><span className="lobby-nav-label">Browse games</span></NavLink>
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/profile" aria-label="Profile" title="Profile"><span className="lobby-nav-icon" aria-hidden="true">♟</span><span className="lobby-nav-label">Profile</span></NavLink>
+          {canAdmin && <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/admin" aria-label="Admin" title="Admin"><span className="lobby-nav-icon" aria-hidden="true">⚑</span><span className="lobby-nav-label">Admin</span></NavLink>}
           <button className="lobby-nav-item" onClick={logout} aria-label="Log out" title="Log out"><span className="lobby-nav-icon" aria-hidden="true">↪</span><span className="lobby-nav-label">Log out</span></button>
         </nav>
       </aside>

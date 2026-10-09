@@ -1,0 +1,112 @@
+.admin-page { width: 100%; color: #f5edda; }
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-search { max-width: 380px; flex: 1 1 240px; }
+
+.admin-count { margin: 0; color: var(--ink-dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.admin-table-wrap { overflow-x: auto; border-radius: var(--radius); }
+
+.admin-table { width: 100%; border-collapse: collapse; text-align: left; }
+
+.admin-table th {
+  padding: 10px 14px;
+  background: #2a4b37;
+  color: #e2dcc5;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-table td {
+  padding: 12px 14px;
+  border-top: 1px solid rgba(183, 204, 178, 0.14);
+  vertical-align: middle;
+}
+
+.admin-elo { font-variant-numeric: tabular-nums; }
+
+.admin-username { display: block; font-weight: 600; overflow-wrap: anywhere; }
+
+.admin-userid { display: block; margin-top: 2px; color: var(--ink-dim); font-size: 12px; word-break: break-all; }
+
+.admin-you { display: inline-block; margin-top: 4px; color: var(--accent); font-size: 12px; }
+
+.admin-active { color: var(--accent-2); }
+
+.admin-blocked-badge { color: var(--danger); background: rgba(255, 107, 107, 0.14); }
+
+.admin-row.blocked td { background: rgba(255, 107, 107, 0.05); }
+
+.admin-action { padding: 8px 14px; box-shadow: none; white-space: nowrap; }
+
+.admin-dialog { width: min(440px, calc(100% - 32px)); margin: auto; }
+
+.admin-dialog-text { color: var(--ink-dim); }
+
+.admin-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Phones: each user becomes a stacked block with labelled fields. */
+@media (max-width: 640px) {
+  .admin-table-wrap { overflow: visible; background: transparent; border: none; }
+  .admin-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .admin-table,
+  .admin-table tbody,
+  .admin-table tr,
+  .admin-table td { display: block; width: 100%; }
+  .admin-table tr {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+  }
+  .admin-row.blocked { background: rgba(60, 26, 26, 0.6); }
+  .admin-table td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border: none; }
+  .admin-table td::before { content: attr(data-label); color: var(--ink-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .admin-table td[data-label="User"] { display: block; }
+  .admin-table td[data-label="User"]::before { content: none; }
+  .admin-action-cell { padding-top: 10px; }
+  .admin-action { min-height: 44px; }
+}
+
+/* Full-screen notice when the signed-in account is blocked. */
+.account-blocked-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 20, 15, 0.94);
+}
+
+.account-blocked-card { width: min(440px, 100%); padding: 28px; text-align: center; }
+
+.account-blocked-card h1 {
+  margin: 0 0 10px;
+  color: var(--danger);
+  font-family: "Fraunces", serif;
+  font-size: clamp(24px, 4vw, 32px);
+  line-height: 1.2;
+}
+
+.account-blocked-card p { margin: 0 0 20px; color: var(--ink-dim); }

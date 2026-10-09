@@ -1,4 +1,5 @@
 ﻿import { useAuth } from "../auth/useAuth";
+import { ACCOUNT_BLOCKED_MESSAGE, markAccountBlocked } from "../auth/accountBlocked";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -23,6 +24,7 @@ export async function throwForError(response: Response, action: string): Promise
   } catch {
     // Fall back to a status-based message when the response has no JSON body.
   }
+  if (response.status === 403 && serverMessage === ACCOUNT_BLOCKED_MESSAGE) markAccountBlocked();
   if (serverMessage) throw new ApiError(serverMessage, response.status);
   const explanation = response.status === 401 || response.status === 403
     ? "Please sign in again and check that you have access."
