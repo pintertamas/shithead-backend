@@ -15,6 +15,7 @@ DEFAULT_CONFIG = {
     'faceUpCount':   3,
     'handCount':     3,
     'allowMixedHandAndFaceUpWhenDeckEmpty': False,
+    'allowFailedFaceUpPlay': False,
     'cardRules': {
         '2':  'JOKER',
         '6':  'SMALLER',
@@ -37,6 +38,7 @@ def normalize_config(requested):
         raise ValueError('decksCount must be 1 or 2')
     config['decksCount'] = decks_count
     config['burnCount'] = 4 if decks_count == 1 else 6
+    config['allowFailedFaceUpPlay'] = bool(config.get('allowFailedFaceUpPlay', False))
 
     requested_rules = requested.get('cardRules')
     if requested_rules is not None:

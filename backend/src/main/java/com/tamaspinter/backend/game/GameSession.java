@@ -347,12 +347,28 @@ public class GameSession {
         }
         List<Card> matched = matchedCards.get();
         if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
-            return PlayResult.INVALID;
+            return config.isAllowFailedFaceUpPlay()
+                    ? pickUpAfterFailedFaceUpPlay(player, matched)
+                    : PlayResult.INVALID;
         }
         matched.forEach(discardPile::addLast);
         matched.forEach(player.getFaceUp()::remove);
         postPlayCleanup(player);
         return PlayResult.SUCCESS;
+    }
+
+    /**
+     * Rule for an illegal face-up play with an empty hand: the selected cards are placed on the pile and the
+     * player immediately picks up the whole pile, including those cards. Mirrors a failed blind flip.
+     */
+    private PlayResult pickUpAfterFailedFaceUpPlay(Player player, List<Card> matched) {
+        matched.forEach(player.getFaceUp()::remove);
+        matched.forEach(player.getHand()::addLast);
+        discardPile.forEach(player.getHand()::addLast);
+        discardPile.clear();
+        player.sortHand();
+        nextPlayer();
+        return PlayResult.PICKUP;
     }
 
     private PlayResult playFromFaceDown(List<Card> cards) {

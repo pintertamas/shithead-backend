@@ -3,7 +3,7 @@
 > **SINGLE SOURCE OF TRUTH** for AI models working with this codebase.
 > Update this file when patterns change, new components are added, or architectural decisions are made.
 >
-> Last Updated: 2026-10-08
+> Last Updated: 2026-10-09
 
 ---
 
@@ -160,13 +160,13 @@ User nicknames are stored in the users DynamoDB table. `UserProfileService` crea
 | `PICKUP` | Player picks up the pile (explicit or blind flip failure) |
 | `INVALID` | Move rejected — wrong turn, illegal card, or game finished |
 
-Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty.
+Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty. `allowFailedFaceUpPlay` (default `false`, missing attribute reads as `false`) applies when a player with an empty hand plays an illegal face-up selection: the selected card(s) go onto the pile and the player immediately picks up the whole pile, including them (`PlayResult.PICKUP`, same as a failed blind flip). When off, that play is `INVALID`. The option is exposed to clients as `allowFailedFaceUpPlay` on `GameStateView`; the `/config` screen groups it with the mixed hand/face-up toggle under "Face-up cards".
 
 After dealing, `GameSession` sorts each player's hand and face-up cards by rank and suit, but preserves face-down order. Players may swap one hand card with one face-up card before marking themselves ready; a ready player cannot alter cards. `setupComplete` gates every play action until all players are ready. Four/six-card burns also grant the player another turn, even when the played rank reverses player order.
 
 The WebSocket `playSelections` path must run `finishSuccessfulPlay` after a successful hand, face-up, face-down, or mixed selection so after-effects execute and turn ownership advances. `setup` actions use the same WebSocket Lambda route for readiness and card swaps. Failed blind flips include a transient revealed card in the broadcast; the browser hides that notice after about one second. Keep these behaviors in sync if adding another selection source.
 
-The frontend keeps `/lobby`, `/config`, `/profile`, and leaderboard routes inside a shared `MenuLayout` with persistent desktop sidebar and mobile top navigation. The `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
+The frontend keeps `/lobby`, `/config`, `/profile`, and leaderboard routes inside a shared `MenuLayout` with persistent desktop sidebar and mobile top navigation. The `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). It also has a "How to play" popup (`components/RulesModal.tsx`, styles in `styles/rules.css`) whose special-card list is generated from the current, unsaved selections. Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
 
 ### Card Rule Engine
 

@@ -34,12 +34,14 @@ export type GameStateView = {
   discardCount: number;
   discardPile: Card[];
   allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
+  allowFailedFaceUpPlay: boolean;
   revealedCard?: Card | null;
   players: PlayerState[];
 };
 
 export type CreateGameConfig = {
   allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
+  allowFailedFaceUpPlay: boolean;
   decksCount: 1 | 2;
   burnCount: 4 | 6;
   cardRules: Record<string, string>;

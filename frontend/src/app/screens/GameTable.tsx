@@ -250,7 +250,7 @@ export default function GameTable() {
                 </span>
               </span>
             </span>
-            Blind flip revealed {state.revealedCard.value} of {state.revealedCard.suit.toLowerCase()}.
+            Revealed {state.revealedCard.value} of {state.revealedCard.suit.toLowerCase()}.
           </div>
         )}
         <div className="game-opponents" aria-label="Other players">

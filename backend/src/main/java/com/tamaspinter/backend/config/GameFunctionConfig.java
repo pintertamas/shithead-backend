@@ -263,7 +263,7 @@ public class GameFunctionConfig {
                 return websocketError(ev, 400, "It is not your turn.");
             }
 
-            final Card revealedCard = blindFlipCard(msg, entity, userId);
+            final Card revealedCard = revealedSelectionCard(msg, entity, userId);
             GameSession session = SessionMapper.fromEntity(entity);
             PlayResult result = msg.selections() == null || msg.selections().isEmpty()
                     ? session.playCards(msg.cards())
@@ -329,17 +329,25 @@ public class GameFunctionConfig {
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
 
-    private Card blindFlipCard(PlayMessage message, GameSessionEntity entity, String userId) {
-        if (message.selections() == null || message.selections().size() != 1
-                || message.selections().get(0).source() != CardSource.FACE_DOWN) {
+    /**
+     * Card to reveal in the broadcast when a single face-down (blind flip) or face-up selection is made.
+     * Only used when the play results in a pickup.
+     */
+    private Card revealedSelectionCard(PlayMessage message, GameSessionEntity entity, String userId) {
+        if (message.selections() == null || message.selections().size() != 1) {
+            return null;
+        }
+        CardSource source = message.selections().get(0).source();
+        if (source != CardSource.FACE_DOWN && source != CardSource.FACE_UP) {
             return null;
         }
         int index = message.selections().get(0).index();
         return entity.getPlayers().stream()
                 .filter(player -> userId.equals(player.getPlayerId()))
                 .findFirst()
-                .filter(player -> player.getFaceDown() != null && index >= 0 && index < player.getFaceDown().size())
-                .map(player -> SessionMapper.entitiesToCardList(List.of(player.getFaceDown().get(index))).get(0))
+                .map(player -> source == CardSource.FACE_DOWN ? player.getFaceDown() : player.getFaceUp())
+                .filter(cards -> cards != null && index >= 0 && index < cards.size())
+                .map(cards -> SessionMapper.entitiesToCardList(List.of(cards.get(index))).get(0))
                 .orElse(null);
     }
 
@@ -632,6 +640,8 @@ public class GameFunctionConfig {
                 .deckCount(deck.size())
                 .allowMixedHandAndFaceUpWhenDeckEmpty(entity.getConfig() != null
                         && entity.getConfig().isAllowMixedHandAndFaceUpWhenDeckEmpty())
+                .allowFailedFaceUpPlay(entity.getConfig() != null
+                        && entity.getConfig().isAllowFailedFaceUpPlay())
                 .revealedCard(revealedCard)
                 .discardCount(discard.size())
                 .discardPile(SessionMapper.entitiesToCardList(discard))

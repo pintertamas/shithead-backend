@@ -172,6 +172,16 @@
 
 .config-toggle-row input { margin-top: 5px; }
 
+.config-option + .config-option {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+}
+
+.config-option-title { margin: 0 0 4px; font-size: 15px; }
+
+.config-option .choice-switch { margin-top: 10px; }
+
 .config-rules-card { grid-column: 1 / -1; }
 
 .rules-table-scroll { overflow-x: auto; }

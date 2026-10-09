@@ -17,6 +17,7 @@ public record GameStateView(
         boolean isOwner,
         int deckCount,
         boolean allowMixedHandAndFaceUpWhenDeckEmpty,
+        boolean allowFailedFaceUpPlay,
         Card revealedCard,
         int discardCount,
         List<Card> discardPile,
