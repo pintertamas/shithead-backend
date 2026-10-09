@@ -20,7 +20,20 @@ function resolveTtlSeconds(expiresIn?: number): number {
   return Number.isFinite(expiresIn) && (expiresIn || 0) > 0 ? Number(expiresIn) : 3600;
 }
 
-async function exchangeCodeForTokens(code: string): Promise<{ idToken: string; accessToken: string; expiresIn: number; refreshToken?: string } | null> {
+type ExchangeResult = { idToken: string; accessToken: string; expiresIn: number; refreshToken?: string } | null;
+
+// React StrictMode runs the effect twice in development. The authorization code is single-use, so both runs share one exchange.
+let exchangeInFlight: Promise<ExchangeResult> | null = null;
+function exchangeCodeForTokens(code: string): Promise<ExchangeResult> {
+  if (!exchangeInFlight) {
+    exchangeInFlight = runCodeExchange(code).finally(() => {
+      exchangeInFlight = null;
+    });
+  }
+  return exchangeInFlight;
+}
+
+async function runCodeExchange(code: string): Promise<ExchangeResult> {
   const verifier = localStorage.getItem(PKCE_VERIFIER_KEY);
   console.log("[auth] verifier present:", !!verifier);
   if (!verifier) {
@@ -171,7 +184,8 @@ export default function AuthCallback() {
 
       console.log("[auth] navigating to /lobby");
       requestLoginSound();
-      window.location.replace(import.meta.env.BASE_URL + "lobby");
+      // In-app navigation: the store has already notified subscribers, so the lobby renders with the new token.
+      if (!cancelled) navigate("/lobby", { replace: true });
     };
 
     completeLogin();
