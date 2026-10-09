@@ -266,32 +266,13 @@
   .peek-toggle:focus-visible { opacity: 1; pointer-events: auto; }
 }
 
-/* ---------- Shared count badge (opponent fan and own hand) ---------- */
-
-.seat-fan-count,
-.hand-count {
-  flex: 0 0 auto;
-  min-width: 26px;
-  padding: 2px 7px;
-  border: 1px solid rgba(240, 217, 158, 0.45);
-  border-radius: 999px;
-  background: rgba(10, 30, 23, 0.85);
-  color: #f0d99e;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.4;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
 /* ---------- Opponent hand fan ---------- */
 
-/* The fan is exactly as wide as its cards, and the badge follows it, so the count stays next to the cards. */
+/* The fan is exactly as wide as its cards and centred in the panel (see player-panel.css). */
 .game-board .seat-fan-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   height: calc(var(--card-h) + 8px);
   margin: 0 0 4px;
 }
@@ -486,9 +467,6 @@
     --card-stack-gap: 4px;
   }
 
-  .game-board .seat-fan-row { gap: 5px; }
-  .game-board .seat-fan-count,
-  .game-board .hand-count { min-width: 24px; font-size: 11px; padding: 1px 6px; }
   .peek-popover { max-width: min(94vw, 360px); }
   .pile-contents-cards.enlarged .pile-contents-card { width: 58px; height: 81px; }
 }
