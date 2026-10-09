@@ -81,6 +81,7 @@ export default function Login() {
         redirect_uri: redirectUri,
         scope: "openid profile email",
         identity_provider: IDENTITY_PROVIDER,
+        prompt: "select_account",
         code_challenge_method: "S256",
         code_challenge: challenge
       });
