@@ -1,0 +1,23 @@
+.starter-picker { display: flex; flex-direction: column; gap: 7px; }
+.starter-picker-current { margin: 0; font-size: 13px; color: rgba(245, 237, 218, .9); }
+.starter-picker-current strong { color: #f5edda; }
+.starter-picker-reason { color: rgba(245, 237, 218, .6); font-size: 12px; }
+.starter-picker-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.starter-picker-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 237, 218, .3);
+  background: transparent;
+  color: rgba(245, 237, 218, .85);
+  font-size: 12px;
+  cursor: pointer;
+}
+.starter-picker-chip:hover:not(:disabled) { border-color: rgba(245, 237, 218, .7); }
+.starter-picker-chip:disabled { cursor: default; opacity: .6; }
+.starter-picker-chip.active {
+  background: rgba(245, 237, 218, .18);
+  border-color: #f5edda;
+  color: #f5edda;
+  font-weight: 600;
+  opacity: 1;
+}

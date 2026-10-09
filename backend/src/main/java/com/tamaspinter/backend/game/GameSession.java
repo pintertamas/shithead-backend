@@ -17,6 +17,7 @@ import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -27,6 +28,8 @@ import java.util.Set;
 public class GameSession {
     /** Activity feed keeps only the most recent entries so the persisted item stays small. */
     public static final int MAX_EVENTS = 30;
+    /** Rating assumed for a player whose rating is unknown. */
+    public static final double DEFAULT_RATING = 1000.0;
 
     private final String sessionId;
     @Builder.Default
@@ -69,7 +72,16 @@ public class GameSession {
         }
     }
 
+    /** Starts the game with the first player in the list as the starter. */
     public void start() {
+        start(Map.of());
+    }
+
+    /**
+     * Starts the game. The lowest-rated player starts (missing ratings count as {@link #DEFAULT_RATING});
+     * among equal ratings the first player in the list starts.
+     */
+    public void start(Map<String, Double> ratings) {
         int cardsPerPlayer = config.getFaceDownCount() + config.getFaceUpCount() + config.getHandCount();
         if (players.size() * cardsPerPlayer > config.getDecksCount() * 52) {
             throw new IllegalStateException("Not enough cards in the selected deck count");
@@ -89,8 +101,39 @@ public class GameSession {
             player.sortFaceUp();
             player.setReady(false);
         }
+        currentIndex = lowestRatedIndex(ratings);
         started = true;
         setupComplete = false;
+    }
+
+    private int lowestRatedIndex(Map<String, Double> ratings) {
+        int lowest = 0;
+        double lowestRating = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < players.size(); i++) {
+            double rating = ratings.getOrDefault(players.get(i).getPlayerId(), DEFAULT_RATING);
+            if (rating < lowestRating) {
+                lowestRating = rating;
+                lowest = i;
+            }
+        }
+        return lowest;
+    }
+
+    /**
+     * Lets the owner pick who starts while the card setup is still running. Changes only the current player;
+     * readiness and the other setup state are left alone.
+     */
+    public boolean setStarter(String requesterId, String starterId) {
+        if (!started || setupComplete || finished || requesterId == null || !requesterId.equals(ownerId)) {
+            return false;
+        }
+        for (int i = 0; i < players.size(); i++) {
+            if (players.get(i).getPlayerId().equals(starterId)) {
+                currentIndex = i;
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean swapStartingCards(String playerId, int handIndex, int faceUpIndex) {

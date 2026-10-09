@@ -14,6 +14,8 @@ import ShitheadModal from "../components/ShitheadModal";
 import ErrorAlert from "../components/ErrorAlert";
 import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
+import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, reconcileSelection } from "../lib/selection";
+import StarterPicker from "../components/StarterPicker";
 
 export default function GameTable() {
   const { sessionId } = useParams();
@@ -21,10 +23,16 @@ export default function GameTable() {
   const { token } = useAuth();
   const [state, setState] = useState<GameStateView | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [selected, setSelected] = useState<CardSelection[]>([]);
-  const [pickupSelected, setPickupSelected] = useState(false);
+  // Selection lives here (not in a child) so it survives child remounts such as the chat sheet or layout switches.
+  // applyState reconciles it with each state update; see lib/selection.ts.
+  const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION);
+  const selected = selection.selected;
+  const pickupSelected = selection.pickupSelected;
+  const setSelected = useCallback((next: CardSelection[]) => setSelection((prev) => ({ ...prev, selected: next })), []);
+  const setPickupSelected = useCallback((next: boolean) => setSelection((prev) => ({ ...prev, pickupSelected: next })), []);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
+  const pendingRef = useRef(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [socketOpen, setSocketOpen] = useState(false);
   // Latest chat line per player id, shown as a speech bubble above that seat.
@@ -67,32 +75,33 @@ export default function GameTable() {
     return false;
   }, [navigate]);
 
+  // Mirrors pendingAction for applyState, which runs from WebSocket and timer callbacks rather than render.
+  useLayoutEffect(() => { pendingRef.current = pendingAction; }, [pendingAction]);
+
+  // Every state update (WebSocket push or 4s poll) goes through here. The selection is reconciled against the
+  // previous state instead of being cleared, so updates that do not touch this player's cards or turn keep it.
+  // A pending play/pickup/swap is cleared once the server acknowledges it with a change to this player's cards or turn.
   const applyState = useCallback((next: GameStateView) => {
     const previous = stateRef.current;
-    const signature = (value: GameStateView) => JSON.stringify([
-      value.currentPlayerId,
-      value.discardCount,
-      value.deckCount,
-      value.setupComplete,
-      value.players.map((player) => [player.playerId, player.handCount, player.hand, player.faceUp, player.faceDownCount, player.ready, player.eloScore])
-    ]);
-    if (previous && signature(previous) !== signature(next)) {
-      setSelected([]);
-      setPickupSelected(false);
+    stateRef.current = next;
+    setState(next);
+    if (!previous) return;
+    const pending = pendingRef.current;
+    if (pending && affectsOwnCardsOrTurn(previous, next)) {
       setError(null);
       setPendingAction(false);
     }
-    stateRef.current = next;
-    setState(next);
+    setSelection((current) => reconcileSelection(previous, next, current, pending));
   }, []);
 
   const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
-    setPickupSelected(false);
-    setSelected((prev) => {
-      const exists = prev.some((item) => item.source === source && item.index === index);
-      if (exists) return prev.filter((item) => item.source !== source || item.index !== index);
-      if (source === "faceDown" || prev.some((item) => item.source === "faceDown")) return [{ source, index }];
-      return [...prev, { source, index }];
+    setSelection((prev) => {
+      const exists = prev.selected.some((item) => item.source === source && item.index === index);
+      let nextSelected: CardSelection[];
+      if (exists) nextSelected = prev.selected.filter((item) => item.source !== source || item.index !== index);
+      else if (source === "faceDown" || prev.selected.some((item) => item.source === "faceDown")) nextSelected = [{ source, index }];
+      else nextSelected = [...prev.selected, { source, index }];
+      return { selected: nextSelected, pickupSelected: false };
     });
   }, []);
 
@@ -314,6 +323,8 @@ export default function GameTable() {
             {setupStage ? (
               <div className="setup-controls">
                 <h3 className="title">Choose your starting cards</h3>
+                <StarterPicker players={state.players} currentPlayerId={state.currentPlayerId} isOwner={state.isOwner}
+                  disabled={pendingAction} onPick={(starterId) => sendWs({ action: "setup", sessionId, setupAction: "starter", starterId })} />
                 <p>Select cards from your hand and the same number of face-up cards to swap them in pairs. You can change your choice until you’re ready.</p>
                 {!you.ready ? (
                   <>

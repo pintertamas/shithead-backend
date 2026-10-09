@@ -178,7 +178,7 @@ public class GameFunctionConfig {
             }
             GameSession session = SessionMapper.fromEntity(entity);
             try {
-                session.start();
+                session.start(loadRatings(entity));
             } catch (IllegalStateException e) {
                 if (entity.isStarting()) {
                     entity.setStarting(false);
@@ -362,6 +362,9 @@ public class GameFunctionConfig {
         }
         if ("swap".equals(message.setupAction()) && message.handIndex() != null && message.faceUpIndex() != null) {
             return session.swapStartingCards(userId, message.handIndex(), message.faceUpIndex());
+        }
+        if ("starter".equals(message.setupAction())) {
+            return session.setStarter(userId, message.starterId());
         }
         return "ready".equals(message.setupAction()) && session.markReady(userId);
     }
