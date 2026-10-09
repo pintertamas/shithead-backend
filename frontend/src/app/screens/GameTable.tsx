@@ -16,6 +16,43 @@ import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
 import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, reconcileSelection } from "../lib/selection";
 import StarterPicker from "../components/StarterPicker";
+import PeekWrap from "../components/PeekWrap";
+import { SeatChip, SeatPeek } from "../components/SeatChip";
+import { describeEvent } from "../lib/gameFeed";
+import "../styles/table-mobile.css";
+
+/** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
+const PHONE_QUERY = "(max-width: 700px)";
+
+function usePhoneLayout(): boolean {
+  const [phone, setPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function"
+    && window.matchMedia(PHONE_QUERY).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return undefined;
+    const query = window.matchMedia(PHONE_QUERY);
+    const update = () => setPhone(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return phone;
+}
+
+/** No cards on the table or in hand: the same test the next-player search uses. */
+function isOutOfGame(player: PlayerState) {
+  return player.handCount === 0 && player.faceDownCount === 0 && player.faceUp.length === 0
+    && !(player.isYou && (player.hand?.length ?? 0) > 0);
+}
+
+/** The player `step` places away from `index` in the server's order (cyclic), skipping players who are out. */
+function neighbourPlayerId(players: PlayerState[], index: number, step: 1 | -1): string | null {
+  if (index < 0) return null;
+  const count = players.length;
+  for (let offset = 1; offset < count; offset++) {
+    const candidate = players[(((index + step * offset) % count) + count) % count];
+    if (candidate && !isOutOfGame(candidate)) return candidate.playerId;
+  }
+  return null;
+}
 
 export default function GameTable() {
   const { sessionId } = useParams();
@@ -38,6 +75,10 @@ export default function GameTable() {
   // Latest chat line per player id, shown as a speech bubble above that seat.
   const [latestChatByPlayer, setLatestChatByPlayer] = useState<Record<string, { text: string; ts: number }>>({});
   const [nudgeFrom, showNudge] = useNudgeNotice();
+  const phone = usePhoneLayout();
+  // Phone only: the opponent whose cards are open in the centred peek dialog.
+  const [peekId, setPeekId] = useState<string | null>(null);
+  const closePeek = useCallback(() => setPeekId(null), []);
   const wsRef = useRef<WebSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
   const boardRef = useRef<HTMLElement>(null);
@@ -83,14 +124,25 @@ export default function GameTable() {
     const players = state.players;
     const start = players.findIndex((player) => player.playerId === state.currentPlayerId);
     if (start < 0) return null;
-    const isOut = (player: PlayerState) => player.handCount === 0 && player.faceDownCount === 0 && player.faceUp.length === 0
-      && !(player.isYou && (player.hand?.length ?? 0) > 0);
     for (let step = 1; step < players.length; step++) {
       const candidate = players[(start + step) % players.length];
-      if (!isOut(candidate)) return candidate.playerId;
+      if (!isOutOfGame(candidate)) return candidate.playerId;
     }
     return null;
   }, [state, setupStage]);
+  // Phone layout: the players before and after the viewer in the server's order get full panels at the sides.
+  // Everyone else is a chip. With two players the single opponent is both neighbours and takes the left slot.
+  const phoneSeats = useMemo(() => {
+    if (!state) return null;
+    // Setup has no turn order yet and no piles, so every opponent is a chip until play starts.
+    if (setupStage) return { leftId: null, rightId: null, chips: others };
+    const index = state.players.findIndex((player) => player.isYou);
+    const leftId = neighbourPlayerId(state.players, index, -1);
+    const after = neighbourPlayerId(state.players, index, 1);
+    const rightId = after !== leftId ? after : null;
+    const chips = others.filter((player) => player.playerId !== leftId && player.playerId !== rightId);
+    return { leftId, rightId, chips };
+  }, [state, others, setupStage]);
 
   const redirectIfGameMissing = useCallback((cause: unknown) => {
     if (cause instanceof ApiError && cause.status === 404) {
@@ -300,8 +352,22 @@ export default function GameTable() {
     );
   }
 
+  const sidePanel = (playerId: string | null | undefined, side: "left" | "right") => {
+    const player = playerId ? state.players.find((candidate) => candidate.playerId === playerId) : undefined;
+    return (
+      <div className={`phone-side phone-side-${side}`}>
+        {player && (
+          <PlayerPanel player={player} compact isCurrentTurn={state.currentPlayerId === player.playerId}
+            isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} />
+        )}
+      </div>
+    );
+  };
+  const peekPlayer = peekId ? state.players.find((candidate) => candidate.playerId === peekId) : undefined;
+  const latestEvent = state.events && state.events.length > 0 ? state.events[state.events.length - 1] : null;
+
   return (
-    <div className="page fade-in game-page">
+    <div className={`page fade-in game-page${phone ? " phone-table" : ""}`}>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <NudgeBanner username={nudgeFrom} />
 
@@ -310,6 +376,14 @@ export default function GameTable() {
       <header className="table-bar">
         <span className="badge">SHITHEAD</span>
         <h2 className="title table-bar-title">{state.sessionId} <span className="header-player-name">· {you.username}</span></h2>
+        {phone && phoneSeats && phoneSeats.chips.length > 0 && (
+          <div className="phone-chips" role="group" aria-label="Other players">
+            {phoneSeats.chips.map((player) => (
+              <SeatChip key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
+                isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} onOpen={setPeekId} />
+            ))}
+          </div>
+        )}
         <NudgeButton onNudge={sendNudgeToTable} />
       </header>
       <main className="game-board" ref={boardRef}>
@@ -326,14 +400,17 @@ export default function GameTable() {
             Revealed {state.revealedCard.value} of {state.revealedCard.suit.toLowerCase()}.
           </div>
         )}
-        <div className="game-opponents" aria-label="Other players">
-          {others.map((player) => (
-            <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
-              isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} />
-          ))}
-        </div>
+        {!phone && (
+          <div className="game-opponents" aria-label="Other players">
+            {others.map((player) => (
+              <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
+                isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} />
+            ))}
+          </div>
+        )}
 
-        <section className="game-middle" aria-label="Game table">
+        <section className={`game-middle${phone ? " phone-middle" : ""}${phone && setupStage ? " phone-setup" : ""}`} aria-label="Game table">
+          {phone && sidePanel(phoneSeats?.leftId, "left")}
           <div className="game-piles">
             <Pile title="Draw pile" count={state.deckCount} variant="draw" fxAnchor="draw" />
             <Pile
@@ -372,6 +449,7 @@ export default function GameTable() {
               </div>
             ) : null}
           </div>
+          {phone && sidePanel(phoneSeats?.rightId, "right")}
         </section>
 
         <PlayerPanel
@@ -404,15 +482,27 @@ export default function GameTable() {
             </p>
           </div>
         )}
+        {phone && (
+          <PeekWrap className="phone-log-wrap" label="Game log" toggleText="Log" pressToOpen
+            popover={<div className="phone-log-popover"><GameFeed events={state.events} /></div>}>
+            <div className="phone-log-line" role="status">
+              {latestEvent ? describeEvent(latestEvent) : "Moves and events will show up here."}
+            </div>
+          </PeekWrap>
+        )}
         <div className="table-fx" ref={fxLayerRef} aria-hidden="true" />
       </main>
       </div>
 
       <div className="game-companion">
-        <GameFeed events={state.events} />
+        {!phone && <GameFeed events={state.events} />}
         <ChatPanel messages={chatMessages} currentUserId={you.playerId} connected={socketOpen} onSend={sendChat} />
       </div>
       </div>
+
+      {phone && peekPlayer && (
+        <SeatPeek player={peekPlayer} isCurrentTurn={state.currentPlayerId === peekPlayer.playerId} onClose={closePeek} />
+      )}
 
       {showModal && state.shitheadId && (
         <ShitheadModal
