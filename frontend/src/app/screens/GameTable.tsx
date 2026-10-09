@@ -267,6 +267,7 @@ export default function GameTable() {
       </div>
       <NudgeBanner username={nudgeFrom} />
 
+      <div className="game-stage">
       <main className="game-board" ref={boardRef}>
         {state.revealedCard && (
           <div className="failed-blind-reveal" role="status">
@@ -354,6 +355,7 @@ export default function GameTable() {
       <div className="game-companion">
         <GameFeed events={state.events} />
         <ChatPanel messages={chatMessages} currentUserId={you.playerId} connected={socketOpen} onSend={sendChat} />
+      </div>
       </div>
 
       {showModal && state.shitheadId && (

@@ -1,0 +1,176 @@
+/* Where the session chat and game log sit on each screen size. Phones use the chat popup instead of the inline panel. */
+
+/* Room: Players card and chat side by side on wide screens. */
+.room-columns {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 900px) {
+  .room-columns {
+    grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr);
+    gap: 32px;
+    align-items: stretch;
+  }
+
+  /* The chat sets the row height; the Players card stretches to match it. */
+  .room-columns .chat-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: clamp(380px, 66dvh, 640px);
+    box-sizing: border-box;
+  }
+
+  .room-columns .chat-panel .chat-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+}
+
+/* Game table: board on the left, log and chat in a side column with a gap from the cards. */
+@media (min-width: 900px) {
+  .game-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .game-stage > .game-companion {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 0;
+  }
+
+  .game-stage .chat-list {
+    max-height: 300px;
+  }
+}
+
+/* Phone chat popup: floating button and bottom sheet. Rendered through a portal to document.body. */
+.chat-fab {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1b2a22;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.chat-fab:focus-visible,
+.chat-sheet-close:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+.chat-fab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chat-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(5, 14, 10, 0.55);
+  overscroll-behavior: contain;
+  animation: chat-backdrop-in 0.18s ease-out;
+}
+
+.chat-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 640px;
+  /* Fits the space left above the keyboard (the backdrop pads for it). */
+  max-height: min(80dvh, 100%);
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+  outline: none;
+  animation: chat-sheet-in 0.22s ease-out;
+}
+
+.chat-sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-sheet-title {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+}
+
+.chat-sheet-close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.chat-sheet .chat-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+/* 16px stops iOS from zooming the page when the input is focused. */
+.chat-sheet .chat-input {
+  font-size: 16px;
+}
+
+.chat-sheet .chat-form {
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-sheet-backdrop,
+  .chat-sheet {
+    animation: none;
+  }
+}
+
+@keyframes chat-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes chat-sheet-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
