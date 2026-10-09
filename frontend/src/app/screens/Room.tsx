@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
 import ChatPanel from "../components/ChatPanel";
+import VoicePanel from "../components/VoicePanel";
 import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
 
 export default function Room() {
@@ -155,6 +156,7 @@ export default function Room() {
           <h2 className="title">Room {sessionId}</h2>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {state?.voiceEnabled === true && sessionId && <VoicePanel sessionId={sessionId} players={state.players} finished={state.finished} />}
           {canStart && (
             <button className="button" onClick={onStart} disabled={loading !== null && startRequestInProgress.current}>
               {loading === "starting" && startRequestInProgress.current

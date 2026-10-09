@@ -24,6 +24,7 @@
   .menu-content .config-howto,
   .menu-content .config-decks,
   .menu-content .config-face-up-card,
+  .menu-content .config-voice-card,
   .menu-content .config-rules-card {
     min-width: 0;
     margin: 0;
@@ -33,9 +34,13 @@
   .menu-content .config-decks      { grid-column: 1; grid-row: 2; }
   .menu-content .config-face-up-card { grid-column: 1; grid-row: 3; }
   .menu-content .config-rules-card { grid-column: 2; grid-row: 1 / span 3; }
-
   .menu-content .config-actions {
     grid-column: 1 / -1;
     grid-row: 4;
   }
+
+  /* Administrators also get the Voice chat card, which takes row 4 on the left. */
+  .menu-content .config-layout.has-voice .config-voice-card { grid-column: 1; grid-row: 4; }
+  .menu-content .config-layout.has-voice .config-rules-card { grid-row: 1 / span 4; }
+  .menu-content .config-layout.has-voice .config-actions { grid-row: 5; }
 }

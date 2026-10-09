@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CARD_RULES,
   CARD_VALUES,
@@ -7,13 +7,35 @@ import {
   saveGameConfig
 } from "../config/gameConfig";
 import RulesModal, { rankName, SpecialCardRule } from "../components/RulesModal";
+import { fetchProfile } from "../api/profile";
+import { useAuth } from "../auth/useAuth";
 import "../styles/config-layout.css";
 import "../styles/select-fix.css";
 
 export default function GameConfig() {
+  const { token } = useAuth();
   const [config, setConfig] = useState<GameConfigType>(() => loadGameConfig());
   const [saved, setSaved] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  // null while the profile is loading; only administrators see the voice switch.
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchProfile(token)
+      .then((profile) => {
+        if (!active) return;
+        setIsAdmin(profile.canClearGames);
+        if (!profile.canClearGames) {
+          // Drop a voice setting saved while this account was an administrator.
+          setConfig((current) => ({ ...current, voiceEnabled: false }));
+          const stored = loadGameConfig();
+          if (stored.voiceEnabled) saveGameConfig({ ...stored, voiceEnabled: false });
+        }
+      })
+      .catch(() => { if (active) setIsAdmin(false); });
+    return () => { active = false; };
+  }, [token]);
 
   const updateConfig = (patch: Partial<GameConfigType>) => {
     setConfig((current) => ({ ...current, ...patch }));
@@ -25,7 +47,7 @@ export default function GameConfig() {
   };
 
   const save = () => {
-    saveGameConfig(config);
+    saveGameConfig({ ...config, voiceEnabled: isAdmin === true && config.voiceEnabled });
     setSaved(true);
   };
 
@@ -44,7 +66,7 @@ export default function GameConfig() {
         </div>
       </div>
 
-      <div className="config-layout">
+      <div className={`config-layout${isAdmin === true ? " has-voice" : ""}`}>
         <section className="glass card config-howto">
           <h3 className="title">How to play</h3>
           <p className="config-description">
@@ -111,6 +133,26 @@ export default function GameConfig() {
             />
           </div>
         </section>
+
+        {isAdmin === true && (
+          <section className="glass card config-voice-card" aria-labelledby="voice-chat-title">
+            <h3 className="title" id="voice-chat-title">Voice chat</h3>
+            <p className="config-description">
+              Let players in the next game you create talk over voice. Only administrators can turn this on.
+            </p>
+            <div className="config-option">
+              <h4 className="config-option-title" id="voice-chat-label">Voice chat for this game</h4>
+              <p className="config-note">
+                Players press Join voice to use the microphone. Voice is processed by LiveKit; nobody is recorded.
+              </p>
+              <OnOffSwitch
+                labelId="voice-chat-label"
+                value={config.voiceEnabled}
+                onChange={(voiceEnabled) => updateConfig({ voiceEnabled })}
+              />
+            </div>
+          </section>
+        )}
 
         <section className="glass card config-rules-card" aria-labelledby="card-rules-title">
           <h3 className="title" id="card-rules-title">Card Rules</h3>

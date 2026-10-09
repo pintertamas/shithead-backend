@@ -19,6 +19,8 @@ export type GameConfig = {
   decksCount: 1 | 2;
   burnCount: 4 | 6;
   cardRules: Record<string, CardRule>;
+  /** Only administrators can turn this on; the server rejects it for other players. */
+  voiceEnabled: boolean;
 };
 
 const DEFAULT_CARD_RULES: Record<string, CardRule> = {
@@ -42,7 +44,8 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
   allowFailedFaceUpPlay: false,
   decksCount: 1,
   burnCount: 4,
-  cardRules: DEFAULT_CARD_RULES
+  cardRules: DEFAULT_CARD_RULES,
+  voiceEnabled: false
 };
 
 export function loadGameConfig(): GameConfig {
@@ -64,7 +67,8 @@ export function loadGameConfig(): GameConfig {
       allowFailedFaceUpPlay: Boolean(parsed.allowFailedFaceUpPlay),
       decksCount,
       burnCount: decksCount === 2 ? 6 : 4,
-      cardRules
+      cardRules,
+      voiceEnabled: Boolean(parsed.voiceEnabled)
     };
   } catch {
     return DEFAULT_GAME_CONFIG;
@@ -82,6 +86,7 @@ export function getCreateGameConfig(config: GameConfig) {
   return {
     ...config,
     allowFailedFaceUpPlay: Boolean(config.allowFailedFaceUpPlay),
+    voiceEnabled: Boolean(config.voiceEnabled),
     cardRules,
     alwaysPlayable: CARD_VALUES.filter((value) => ["JOKER", "TRANSPARENT"].includes(cardRules[String(value)])),
     canPlayAgain: CARD_VALUES.filter((value) => cardRules[String(value)] === "BURNER")

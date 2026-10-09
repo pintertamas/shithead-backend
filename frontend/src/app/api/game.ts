@@ -75,6 +75,8 @@ export type GameStateView = {
   discardPile: Card[];
   allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
   allowFailedFaceUpPlay: boolean;
+  /** Whether this game has voice chat (LiveKit) turned on. Older servers omit it. */
+  voiceEnabled?: boolean;
   revealedCard?: Card | null;
   players: PlayerState[];
   events?: GameEvent[];
@@ -83,6 +85,7 @@ export type GameStateView = {
 export type CreateGameConfig = {
   allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
   allowFailedFaceUpPlay: boolean;
+  voiceEnabled: boolean;
   decksCount: 1 | 2;
   burnCount: 4 | 6;
   cardRules: Record<string, string>;

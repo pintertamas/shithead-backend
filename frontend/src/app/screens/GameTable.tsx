@@ -16,6 +16,7 @@ import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
 import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, reconcileSelection } from "../lib/selection";
 import StarterPicker from "../components/StarterPicker";
+import VoicePanel from "../components/VoicePanel";
 
 export default function GameTable() {
   const { sessionId } = useParams();
@@ -311,6 +312,7 @@ export default function GameTable() {
         <span className="badge">SHITHEAD</span>
         <h2 className="title table-bar-title">{state.sessionId} <span className="header-player-name">· {you.username}</span></h2>
         <NudgeButton onNudge={sendNudgeToTable} />
+        {state.voiceEnabled === true && <VoicePanel sessionId={state.sessionId} players={state.players} finished={state.finished} />}
       </header>
       <main className="game-board" ref={boardRef}>
         {state.revealedCard && (
