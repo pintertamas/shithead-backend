@@ -23,6 +23,7 @@ import com.tamaspinter.backend.model.websocket.PickupMessage;
 import com.tamaspinter.backend.model.websocket.PlayMessage;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
+import com.tamaspinter.backend.service.BlockedUserGuard;
 import com.tamaspinter.backend.service.EloService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +63,7 @@ public class GameFunctionConfig {
 
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
+    private final BlockedUserGuard blockedUserGuard;
     private final ObjectMapper mapper;
     private final DynamoDbClient dynamoClient = DynamoDbClient.create();
     private final String wsConnectionsTable = System.getenv("WS_CONNECTIONS_TABLE");
@@ -90,6 +92,7 @@ public class GameFunctionConfig {
     }
 
     @Bean
+    @SuppressWarnings("PMD.CognitiveComplexity")
     public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> joinGame() {
         return req -> {
             Map<?, ?> data;
@@ -110,6 +113,9 @@ public class GameFunctionConfig {
             @SuppressWarnings("unchecked")
             Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
             String userId = claims.get("sub");
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
             if (entity.getPlayers() != null
                     && entity.getPlayers().stream().anyMatch(player -> userId.equals(player.getPlayerId()))) {
                 return corsResponse(200);
@@ -149,6 +155,9 @@ public class GameFunctionConfig {
             @SuppressWarnings("unchecked")
             Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
             String userId = claims.get("sub");
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
             if (!userId.equals(entity.getOwnerId())) {
                 return corsResponse(403);
             }
@@ -203,6 +212,9 @@ public class GameFunctionConfig {
             @SuppressWarnings("unchecked")
             Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
             String userId = claims.get("sub");
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
 
             GameSession session = SessionMapper.fromEntity(entity);
             session.removePlayer(userId);
@@ -227,6 +239,9 @@ public class GameFunctionConfig {
             @SuppressWarnings("unchecked")
             Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
             String userId = claims.get("sub");
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
             try {
                 GameStateView view = buildGameStateView(entity, userId);
                 return corsResponse(200, mapper.writeValueAsString(view));
@@ -254,6 +269,9 @@ public class GameFunctionConfig {
             }
 
             String userId = websocketUserId(ev);
+            if (blockedUserGuard.isBlocked(userId)) {
+                return websocketError(ev, 403, BlockedUserGuard.BLOCKED_MESSAGE);
+            }
             if (userId == null || entity.getPlayers() == null || entity.getPlayers().stream()
                     .noneMatch(player -> userId.equals(player.getPlayerId()))) {
                 return websocketError(ev, 403, "Join this game before sending actions.");
@@ -431,6 +449,9 @@ public class GameFunctionConfig {
             }
 
             String userId = websocketUserId(ev);
+            if (blockedUserGuard.isBlocked(userId)) {
+                return websocketError(ev, 403, BlockedUserGuard.BLOCKED_MESSAGE);
+            }
             if (userId == null || !userId.equals(entity.getCurrentPlayerId())) {
                 return websocketError(ev, 400, "It is not your turn.");
             }

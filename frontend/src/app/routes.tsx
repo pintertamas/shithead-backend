@@ -7,6 +7,9 @@ import GameTable from "./screens/GameTable";
 import Leaderboard from "./screens/Leaderboard";
 import Profile from "./screens/Profile";
 import GameConfig from "./screens/GameConfig";
+import Games from "./screens/Games";
+import Admin from "./screens/Admin";
+import AccountBlockedGate from "./components/AccountBlockedGate";
 import AuthCallback from "./auth/authCallback";
 import { useAuth } from "./auth/useAuth";
 
@@ -15,6 +18,7 @@ export default function AppRoutes() {
 
   return (
     <div className="app-shell">
+      <AccountBlockedGate />
       <Routes>
         <Route path="/" element={<Navigate to={token ? "/lobby" : "/login"} />} />
         <Route path="/login" element={<Login />} />
@@ -26,6 +30,8 @@ export default function AppRoutes() {
           <Route path="/config" element={<GameConfig />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/leaderboard/:sessionId" element={<Leaderboard />} />
+          <Route path="/games" element={<Games />} />
+          <Route path="/admin" element={<Admin />} />
         </Route>
         <Route
           path="/room/:sessionId"

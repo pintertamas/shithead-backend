@@ -42,6 +42,10 @@ public class ApiRoutes {
         rest("GET", "/profile", account.accountManagement());
         rest("PUT", "/profile", account.accountManagement());
         rest("POST", "/admin/doomsday", account.accountManagement());
+        rest("GET", "/admin/users", account.accountManagement());
+        rest("POST", "/admin/users/{userId}/block", account.accountManagement());
+        rest("POST", "/admin/users/{userId}/unblock", account.accountManagement());
+        rest("GET", "/games", account.accountManagement());
 
         websocket("play", game.playCardWS());
         websocket("setup", game.playCardWS());

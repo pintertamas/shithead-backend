@@ -8,6 +8,9 @@ import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
+import com.tamaspinter.backend.handler.AdminUserHandler;
+import com.tamaspinter.backend.handler.GameBrowseHandler;
+import com.tamaspinter.backend.service.BlockedUserGuard;
 import com.tamaspinter.backend.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +33,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
+@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods"})
 public class AccountManagementFunctionConfig {
 
     private static final Map<String, String> CORS_HEADERS = Map.of(
@@ -42,9 +48,14 @@ public class AccountManagementFunctionConfig {
             "Access-Control-Allow-Methods", "POST,GET,PUT,OPTIONS"
     );
 
+    private static final Pattern BLOCK_ROUTE = Pattern.compile(".*/admin/users/([^/]+)/(block|unblock)");
+
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
     private final UserProfileService profileService;
+    private final BlockedUserGuard blockedUserGuard;
+    private final AdminUserHandler adminUsers;
+    private final GameBrowseHandler gameBrowse;
     private final ObjectMapper mapper;
     private final DynamoDbClient dynamoClient = DynamoDbClient.create();
     private final String wsConnectionsTable = System.getenv("WS_CONNECTIONS_TABLE");
@@ -65,17 +76,55 @@ public class AccountManagementFunctionConfig {
             String path = req.getPath() == null ? "" : req.getPath();
             String method = req.getHttpMethod();
             Map<String, Object> claims = requestClaims(req);
-            if (path.endsWith("/profile") && "GET".equals(method)) {
-                return readProfile(claims);
+            if (blockedUserGuard.isBlocked((String) claims.get("sub"))) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
             }
-            if (path.endsWith("/profile") && "PUT".equals(method)) {
-                return updateProfile(req, claims);
-            }
-            if (path.endsWith("/admin/doomsday") && "POST".equals(method)) {
-                return clearActiveGames(claims);
-            }
-            return corsResponse(404);
+            return dispatch(req, path, method, claims);
         };
+    }
+
+    private APIGatewayProxyResponseEvent dispatch(
+            APIGatewayProxyRequestEvent req, String path, String method, Map<String, Object> claims) {
+        if ("GET".equals(method)) {
+            return dispatchGet(path, claims);
+        }
+        if ("POST".equals(method)) {
+            return dispatchPost(path, claims);
+        }
+        if ("PUT".equals(method) && path.endsWith("/profile")) {
+            return updateProfile(req, claims);
+        }
+        return corsResponse(404);
+    }
+
+    private APIGatewayProxyResponseEvent dispatchGet(String path, Map<String, Object> claims) {
+        if (path.endsWith("/profile")) {
+            return readProfile(claims);
+        }
+        if (path.endsWith("/games")) {
+            return gameBrowse.listOpenGames();
+        }
+        if (path.endsWith("/admin/users")) {
+            return hasAdminGroup(claims) ? adminUsers.listUsers() : adminRequired();
+        }
+        return corsResponse(404);
+    }
+
+    private APIGatewayProxyResponseEvent dispatchPost(String path, Map<String, Object> claims) {
+        if (path.endsWith("/admin/doomsday")) {
+            return clearActiveGames(claims);
+        }
+        Matcher blockRoute = BLOCK_ROUTE.matcher(path);
+        if (blockRoute.matches()) {
+            return hasAdminGroup(claims)
+                    ? adminUsers.setBlocked((String) claims.get("sub"), blockRoute.group(1), "block".equals(blockRoute.group(2)))
+                    : adminRequired();
+        }
+        return corsResponse(404);
+    }
+
+    private APIGatewayProxyResponseEvent adminRequired() {
+        return corsResponse(403, "{\"message\":\"Administrator access is required for this action.\"}");
     }
 
     private APIGatewayProxyResponseEvent readProfile(Map<String, Object> claims) {

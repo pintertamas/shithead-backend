@@ -147,6 +147,11 @@ class GameApiFunctionConfigTest {
 
         assertTrue(routes.findRest("GET", "/leaderboard/session/XYZ").isPresent());
         assertEquals(false, routes.findRest("GET", "/leaderboard/session").isPresent());
+        assertTrue(routes.findRest("GET", "/admin/users").isPresent());
+        assertTrue(routes.findRest("POST", "/admin/users/abc/block").isPresent());
+        assertTrue(routes.findRest("POST", "/admin/users/abc/unblock").isPresent());
+        assertTrue(routes.findRest("GET", "/games").isPresent());
+        assertEquals(false, routes.findRest("GET", "/admin/users/abc/block").isPresent());
         assertEquals(false, routes.findWebSocket("unknown").isPresent());
     }
 

@@ -148,7 +148,9 @@ Client
   ├── REST (HTTP)  → API Gateway → game-api Lambda (gameApi dispatcher)
   │                                  ├── join/leave/start-game, state, leaderboard
   │                                  ├── Profile API (/profile)
-  │                                  └── Admin cleanup (/admin/doomsday; Cognito game-admin only)
+  │                                  ├── Admin cleanup (/admin/doomsday; Cognito game-admin only)
+  │                                  ├── Admin users (GET /admin/users, POST /admin/users/{id}/block|unblock; game-admin only)
+  │                                  └── Lobby browser (GET /games; any signed-in user)
   │                → API Gateway → glue Lambda (create-game, Go)
   └── WebSocket    → API Gateway → authorizer Lambda (Go, $connect only)
                    → API Gateway → glue Lambda ($connect, $disconnect, $default; Go)
@@ -399,6 +401,10 @@ The existing card-rule picker can assign the existing `CardRule` values to any r
 - The route checks the Cognito `game-admin` group in JWT claims. Terraform creates the group but does not assign members; membership must be granted deliberately.
 - The game API Lambda uses one IAM role (`game_api_exec`) that holds the union of the permissions the former per-handler roles had: profiles, game cleanup, connection cleanup, and API Gateway connection management.
 - The profile screen renders the Game Maintenance card only when `/profile` reports `canClearGames` for a `game-admin` member.
+- User blocking: the users table item has an optional `blocked` boolean (missing = not blocked). Only `UserProfileRepository.setBlocked` writes it (UpdateItem SET/REMOVE); profile saves use UpdateItem with `withoutBlockedFlag()` and `ignoreNulls` so they never reset it. `GET /admin/users` scans the table and skips `__username__#` claim rows. `POST /admin/users/{userId}/block|unblock` refuses self-block, then best-effort closes the user's WebSocket connections (`UserConnectionService`, filtered scan) and removes them from unstarted lobbies (`LobbyMembershipService`).
+- `BlockedUserGuard.isBlocked(userId)` is checked at the top of the account management dispatch and in each authenticated game REST and WebSocket handler (play, pickup, setup); blocked users get 403 `{"message":"Your account has been blocked."}`. Leaderboard reads do not identify the user and are not guarded.
+- `GET /games` lists unfinished games (newest first, max 50) with `status` `waiting`/`in_progress`, `playerCount`, and `maxPlayers` (`min(6, decksCount*52 / cardsPerPlayer)`). Served by `GameBrowseService`/`GameBrowseHandler`.
+- The frontend `/games` (Browse games) and `/admin` screens sit inside `MenuLayout`; `/admin` is linked only when `/profile` reports `canClearGames`. A 403 with the blocked message sets a shared flag (`auth/accountBlocked.ts`) that shows a full-screen notice.
 
 ### Adding a New Repository
 
