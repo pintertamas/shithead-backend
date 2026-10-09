@@ -32,6 +32,7 @@ jobs:
           filters: |
             backend:
               - backend/**
+              - backend-go/**
               - infra/**
               - pom.xml
               - Dockerfile
@@ -61,6 +62,18 @@ jobs:
             mvn -q -f backend/pom.xml verify -P codeQuality
           fi
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend-go/go.mod
+          cache-dependency-path: backend-go/go.sum
+
+      - name: Go vet and test
+        working-directory: backend-go
+        run: |
+          go vet ./...
+          go test ./...
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -74,6 +87,8 @@ jobs:
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH != '' && vars.VITE_BASE_PATH || format('/{0}/', github.event.repository.name) }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL }}
+          VITE_API_BASE_URL_GO: ${{ vars.VITE_API_BASE_URL_GO }}
+          VITE_WS_BASE_URL_GO: ${{ vars.VITE_WS_BASE_URL_GO }}
           VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
           VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
           VITE_COGNITO_REDIRECT_URI: ${{ vars.APP_URL != '' && (endsWith(vars.APP_URL, '/') && format('{0}auth/callback', vars.APP_URL) || format('{0}/auth/callback', vars.APP_URL)) || vars.VITE_COGNITO_REDIRECT_URI }}
@@ -141,6 +156,19 @@ jobs:
       - name: Package Python Lambda dependencies
         run: python infra/terraform/lambda/scripts/package.py
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend-go/go.mod
+          cache-dependency-path: backend-go/go.sum
+
+      - name: Build Go Lambda (arm64 bootstrap)
+        working-directory: backend-go
+        run: |
+          mkdir -p build/stage
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -ldflags="-s -w" -o build/stage/bootstrap ./cmd/lambda
+          cd build/stage && zip -q -j ../shithead-api.zip bootstrap
+
       - name: Validate Terraform variables
         run: |
           [ -n "${TF_VAR_google_client_id}" ] || (echo "Missing secret: GOOGLE_CLIENT_ID" && exit 1)
@@ -206,6 +234,8 @@ jobs:
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH != '' && vars.VITE_BASE_PATH || format('/{0}/', github.event.repository.name) }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_WS_BASE_URL: ${{ vars.VITE_WS_BASE_URL }}
+          VITE_API_BASE_URL_GO: ${{ vars.VITE_API_BASE_URL_GO }}
+          VITE_WS_BASE_URL_GO: ${{ vars.VITE_WS_BASE_URL_GO }}
           VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
           VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
           VITE_COGNITO_REDIRECT_URI: ${{ vars.APP_URL != '' && (endsWith(vars.APP_URL, '/') && format('{0}auth/callback', vars.APP_URL) || format('{0}/auth/callback', vars.APP_URL)) || vars.VITE_COGNITO_REDIRECT_URI }}
