@@ -68,61 +68,92 @@ export default function Lobby() {
   };
 
   return (
-    <div className="page fade-in">
-      <ErrorAlert message={status} onDismiss={() => setStatus(null)} />
-      <div className="topbar">
-        <div>
-          <div className="badge">Signed In</div>
-          <h2 className="title">Welcome, {displayName || "Player"}</h2>
-        </div>
-        <div className="topbar-actions">
-          <button className="button secondary" onClick={() => navigate("/config")}>Game Config</button>
-          <button className="button secondary" onClick={() => navigate("/profile")}>Profile</button>
-        </div>
-        <button
-          className="button secondary"
-          onClick={() => {
-            logout();
-            navigate("/login");
-          }}
-        >
-          Log out
-        </button>
-      </div>
+    <div className="page fade-in lobby-page">
+      <aside className="lobby-sidebar" aria-label="Main navigation">
+        <div className="lobby-brand" aria-label="Shithead home">🎮</div>
+        <nav className="lobby-nav">
+          <button className="lobby-nav-item active" aria-current="page"><span aria-hidden="true">⌂</span>Home</button>
+          <button className="lobby-nav-item" onClick={() => navigate("/config")}><span aria-hidden="true">⚙</span>Game Config</button>
+          <button className="lobby-nav-item" onClick={() => navigate("/profile")}><span aria-hidden="true">♙</span>Profile</button>
+          <button className="lobby-nav-item" onClick={() => { logout(); navigate("/login"); }}><span aria-hidden="true">↪</span>Log out</button>
+        </nav>
+      </aside>
 
-      <div className="layout lobby-layout">
-        <div className="glass card lobby-actions-card">
-          <button className="button" onClick={handleCreate} disabled={loading !== null}>
-            {loading === "creating" ? "Creating..." : "Create Game"}
-          </button>
-          <form className="lobby-join-form" onSubmit={(event) => { event.preventDefault(); void handleJoin(); }}>
-            <input
-              className="input"
-              aria-label="Game join code"
-              placeholder="Enter join code"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              disabled={loading !== null}
-            />
-            <button className="button secondary" type="submit" disabled={loading !== null || !joinCode.trim()}>
-              {loading === "joining" ? "Joining..." : "Join Game"}
+      <main className="lobby-main">
+        <ErrorAlert message={status} onDismiss={() => setStatus(null)} />
+        <header className="lobby-welcome">
+          <h1>Welcome, {displayName || "Player"} <span aria-hidden="true">👋</span></h1>
+          <p>Ready to play? Create a new game or join an existing one.</p>
+        </header>
+
+        <section className="lobby-action-grid" aria-label="Play a game">
+          <article className="lobby-action-card">
+            <div className="lobby-action-icon" aria-hidden="true">🎮</div>
+            <h2>Create Game</h2>
+            <p>Start a new game with your saved configuration.</p>
+            <button className="button lobby-cta" onClick={handleCreate} disabled={loading !== null}>
+              <span aria-hidden="true">＋</span>{loading === "creating" ? "Creating…" : "Create Game"}
             </button>
-          </form>
-          <p className="config-note">New games use your saved configuration.</p>
-        </div>
+            <div className="lobby-info"><span aria-hidden="true">ⓘ</span> New games use your saved configuration.</div>
+          </article>
 
-        <div className="glass card leaderboard-card">
-          <div className="leaderboard-card-heading">
-            <div><div className="badge">Rankings</div><h3 className="title">Top players</h3></div>
-            <button className="button secondary" onClick={() => navigate("/leaderboard")}>Full leaderboard</button>
-          </div>
-          {leaderboardLoading ? <p className="config-note">Loading leaderboard…</p> : leaders.length === 0 ? <p className="config-note">Leaderboard is unavailable right now.</p> : (
-            <div className="player-list">
-              {leaders.map((entry, index) => <div className="player-item" key={entry.userId}><span>{index + 1}. {entry.username}</span><strong>{Math.round(entry.eloScore)}</strong></div>)}
+          <article className="lobby-action-card">
+            <div className="lobby-action-icon" aria-hidden="true">👥</div>
+            <h2>Join Game</h2>
+            <p>Enter the game code shared by the owner.</p>
+            <form className="lobby-join-form" onSubmit={(event) => { event.preventDefault(); void handleJoin(); }}>
+              <input
+                className="input lobby-code-input"
+                aria-label="Game join code"
+                placeholder="Enter game code"
+                maxLength={6}
+                autoCapitalize="characters"
+                autoComplete="off"
+                value={joinCode}
+                onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+                disabled={loading !== null}
+              />
+              <button className="button lobby-cta" type="submit" disabled={loading !== null || !joinCode.trim()}>
+                <span aria-hidden="true">↪</span>{loading === "joining" ? "Joining…" : "Join Game"}
+              </button>
+            </form>
+          </article>
+        </section>
+
+        <section className="lobby-rankings" aria-labelledby="lobby-rankings-title">
+          <div className="lobby-rankings-heading">
+            <div className="lobby-rankings-title-wrap">
+              <span className="lobby-trophy" aria-hidden="true">🏆</span>
+              <div>
+                <h2 id="lobby-rankings-title">Rankings</h2>
+                <p>See the best players and their current ELO.</p>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+            <button className="button secondary lobby-rankings-link" onClick={() => navigate("/leaderboard")}>
+              <span aria-hidden="true">▮</span> Full leaderboard
+            </button>
+          </div>
+
+          {leaderboardLoading ? <div className="lobby-rankings-message" role="status"><span className="game-starting-spinner" />Loading rankings…</div>
+            : leaders.length === 0 ? <p className="lobby-rankings-message">Leaderboard is unavailable right now.</p>
+              : (
+                <div className="lobby-table-wrap">
+                  <table className="lobby-rankings-table">
+                    <thead><tr><th scope="col">#</th><th scope="col">Name</th><th scope="col">ELO</th></tr></thead>
+                    <tbody>
+                      {leaders.map((entry, index) => (
+                        <tr key={entry.userId}>
+                          <td><span className={`lobby-rank${index < 3 ? ` top-${index + 1}` : ""}`}>{index + 1}</span></td>
+                          <td>{entry.username}</td>
+                          <td>{Math.round(entry.eloScore)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+        </section>
+      </main>
     </div>
   );
 }
