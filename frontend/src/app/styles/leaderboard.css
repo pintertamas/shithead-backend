@@ -1,10 +1,4 @@
-.leaderboard-page.page {
-  min-height: 100vh;
-  max-width: none;
-  padding: 26px clamp(14px, 3vw, 48px) 42px;
-  color: #f5edda;
-  background: radial-gradient(ellipse at 42% 0%, #315a43 0%, #1d4334 52%, #10291f 100%);
-}
+.leaderboard-page { width: 100%; color: #f5edda; }
 
 .leaderboard-main { width: 100%; max-width: 1100px; margin: 0 auto; }
 .leaderboard-welcome { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -23,7 +17,6 @@
 .leaderboard-page .error-alert { border-color: rgba(245, 145, 128, .45); background: rgba(82, 34, 29, .9); color: #ffe3dc; }
 
 @media (max-width: 650px) {
-  .leaderboard-page.page { padding: 20px 14px 28px; }
   .leaderboard-welcome { align-items: flex-start; flex-direction: column; }
   .leaderboard-welcome .lobby-rankings-link { align-self: flex-end; }
   .leaderboard-page .lobby-rankings { padding: 16px 12px 12px; border-radius: 15px; }

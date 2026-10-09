@@ -1,11 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import ErrorAlert from "../components/ErrorAlert";
 import { clearAllGames, fetchProfile, updateProfile, UserProfile } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
 
 export default function Profile() {
-  const navigate = useNavigate();
   const { token } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [username, setUsername] = useState("");
@@ -62,7 +60,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="page fade-in">
+    <div className="menu-content fade-in">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {notice && <div className="success-alert" role="status">{notice}</div>}
       <div className="topbar">
@@ -70,7 +68,6 @@ export default function Profile() {
           <div className="badge">Account</div>
           <h2 className="title">Your Profile</h2>
         </div>
-        <button className="button secondary" onClick={() => navigate("/lobby")}>Back to Lobby</button>
       </div>
 
       <div className="layout single">

@@ -1,4 +1,5 @@
-﻿import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
+import MenuLayout from "./components/MenuLayout";
 import Login from "./screens/Login";
 import Lobby from "./screens/Lobby";
 import Room from "./screens/Room";
@@ -19,18 +20,13 @@ export default function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/logout" element={<Navigate to="/login" />} />
-        <Route
-          path="/lobby"
-          element={token ? <Lobby /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/profile"
-          element={token ? <Profile /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/config"
-          element={token ? <GameConfig /> : <Navigate to="/login" />}
-        />
+        <Route element={token ? <MenuLayout /> : <Navigate to="/login" />}>
+          <Route path="/lobby" element={<Lobby />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/config" element={<GameConfig />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/leaderboard/:sessionId" element={<Leaderboard />} />
+        </Route>
         <Route
           path="/room/:sessionId"
           element={token ? <Room /> : <Navigate to="/login" />}
@@ -38,14 +34,6 @@ export default function AppRoutes() {
         <Route
           path="/game/:sessionId"
           element={token ? <GameTable /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/leaderboard"
-          element={token ? <Leaderboard /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/leaderboard/:sessionId"
-          element={token ? <Leaderboard /> : <Navigate to="/login" />}
         />
       </Routes>
     </div>

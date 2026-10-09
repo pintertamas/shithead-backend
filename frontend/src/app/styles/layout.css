@@ -881,8 +881,8 @@ button.playing-card { cursor: pointer; }
 }
 
 @media (max-width: 390px) {
-  .lobby-nav-item { padding-right: 8px; padding-left: 8px; font-size: 11px; }
   .lobby-nav-icon { font-size: 15px; }
+  .lobby-nav-item { padding-right: 8px; padding-left: 8px; font-size: 11px; }
   .lobby-main { padding-right: 10px; padding-left: 10px; }
   .lobby-rankings-heading { flex-direction: column; }
   .lobby-rankings-heading .lobby-rankings-link { align-self: flex-end; }
