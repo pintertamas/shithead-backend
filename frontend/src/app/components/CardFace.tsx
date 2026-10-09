@@ -5,7 +5,8 @@ export function cardRank(value: number) {
 }
 
 export function suitSymbol(suit: string) {
-  return ({ CLUBS: "♣", DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠" } as Record<string, string>)[suit] || suit;
+  // U+FE0E asks for the text (not emoji) presentation of the suit, so iOS and desktop draw the same symbol.
+  return ({ CLUBS: "♣︎", DIAMONDS: "♦︎", HEARTS: "♥︎", SPADES: "♠︎" } as Record<string, string>)[suit] || suit;
 }
 
 export function isRedSuit(suit: string) {

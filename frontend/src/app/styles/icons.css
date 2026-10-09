@@ -1,0 +1,8 @@
+/* Shared icon set (see components/Icon.tsx). Sizes come from the width/height attributes or from the context CSS. */
+.icon {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  overflow: visible;
+  pointer-events: none;
+}

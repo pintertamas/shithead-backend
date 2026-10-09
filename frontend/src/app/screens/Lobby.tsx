@@ -7,6 +7,7 @@ import { fetchProfile } from "../api/profile";
 import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
 import { fetchGlobalLeaderboard, LeaderboardEntry } from "../api/leaderboard";
 import { consumeLoginSound, playFart, unlockAudio } from "../lib/fartSound";
+import Icon from "../components/Icon";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -78,7 +79,7 @@ export default function Lobby() {
     <div className="lobby-content fade-in">
         <ErrorAlert message={status} onDismiss={() => setStatus(null)} />
         <header className="lobby-welcome">
-          <h1>Welcome, {displayName || "Player"} <span aria-hidden="true">👋</span></h1>
+          <h1>Welcome, {displayName || "Player"} <Icon name="sparkle" className="lobby-welcome-icon" /></h1>
           <p>Ready to play? Create a new game or join an existing one.</p>
         </header>
 
@@ -98,9 +99,9 @@ export default function Lobby() {
             <h2>Create Game</h2>
             <p>Start a new game with your saved configuration.</p>
             <button className="button lobby-cta" onClick={handleCreate} disabled={loading !== null}>
-              <span aria-hidden="true">＋</span>{loading === "creating" ? "Creating…" : "Create Game"}
+              <Icon name="plus" size={20} className="lobby-cta-icon" />{loading === "creating" ? "Creating…" : "Create Game"}
             </button>
-            <div className="lobby-info"><span aria-hidden="true">ⓘ</span> New games use your saved configuration.</div>
+            <div className="lobby-info"><Icon name="info" className="lobby-info-icon" /> New games use your saved configuration.</div>
           </article>
 
           <article className="lobby-action-card">
@@ -130,7 +131,7 @@ export default function Lobby() {
                 disabled={loading !== null}
               />
               <button className="button lobby-cta" type="submit" disabled={loading !== null || !joinCode.trim()}>
-                <span aria-hidden="true">↪</span>{loading === "joining" ? "Joining…" : "Join Game"}
+                <Icon name="enter" size={20} className="lobby-cta-icon" />{loading === "joining" ? "Joining…" : "Join Game"}
               </button>
             </form>
           </article>
