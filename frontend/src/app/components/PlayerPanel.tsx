@@ -2,9 +2,12 @@ import { CSSProperties } from "react";
 import { Card, PlayerState } from "../api/game";
 import { CardFaceContent, cardRank } from "./CardFace";
 import PeekWrap from "./PeekWrap";
+import ChatBubble from "./ChatBubble";
 
 type Props = {
   player: PlayerState;
+  /** Latest chat line from this player, shown as a bubble above the seat for a few seconds. */
+  chatBubble?: { text: string; ts: number } | null;
   isCurrentTurn?: boolean;
   canSelectFaceUp?: boolean;
   canSelectFaceDown?: boolean;
@@ -74,7 +77,7 @@ function EnlargedFaceUp({ username, cards }: { username: string; cards: Card[] }
 }
 
 export default function PlayerPanel({ player, isCurrentTurn = false, canSelectFaceUp = false, canSelectFaceDown = false,
-  selectedFaceUp = [], selectedFaceDown = [], selectedHand = [], onToggleFaceUp, onToggleFaceDown, onToggleHand }: Props) {
+  selectedFaceUp = [], selectedFaceDown = [], selectedHand = [], onToggleFaceUp, onToggleFaceDown, onToggleHand, chatBubble }: Props) {
   const ownHand = player.isYou ? player.hand || [] : [];
   const stackCount = Math.max(player.faceUp.length, player.faceDownCount);
   const stacks = (
@@ -100,6 +103,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, canSelectFa
   return (
     <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${isCurrentTurn ? " game-seat-active" : ""}`}
       data-seat-id={player.playerId}>
+      {chatBubble && <ChatBubble key={chatBubble.ts} text={chatBubble.text} />}
       <header className="game-seat-header">
         <div className="game-seat-name" title={player.username}>{player.username}{player.isYou ? <span className="you-tag">You</span> : null}<span className="elo-badge">{Math.round(player.eloScore)}</span></div>
         {isCurrentTurn && <span className="seat-turn">Playing</span>}

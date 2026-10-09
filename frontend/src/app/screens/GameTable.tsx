@@ -27,6 +27,8 @@ export default function GameTable() {
   const [pendingAction, setPendingAction] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [socketOpen, setSocketOpen] = useState(false);
+  // Latest chat line per player id, shown as a speech bubble above that seat.
+  const [latestChatByPlayer, setLatestChatByPlayer] = useState<Record<string, { text: string; ts: number }>>({});
   const [nudgeFrom, showNudge] = useNudgeNotice();
   const wsRef = useRef<WebSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
@@ -181,7 +183,9 @@ export default function GameTable() {
       try {
         const data = JSON.parse(evt.data) as GameStateView;
         if ((data as unknown as { type?: string }).type === "chat") {
-          setChatMessages((prev) => appendChatMessage(prev, data as unknown as ChatMessage));
+          const message = data as unknown as ChatMessage;
+          setChatMessages((prev) => appendChatMessage(prev, message));
+          setLatestChatByPlayer((prev) => ({ ...prev, [message.userId]: { text: message.text, ts: Date.now() } }));
           return;
         }
         if ((data as unknown as { type?: string }).type === "nudge") {
@@ -287,7 +291,8 @@ export default function GameTable() {
         )}
         <div className="game-opponents" aria-label="Other players">
           {others.map((player) => (
-            <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId} />
+            <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
+              chatBubble={latestChatByPlayer[player.playerId]} />
           ))}
         </div>
 
@@ -347,6 +352,7 @@ export default function GameTable() {
 
         <PlayerPanel
           player={you}
+          chatBubble={latestChatByPlayer[you.playerId]}
           isCurrentTurn={yourTurn}
           canSelectFaceUp={canSelectFaceUp || (canMixHandAndFaceUp && !setupStage)}
           canSelectFaceDown={!setupStage && hand.length === 0 && you.faceUp.length === 0}
