@@ -1,0 +1,25 @@
+/* Desktop sidebar only (persistent sidebar layout, > 650px).
+   Keeps the other nav items at the top and pins Log out to the bottom.
+   Mobile top navigation (<= 650px) is unchanged. */
+@media (min-width: 651px) {
+  .lobby-sidebar .lobby-nav {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .lobby-sidebar .lobby-nav-logout {
+    position: relative;
+    margin-top: auto;
+  }
+  .lobby-sidebar .lobby-nav-logout::before {
+    content: "";
+    position: absolute;
+    top: -10px;
+    right: 6px;
+    left: 6px;
+    height: 1px;
+    background: rgba(213, 222, 216, .16);
+    pointer-events: none;
+  }
+}
