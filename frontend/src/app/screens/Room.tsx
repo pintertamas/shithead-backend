@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, startGame, leaveGame, ChatMessage, GameStateView, openGameSocket } from "../api/game";
+import { fetchState, startGame, leaveGame, ChatMessage, GameStateView, NudgeMessage, openGameSocket } from "../api/game";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
 import ChatPanel from "../components/ChatPanel";
+import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
 import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
+import { sendNudge } from "../lib/fartSound";
 
 export default function Room() {
   const { sessionId } = useParams();
@@ -21,6 +23,7 @@ export default function Room() {
   const wsRef = useRef<WebSocket | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [socketOpen, setSocketOpen] = useState(false);
+  const [nudgeFrom, showNudge] = useNudgeNotice();
 
   const showStartingScreen = useCallback(() => {
     setLoading("starting");
@@ -44,6 +47,10 @@ export default function Room() {
           setChatMessages((prev) => appendChatMessage(prev, next as unknown as ChatMessage));
           return;
         }
+        if ((next as unknown as { type?: string }).type === "nudge") {
+          showNudge((next as unknown as NudgeMessage).username);
+          return;
+        }
         if ((next as unknown as { type?: string }).type === "error") return;
         setState(next);
         if (next.started) showStartingScreen();
@@ -54,7 +61,7 @@ export default function Room() {
       ws.close();
       if (wsRef.current === ws) wsRef.current = null;
     };
-  }, [sessionId, token, showStartingScreen]);
+  }, [sessionId, token, showStartingScreen, showNudge]);
 
   const announceStarting = async () => {
     const ws = wsRef.current;
@@ -147,6 +154,7 @@ export default function Room() {
   return (
     <div className="page fade-in">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
+      <NudgeBanner username={nudgeFrom} />
       <div className="topbar">
         <div>
           <div className="badge">Lobby</div>
@@ -181,6 +189,9 @@ export default function Room() {
               <div key={player.playerId} className="player-item">
                 <span>{player.username}</span>
                 {player.isYou && <span className="badge">You</span>}
+                {player.isYou && (
+                  <NudgeButton onNudge={() => (sessionId ? sendNudge(wsRef.current, sessionId) : false)} />
+                )}
               </div>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { saveAuth, loadAuth } from "./useAuth";
+import { requestLoginSound } from "../lib/fartSound";
 import "../styles/login.css";
 
 const domain = import.meta.env.VITE_COGNITO_DOMAIN;
@@ -169,6 +170,7 @@ export default function AuthCallback() {
       }
 
       console.log("[auth] navigating to /lobby");
+      requestLoginSound();
       window.location.replace(import.meta.env.BASE_URL + "lobby");
     };
 

@@ -53,6 +53,14 @@ export type ChatMessage = {
   ts: number;
 };
 
+/** Relayed nudge (the fart sound) to everyone in the game. Only present on the WebSocket and never stored. */
+export type NudgeMessage = {
+  type: "nudge";
+  userId: string;
+  username: string;
+  ts: number;
+};
+
 export type GameStateView = {
   sessionId: string;
   started: boolean;

@@ -6,6 +6,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import { fetchProfile } from "../api/profile";
 import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
 import { fetchGlobalLeaderboard, LeaderboardEntry } from "../api/leaderboard";
+import { consumeLoginSound, playFart, unlockAudio } from "../lib/fartSound";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -25,6 +26,12 @@ export default function Lobby() {
       navigate(location.pathname, { replace: true, state: null });
     }
   }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
+    // Right after a login the browser may block autoplay, so fall back to the first click or key press.
+    if (!consumeLoginSound()) return;
+    void playFart().then((played) => { if (!played) unlockAudio(); });
+  }, []);
 
   useEffect(() => {
     fetchProfile(token).then((profile) => setDisplayName(profile.username)).catch(() => undefined);

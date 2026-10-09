@@ -1,0 +1,77 @@
+/* Nudge button next to the player's name, and the "<name> farted" banner. */
+
+.nudge-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 6px;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: rgba(229, 189, 112, 0.12);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+.nudge-button:hover:not(:disabled) {
+  transform: scale(1.08);
+}
+
+.nudge-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.nudge-button.is-cooling,
+.nudge-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+
+.nudge-live {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  pointer-events: none;
+}
+
+.nudge-banner {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-weight: 700;
+  white-space: nowrap;
+  animation: nudge-banner-in 0.25s ease-out;
+}
+
+@keyframes nudge-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nudge-banner {
+    animation: none;
+  }
+
+  .nudge-button {
+    transition: none;
+  }
+}
