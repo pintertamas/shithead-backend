@@ -32,7 +32,7 @@ public class ApiRoutes {
     private final Map<String, Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent>> webSocketRoutes =
             new HashMap<>();
 
-    public ApiRoutes(GameFunctionConfig game, AccountManagementFunctionConfig account) {
+    public ApiRoutes(GameFunctionConfig game, AccountManagementFunctionConfig account, VoiceFunctionConfig voice) {
         rest("POST", "/join-game", game.joinGame());
         rest("POST", "/leave-game", game.leaveGame());
         rest("POST", "/start-game", game.startGame());
@@ -46,6 +46,7 @@ public class ApiRoutes {
         rest("POST", "/admin/users/{userId}/block", account.accountManagement());
         rest("POST", "/admin/users/{userId}/unblock", account.accountManagement());
         rest("GET", "/games", account.accountManagement());
+        rest("POST", "/games/{sessionId}/voice-token", voice.voiceToken());
 
         websocket("play", game.playCardWS());
         websocket("setup", game.playCardWS());

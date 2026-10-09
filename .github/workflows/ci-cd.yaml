@@ -112,6 +112,9 @@ jobs:
       TF_VAR_google_client_secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       TF_VAR_vpc_id: ${{ vars.VPC_ID }}
       TF_VAR_subnets: ${{ vars.SUBNETS_JSON }}
+      TF_VAR_livekit_url: ${{ vars.LIVEKIT_URL }}
+      TF_VAR_livekit_api_key: ${{ secrets.LIVEKIT_API_KEY }}
+      TF_VAR_livekit_api_secret: ${{ secrets.LIVEKIT_API_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

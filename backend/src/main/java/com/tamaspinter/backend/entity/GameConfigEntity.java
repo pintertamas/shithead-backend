@@ -31,6 +31,7 @@ public class GameConfigEntity {
     private int handCount = 3;
     private boolean allowMixedHandAndFaceUpWhenDeckEmpty;
     private boolean allowFailedFaceUpPlay;
+    private boolean voiceEnabled;
     @Builder.Default
     private Map<String, String> cardRules = new HashMap<>();
     @Builder.Default

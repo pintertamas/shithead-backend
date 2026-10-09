@@ -26,6 +26,10 @@ resource "aws_lambda_function" "game_api" {
       WS_CONNECTIONS_TABLE             = var.aws_dynamodb_table_ws_connection_name
       WS_MANAGEMENT_ENDPOINT           = format("%s/$default", replace(var.websocket_api_endpoint, "wss://", "https://"))
       SPRING_CLOUD_FUNCTION_DEFINITION = "gameApi"
+      # Voice chat (LiveKit). Empty values keep the feature off; see backend VoiceTokenHandler.
+      LIVEKIT_URL                      = var.livekit_url
+      LIVEKIT_API_KEY                  = var.livekit_api_key
+      LIVEKIT_API_SECRET               = var.livekit_api_secret
     }
   }
 }

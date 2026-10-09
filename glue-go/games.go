@@ -39,6 +39,9 @@ func (a *App) createGame(ctx context.Context, raw json.RawMessage) (any, error) 
 	if err != nil {
 		return jsonResponse(400, map[string]string{"error": "Invalid game configuration"})
 	}
+	if config.VoiceEnabled && !isGameAdmin(asMap(req.RequestContext.Authorizer)) {
+		return jsonResponse(403, map[string]string{"message": "Only administrators can enable voice chat."})
+	}
 
 	if err := a.cleanupOldSessions(ctx, userID); err != nil {
 		return nil, err
@@ -77,6 +80,34 @@ func (a *App) createGame(ctx context.Context, raw json.RawMessage) (any, error) 
 		return nil, err
 	}
 	return jsonResponse(200, map[string]string{"sessionId": gameID})
+}
+
+// gameAdminGroup is the Cognito group that may enable voice chat for a game.
+const gameAdminGroup = "game-admin"
+
+// isGameAdmin mirrors AccountManagementFunctionConfig.hasAdminGroup: cognito:groups
+// may be a JSON array or a bracketed string such as "[game-admin other]".
+func isGameAdmin(authorizer map[string]any) bool {
+	claims, ok := authorizer["claims"].(map[string]any)
+	if !ok {
+		return false
+	}
+	switch groups := claims["cognito:groups"].(type) {
+	case []any:
+		for _, group := range groups {
+			if name, _ := group.(string); name == gameAdminGroup {
+				return true
+			}
+		}
+	case string:
+		normalized := strings.NewReplacer("[", "", "]", "").Replace(groups)
+		for _, name := range strings.FieldsFunc(normalized, func(r rune) bool { return r == ',' || r == ' ' }) {
+			if name == gameAdminGroup {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // asMap converts an authorizer context value into a map, or an empty map.

@@ -758,6 +758,8 @@ public class GameFunctionConfig {
                         && entity.getConfig().isAllowMixedHandAndFaceUpWhenDeckEmpty())
                 .allowFailedFaceUpPlay(entity.getConfig() != null
                         && entity.getConfig().isAllowFailedFaceUpPlay())
+                .voiceEnabled(entity.getConfig() != null
+                        && entity.getConfig().isVoiceEnabled())
                 .revealedCard(revealedCard)
                 .discardCount(discard.size())
                 .discardPile(SessionMapper.entitiesToCardList(discard))

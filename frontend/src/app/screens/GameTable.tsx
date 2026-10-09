@@ -53,6 +53,7 @@ function neighbourPlayerId(players: PlayerState[], index: number, step: 1 | -1):
   }
   return null;
 }
+import VoicePanel from "../components/VoicePanel";
 
 export default function GameTable() {
   const { sessionId } = useParams();
@@ -385,6 +386,7 @@ export default function GameTable() {
           </div>
         )}
         <NudgeButton onNudge={sendNudgeToTable} />
+        {state.voiceEnabled === true && <VoicePanel sessionId={state.sessionId} players={state.players} finished={state.finished} />}
       </header>
       <main className="game-board" ref={boardRef}>
         {state.revealedCard && (

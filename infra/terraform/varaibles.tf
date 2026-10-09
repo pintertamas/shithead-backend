@@ -47,6 +47,26 @@ variable "game_container_name" {
     default     = "game-container"
 }
 
+variable "livekit_url" {
+  description = "LiveKit server WebSocket URL for voice chat (empty disables voice chat)"
+  type        = string
+  default     = ""
+}
+
+variable "livekit_api_key" {
+  description = "LiveKit API key for voice chat (empty disables voice chat)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "livekit_api_secret" {
+  description = "LiveKit API secret for voice chat (empty disables voice chat)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "vpc_id" {
     description = "VPC ID where the ECS tasks will run"
     type        = string

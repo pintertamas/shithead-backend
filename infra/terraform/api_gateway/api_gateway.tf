@@ -670,6 +670,8 @@ resource "aws_api_gateway_deployment" "deployment" {
       aws_api_gateway_integration.options_admin_user_block.id,
       aws_api_gateway_integration.options_admin_user_unblock.id,
       aws_api_gateway_integration.options_games.id,
+      aws_api_gateway_integration.post_voice_token.id,
+      aws_api_gateway_integration.options_voice_token.id,
     ]))
   }
 
