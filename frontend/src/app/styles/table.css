@@ -3,52 +3,81 @@
  * blind-flip reveal and the animation overlay. Loaded after layout.css so it can refine it.
  */
 
+/* ---------- Shared card size ----------
+   Every card at the table (own hand, face-up and face-down stacks, opponent fans, draw and discard
+   piles) is sized from these variables. Popovers keep their own enlarged sizes. */
+
+.game-board {
+  --card-w: 52px;
+  --card-h: calc(var(--card-w) * 7 / 5);
+  --card-corner-fs: calc(var(--card-w) * 0.22);
+  --card-center-fs: calc(var(--card-w) * 0.46);
+  --card-overlap: calc(var(--card-w) * -0.46);
+  --card-fan-step: calc(var(--card-w) * 0.22);
+  --card-stack-gap: 6px;
+}
+
+.game-board .playing-card:not(.pile-contents-card):not(.blind-flip-front) {
+  width: var(--card-w);
+  height: var(--card-h);
+  min-width: 0;
+  flex: 0 0 var(--card-w);
+  aspect-ratio: auto;
+}
+
+.game-board .playing-card:not(.pile-contents-card):not(.blind-flip-front) .playing-card-corner,
+.game-board .playing-card:not(.pile-contents-card):not(.blind-flip-front) .playing-card-corner-opposite {
+  font-size: var(--card-corner-fs);
+}
+
+.game-board .playing-card:not(.pile-contents-card):not(.blind-flip-front) .playing-card-center {
+  font-size: var(--card-center-fs);
+}
+
 /* ---------- Piles ---------- */
 
-.game-piles {
-  --pile-card-w: 50px;
-  --pile-card-h: 72px;
+.game-board .game-piles .pile {
+  min-width: calc(var(--card-w) + 36px);
 }
-
-.game-piles .playing-card {
-  width: var(--pile-card-w);
-  height: var(--pile-card-h);
-}
-
-.game-piles .pile-with-transparent { min-width: 94px; }
 
 .pile-peek-wrap {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+}
+
+/* The toggle floats below the pile so it never changes the pile's height (empty or not). */
+.pile-peek-wrap > .peek-toggle {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-top: 4px;
+  transform: translateX(-50%);
 }
 
 .pile-visible-cards {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  width: auto;
-  max-width: none;
-  min-height: calc(var(--pile-card-h) + 4px);
+  width: var(--card-w);
+  min-height: calc(var(--card-h) + 4px);
   margin: 0 auto;
   padding: 2px 0;
   overflow: visible;
 }
 
 .pile-slot {
-  width: var(--pile-card-w);
-  height: var(--pile-card-h);
-  border: 2px dashed rgba(240, 217, 158, 0.28);
+  width: var(--card-w);
+  height: var(--card-h);
+  border: 2px dashed rgba(240, 217, 158, 0.32);
   border-radius: 6px;
 }
 
-.game-piles .pile-top-card { min-width: 0; margin: 0; }
-
 .pile-overlap {
   position: relative;
-  width: var(--pile-card-w);
-  height: calc(var(--pile-card-h) * 1.5);
+  width: var(--card-w);
+  height: calc(var(--card-h) * 1.5);
 }
 
 .pile-overlap .playing-card {
@@ -62,18 +91,19 @@
 
 /* The transparent card covers the lower half of the card beneath it; rank and suit in the top corner stay readable. */
 .pile-overlap .pile-over-card {
-  top: calc(var(--pile-card-h) * 0.5);
+  top: calc(var(--card-h) * 0.5);
   z-index: 2;
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
 }
 
 .pile-overlap .pile-transparent-card { opacity: 0.95; }
 
-/* Draw pile: stacked card backs whose height grows with the remaining count. */
+/* Draw pile: stacked card backs whose height grows with the remaining count. The counter sits on the
+   centre of the top card (the last layer, which is offset by the other layers' steps). */
 .draw-stack {
   position: relative;
-  width: calc(var(--pile-card-w) + (var(--stack-layers, 1) - 1) * 2px);
-  height: calc(var(--pile-card-h) + (var(--stack-layers, 1) - 1) * 2px);
+  width: calc(var(--card-w) + (var(--stack-layers, 1) - 1) * 2px);
+  height: calc(var(--card-h) + (var(--stack-layers, 1) - 1) * 2px);
   margin: 2px auto 0;
 }
 
@@ -81,16 +111,16 @@
   position: absolute;
   top: calc((var(--layers) - 1 - var(--layer)) * 2px);
   left: calc(var(--layer) * 2px);
-  width: var(--pile-card-w);
-  height: var(--pile-card-h);
+  width: var(--card-w);
+  height: var(--card-h);
   margin: 0;
   box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35);
 }
 
 .draw-count {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: calc(var(--card-h) / 2);
+  left: calc((var(--stack-layers, 1) - 1) * 2px + var(--card-w) / 2);
   z-index: 5;
   padding: 3px 9px;
   border: 1px solid rgba(240, 217, 158, 0.6);
@@ -101,6 +131,7 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+  white-space: nowrap;
   transform: translate(-50%, -50%);
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
 }
@@ -235,48 +266,12 @@
   .peek-toggle:focus-visible { opacity: 1; pointer-events: auto; }
 }
 
-/* ---------- Opponent hand fan ---------- */
+/* ---------- Shared count badge (opponent fan and own hand) ---------- */
 
-.seat-fan-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 8px;
-  height: 52px;
-  margin: 0 0 6px;
-}
-
-.seat-fan {
-  --fan-w: 32px;
-  --fan-h: 46px;
-  --fan-step: 9px;
-  --fan-angle: 4.5deg;
-  position: relative;
-  flex: 0 1 150px;
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-}
-
-.seat-fan-card {
-  position: absolute;
-  bottom: 2px;
-  left: 50%;
-  width: var(--fan-w);
-  height: var(--fan-h);
-  margin-left: calc(var(--fan-w) / -2);
-  border: 1.5px solid #e9dfc6;
-  border-radius: 4px;
-  background: repeating-linear-gradient(45deg, #853d37, #853d37 4px, #e8dfcc 4px, #e8dfcc 6px, #315447 6px, #315447 10px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
-  transform-origin: 50% 240%;
-  transform: translateX(calc(var(--fan-i) * var(--fan-step))) rotate(calc(var(--fan-i) * var(--fan-angle)));
-  transition: transform 0.3s ease;
-}
-
-.seat-fan-count {
+.seat-fan-count,
+.hand-count {
   flex: 0 0 auto;
-  min-width: 28px;
+  min-width: 26px;
   padding: 2px 7px;
   border: 1px solid rgba(240, 217, 158, 0.45);
   border-radius: 999px;
@@ -289,7 +284,64 @@
   text-align: center;
 }
 
+/* ---------- Opponent hand fan ---------- */
+
+/* The fan is exactly as wide as its cards, and the badge follows it, so the count stays next to the cards. */
+.game-board .seat-fan-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: calc(var(--card-h) + 8px);
+  margin: 0 0 4px;
+}
+
+.game-board .seat-fan {
+  position: relative;
+  flex: 0 0 auto;
+  width: calc(var(--card-w) + (var(--fan-n, 1) - 1) * var(--card-fan-step));
+  height: var(--card-h);
+}
+
+.game-board .seat-fan-card {
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--fan-i) * var(--card-fan-step));
+  width: var(--card-w);
+  height: var(--card-h);
+  border: 1.5px solid #e9dfc6;
+  border-radius: 5px;
+  background: repeating-linear-gradient(45deg, #853d37, #853d37 4px, #e8dfcc 4px, #e8dfcc 6px, #315447 6px, #315447 10px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  transform-origin: 50% 180%;
+  transform: rotate(var(--fan-r, 0deg));
+  transition: transform 0.3s ease;
+}
+
 /* ---------- Seats and turn changes ---------- */
+
+.game-board .game-opponents {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Seats are only as wide as their content and centred on the board. */
+.game-board .game-seat {
+  width: max-content;
+  max-width: 100%;
+  justify-self: center;
+}
+
+.game-board .game-seat-content {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.game-board .game-seat-own .game-seat-content { gap: 16px; }
 
 .game-seat {
   transition: border-color 0.35s ease, box-shadow 0.35s ease, background-color 0.35s ease;
@@ -297,6 +349,55 @@
 
 .game-seat-active {
   background: rgba(40, 84, 63, 0.55);
+}
+
+/* Card rows: own stacks and hand, and opponents' stacks, all share the same geometry. */
+.game-board .player-card-stacks {
+  justify-content: center;
+  gap: var(--card-stack-gap);
+  min-height: calc(var(--card-h) + 12px);
+}
+
+.game-board .paired-card-stack {
+  flex: 0 0 var(--card-w);
+  width: var(--card-w);
+  height: calc(var(--card-h) + 8px);
+}
+
+.game-board .own-hand-area {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.game-board .hand-label { text-align: center; }
+
+.game-board .hand-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.game-board .playing-hand {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: calc(var(--card-h) + 18px);
+  max-width: 100%;
+}
+
+.game-board .playing-hand .playing-card + .playing-card { margin-left: var(--card-overlap); }
+
+.game-board .empty-hand-hint {
+  align-self: center;
+  padding: 0 6px;
+  white-space: nowrap;
 }
 
 /* ---------- Blind flip reveal ---------- */
@@ -368,25 +469,26 @@
   will-change: transform, opacity;
 }
 
-/* ---------- Mobile ---------- */
+/* ---------- Phones: one smaller card size for the whole table ---------- */
 
 @media (max-width: 700px) {
-  .game-piles {
-    --pile-card-w: 40px;
-    --pile-card-h: 57px;
+  .game-board .game-seat-content {
+    flex-direction: column;
+    align-items: center;
   }
 
-  .game-piles { gap: clamp(14px, 8vw, 40px); }
+  .game-board .game-piles { gap: clamp(14px, 8vw, 40px); }
+}
 
-  .seat-fan-row { height: 42px; gap: 6px; margin-bottom: 4px; }
-  .seat-fan {
-    --fan-w: 24px;
-    --fan-h: 34px;
-    --fan-step: 6px;
-    --fan-angle: 4.5deg;
-    flex-basis: 110px;
+@media (max-width: 600px) {
+  .game-board {
+    --card-w: 40px;
+    --card-stack-gap: 4px;
   }
-  .seat-fan-count { min-width: 24px; font-size: 11px; padding: 1px 6px; }
+
+  .game-board .seat-fan-row { gap: 5px; }
+  .game-board .seat-fan-count,
+  .game-board .hand-count { min-width: 24px; font-size: 11px; padding: 1px 6px; }
   .peek-popover { max-width: min(94vw, 360px); }
   .pile-contents-cards.enlarged .pile-contents-card { width: 58px; height: 81px; }
 }

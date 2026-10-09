@@ -35,16 +35,18 @@ function VisibleCard({ card, index, selected, onToggle }: {
 }
 
 function OpponentFan({ count, name }: { count: number; name: string }) {
+  // With no cards in hand there is no fan and no badge at all.
+  if (count <= 0) return null;
   const drawn = Math.min(count, FAN_LIMIT);
   const middle = (drawn - 1) / 2;
   return (
     <div className="seat-fan-row">
-      <div className="seat-fan" aria-hidden="true">
+      <div className="seat-fan" aria-hidden="true" style={{ "--fan-n": drawn } as CSSProperties}>
         {Array.from({ length: drawn }, (_, index) => (
           <span
             key={index}
             className="seat-fan-card"
-            style={{ "--fan-i": index - middle, zIndex: index + 1 } as CSSProperties}
+            style={{ "--fan-i": index, "--fan-r": `${(index - middle) * 4.5}deg`, zIndex: index + 1 } as CSSProperties}
           />
         ))}
       </div>
@@ -118,13 +120,20 @@ export default function PlayerPanel({ player, isCurrentTurn = false, canSelectFa
         ) : stacks}
         {player.isYou && (
           <div className="own-hand-area">
-            <div className="hand-label">Your hand <span>{ownHand.length}</span></div>
-            <div className="playing-hand" aria-label="Your hand">
-              {ownHand.map((card, index) => (
-                <VisibleCard key={`${card.suit}-${card.value}-${index}`} card={card} index={index}
-                  selected={selectedHand.includes(index)} onToggle={onToggleHand} />
-              ))}
-              {ownHand.length === 0 && <span className="empty-hand-hint">No cards in hand</span>}
+            <div className="hand-label">Your hand</div>
+            <div className="hand-row">
+              <div className="playing-hand" aria-label="Your hand">
+                {ownHand.map((card, index) => (
+                  <VisibleCard key={`${card.suit}-${card.value}-${index}`} card={card} index={index}
+                    selected={selectedHand.includes(index)} onToggle={onToggleHand} />
+                ))}
+                {ownHand.length === 0 && <span className="empty-hand-hint">No cards in hand</span>}
+              </div>
+              {ownHand.length > 0 && (
+                <span className="hand-count" role="img" aria-label={`${ownHand.length} ${ownHand.length === 1 ? "card" : "cards"} in hand`}>
+                  {ownHand.length}
+                </span>
+              )}
             </div>
           </div>
         )}
