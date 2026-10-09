@@ -41,6 +41,8 @@ type eventProbe struct {
 	Type           string `json:"type"`
 	MethodArn      string `json:"methodArn"`
 	HTTPMethod     string `json:"httpMethod"`
+	Source         string `json:"source"`
+	DetailType     string `json:"detail-type"`
 	RequestContext struct {
 		RouteKey  string `json:"routeKey"`
 		EventType string `json:"eventType"`
@@ -52,6 +54,7 @@ type eventProbe struct {
 //   - WebSocket REQUEST authorizer (type REQUEST) -> verify the ID token
 //   - WebSocket route (routeKey / eventType)      -> $connect, $disconnect, $default
 //   - REST proxy event (httpMethod)               -> create-game
+//   - EventBridge schedule (glue function only)   -> abandoned game janitor
 func (a *App) Handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	var probe eventProbe
 	if err := json.Unmarshal(raw, &probe); err != nil {
@@ -62,6 +65,8 @@ func (a *App) Handle(ctx context.Context, raw json.RawMessage) (any, error) {
 		return a.initUser(ctx, raw)
 	case probe.Type == "REQUEST" && probe.MethodArn != "":
 		return a.authorize(ctx, raw)
+	case isScheduledEvent(probe) && a.verifier == nil:
+		return a.runJanitor(ctx)
 	case probe.RequestContext.RouteKey != "" || probe.RequestContext.EventType != "":
 		return a.handleWebSocket(ctx, raw)
 	case probe.HTTPMethod != "":

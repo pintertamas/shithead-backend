@@ -10,6 +10,7 @@ import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,7 +34,12 @@ public class GameSessionRepository {
         return results;
     }
 
+    /**
+     * Writes the game and stamps its last-activity time. Every game write goes through here,
+     * so the glue janitor can tell an idle game from one that was just saved.
+     */
     public void save(GameSessionEntity session) {
+        session.setUpdatedAt(Instant.now().getEpochSecond());
         table.putItem(session);
     }
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -24,6 +26,10 @@ type fakeDynamo struct {
 	indexAttrs map[string]string
 	tables     map[string]map[string]map[string]types.AttributeValue
 	ops        []string
+	// queryErr, when set, is returned by every Query.
+	queryErr error
+	// onQuery runs before a Query is answered (outside the lock), to simulate a concurrent save.
+	onQuery func()
 }
 
 func newFakeDynamo() *fakeDynamo {
@@ -116,11 +122,35 @@ func (f *fakeDynamo) DeleteItem(_ context.Context, in *dynamodb.DeleteItemInput,
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record("DeleteItem:" + *in.TableName)
-	delete(f.table(*in.TableName), f.keyOf(*in.TableName, in.Key))
+	table := f.table(*in.TableName)
+	id := f.keyOf(*in.TableName, in.Key)
+	if in.ConditionExpression != nil {
+		ok := evalCondition(*in.ConditionExpression, table[id], in.ExpressionAttributeNames, in.ExpressionAttributeValues)
+		if !ok {
+			return nil, &types.ConditionalCheckFailedException{Message: strPtr("The conditional request failed")}
+		}
+	}
+	delete(table, id)
 	return &dynamodb.DeleteItemOutput{}, nil
 }
 
+func (f *fakeDynamo) Scan(_ context.Context, in *dynamodb.ScanInput, _ ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var items []map[string]types.AttributeValue
+	for _, item := range f.table(*in.TableName) {
+		items = append(items, copyItem(item))
+	}
+	return &dynamodb.ScanOutput{Items: items}, nil
+}
+
 func (f *fakeDynamo) Query(_ context.Context, in *dynamodb.QueryInput, _ ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	if f.onQuery != nil {
+		f.onQuery()
+	}
+	if f.queryErr != nil {
+		return nil, f.queryErr
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	attr := f.indexAttrs[*in.IndexName]
@@ -189,4 +219,177 @@ func copyItem(item map[string]types.AttributeValue) map[string]types.AttributeVa
 		out[k] = v
 	}
 	return out
+}
+
+// evalCondition judges a ConditionExpression against an item (nil when absent).
+// It understands AND, OR, parentheses, attribute_not_exists(a) and the comparisons
+// = < <= > >= between an attribute (#name) and a value (:value). Anything else
+// panics, so a test never passes on a condition the fake cannot judge.
+func evalCondition(expr string, item map[string]types.AttributeValue, names map[string]string, values map[string]types.AttributeValue) bool {
+	p := &condParser{tokens: tokenizeCondition(expr), item: item, names: names, values: values}
+	result := p.or()
+	if p.pos != len(p.tokens) {
+		panic("unexpected token in condition: " + expr)
+	}
+	return result
+}
+
+type condParser struct {
+	tokens []string
+	pos    int
+	item   map[string]types.AttributeValue
+	names  map[string]string
+	values map[string]types.AttributeValue
+}
+
+func tokenizeCondition(expr string) []string {
+	spaced := strings.NewReplacer(
+		"(", " ( ", ")", " ) ", "<=", " <= ", ">=", " >= ", "=", " = ", "<", " < ", ">", " > ",
+	).Replace(expr)
+	return strings.Fields(spaced)
+}
+
+func (p *condParser) peek() string {
+	if p.pos >= len(p.tokens) {
+		return ""
+	}
+	return p.tokens[p.pos]
+}
+
+func (p *condParser) next() string {
+	tok := p.peek()
+	p.pos++
+	return tok
+}
+
+func (p *condParser) or() bool {
+	result := p.and()
+	for p.peek() == "OR" {
+		p.next()
+		right := p.and()
+		result = result || right
+	}
+	return result
+}
+
+func (p *condParser) and() bool {
+	result := p.primary()
+	for p.peek() == "AND" {
+		p.next()
+		right := p.primary()
+		result = result && right
+	}
+	return result
+}
+
+func (p *condParser) primary() bool {
+	switch p.peek() {
+	case "(":
+		p.next()
+		result := p.or()
+		p.expect(")")
+		return result
+	case "attribute_not_exists":
+		p.next()
+		p.expect("(")
+		name := p.operand()
+		p.expect(")")
+		return name == nil
+	}
+	left := p.operand()
+	op := p.next()
+	right := p.operand()
+	return compareCondition(left, op, right)
+}
+
+func (p *condParser) expect(tok string) {
+	if got := p.next(); got != tok {
+		panic(fmt.Sprintf("condition: expected %q, got %q", tok, got))
+	}
+}
+
+// operand resolves #name to the item's attribute (nil when absent) and :value to its value.
+func (p *condParser) operand() types.AttributeValue {
+	tok := p.next()
+	switch {
+	case strings.HasPrefix(tok, "#"):
+		name, ok := p.names[tok]
+		if !ok {
+			panic("condition: unknown name " + tok)
+		}
+		return p.item[name]
+	case strings.HasPrefix(tok, ":"):
+		value, ok := p.values[tok]
+		if !ok {
+			panic("condition: unknown value " + tok)
+		}
+		return value
+	}
+	panic("condition: unexpected operand " + tok)
+}
+
+func compareCondition(left types.AttributeValue, op string, right types.AttributeValue) bool {
+	if left == nil || right == nil {
+		return false
+	}
+	cmp, ok := compareAttributes(left, right)
+	if !ok {
+		return false
+	}
+	switch op {
+	case "=":
+		return cmp == 0
+	case "<":
+		return cmp < 0
+	case "<=":
+		return cmp <= 0
+	case ">":
+		return cmp > 0
+	case ">=":
+		return cmp >= 0
+	}
+	panic("condition: unsupported operator " + op)
+}
+
+// compareAttributes orders two values of the same type (N, S or BOOL equality).
+func compareAttributes(a, b types.AttributeValue) (int, bool) {
+	switch av := a.(type) {
+	case *types.AttributeValueMemberN:
+		bv, ok := b.(*types.AttributeValueMemberN)
+		if !ok {
+			return 0, false
+		}
+		x, errA := strconv.ParseFloat(av.Value, 64)
+		y, errB := strconv.ParseFloat(bv.Value, 64)
+		if errA != nil || errB != nil {
+			return 0, false
+		}
+		return compareFloats(x, y), true
+	case *types.AttributeValueMemberS:
+		bv, ok := b.(*types.AttributeValueMemberS)
+		if !ok {
+			return 0, false
+		}
+		return strings.Compare(av.Value, bv.Value), true
+	case *types.AttributeValueMemberBOOL:
+		bv, ok := b.(*types.AttributeValueMemberBOOL)
+		if !ok {
+			return 0, false
+		}
+		if av.Value == bv.Value {
+			return 0, true
+		}
+		return 1, true
+	}
+	return 0, false
+}
+
+func compareFloats(x, y float64) int {
+	switch {
+	case x < y:
+		return -1
+	case x > y:
+		return 1
+	}
+	return 0
 }

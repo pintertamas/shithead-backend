@@ -7,6 +7,7 @@ import com.tamaspinter.backend.repository.GameSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -38,8 +39,10 @@ public class GameBrowseService {
     }
 
     public List<OpenGameView> listOpenGames() {
+        long now = Instant.now().getEpochSecond();
         return sessionRepo.findAll().stream()
                 .filter(game -> !game.isFinished())
+                .filter(game -> !isExpired(game, now))
                 .sorted(Comparator.comparing(GameSessionEntity::getCreatedAt,
                         Comparator.nullsLast(Comparator.<String>reverseOrder())))
                 .limit(MAX_RESULTS)
@@ -57,6 +60,15 @@ public class GameBrowseService {
         }
         int bySize = config.getDecksCount() * DECK_CARD_COUNT / cardsPerPlayer;
         return Math.min(MAX_PLAYERS_CAP, bySize);
+    }
+
+    /**
+     * A game whose TTL has passed is gone or about to be: DynamoDB deletes expired items
+     * lazily, sometimes hours late, so it must not be listed as joinable.
+     */
+    static boolean isExpired(GameSessionEntity game, long nowEpochSeconds) {
+        Long ttl = game.getTtl();
+        return ttl != null && ttl <= nowEpochSeconds;
     }
 
     private static OpenGameView toView(GameSessionEntity game) {

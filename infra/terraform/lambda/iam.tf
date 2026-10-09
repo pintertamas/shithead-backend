@@ -80,6 +80,13 @@ resource "aws_iam_role_policy" "lambda_ddb" {
           var.aws_dynamodb_table_ws_connections_arn,
           "${var.aws_dynamodb_table_ws_connections_arn}/index/game_session_id-index"
         ]
+      },
+      {
+        # Abandoned-game janitor (janitor.tf). Its other permissions (DeleteItem on
+        # the games table, Query on the connection index) already exist above.
+        Effect   = "Allow"
+        Action   = ["dynamodb:Scan"]
+        Resource = [var.aws_dynamodb_table_games_arn]
       }
     ]
   })
