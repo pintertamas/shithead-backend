@@ -45,6 +45,7 @@ public class ApiRoutes {
 
         websocket("play", game.playCardWS());
         websocket("setup", game.playCardWS());
+        websocket("chat", game.playCardWS());
         websocket("pickup", game.pickupPileWS());
     }
 

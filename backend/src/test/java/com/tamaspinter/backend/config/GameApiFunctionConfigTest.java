@@ -95,10 +95,11 @@ class GameApiFunctionConfigTest {
     }
 
     @Test
-    void webSocketPlayAndSetupRouteToPlayCardWS() {
+    void webSocketPlaySetupAndChatRouteToPlayCardWS() {
         assertEquals("playCardWS", invoke(wsEvent("play", "{\"action\":\"play\"}")).getBody());
         assertEquals("playCardWS", invoke(wsEvent("setup", "{\"action\":\"setup\"}")).getBody());
-        verify(playCardWS, org.mockito.Mockito.times(2)).apply(any(APIGatewayV2WebSocketEvent.class));
+        assertEquals("playCardWS", invoke(wsEvent("chat", "{\"action\":\"chat\"}")).getBody());
+        verify(playCardWS, org.mockito.Mockito.times(3)).apply(any(APIGatewayV2WebSocketEvent.class));
         verify(pickupPileWS, never()).apply(any(APIGatewayV2WebSocketEvent.class));
     }
 
@@ -145,7 +146,7 @@ class GameApiFunctionConfigTest {
 
         assertTrue(routes.findRest("GET", "/leaderboard/session/XYZ").isPresent());
         assertEquals(false, routes.findRest("GET", "/leaderboard/session").isPresent());
-        assertEquals(false, routes.findWebSocket("chat").isPresent());
+        assertEquals(false, routes.findWebSocket("unknown").isPresent());
     }
 
     private APIGatewayProxyResponseEvent invoke(Map<String, Object> event) {

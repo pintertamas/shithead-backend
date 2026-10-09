@@ -1,5 +1,6 @@
 package com.tamaspinter.backend.model.api;
 
+import com.tamaspinter.backend.game.GameEvent;
 import com.tamaspinter.backend.model.Card;
 import lombok.Builder;
 
@@ -21,6 +22,7 @@ public record GameStateView(
         Card revealedCard,
         int discardCount,
         List<Card> discardPile,
-        List<PlayerStateView> players
+        List<PlayerStateView> players,
+        List<GameEvent> events
 ) {
 }

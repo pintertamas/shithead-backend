@@ -21,6 +21,38 @@ export type PlayerState = {
   ready: boolean;
 };
 
+export type GameEventType =
+  | "PLAYED"
+  | "PLAYED_AGAIN"
+  | "REVERSED"
+  | "BURNED"
+  | "PICKED_UP"
+  | "FAILED_FLIP"
+  | "FAILED_PLAY"
+  | "READY"
+  | "OUT"
+  | "FINISHED";
+
+/** One activity-feed entry. Games created before the feed existed have no `events` list at all. */
+export type GameEvent = {
+  seq: number;
+  type: GameEventType;
+  playerId: string;
+  username: string;
+  cards: Card[];
+  count: number;
+  ts: number;
+};
+
+/** Relayed session chat. Only present on the WebSocket; never stored and never returned by REST. */
+export type ChatMessage = {
+  type: "chat";
+  userId: string;
+  username: string;
+  text: string;
+  ts: number;
+};
+
 export type GameStateView = {
   sessionId: string;
   started: boolean;
@@ -37,6 +69,7 @@ export type GameStateView = {
   allowFailedFaceUpPlay: boolean;
   revealedCard?: Card | null;
   players: PlayerState[];
+  events?: GameEvent[];
 };
 
 export type CreateGameConfig = {

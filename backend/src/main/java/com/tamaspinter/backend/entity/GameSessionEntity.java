@@ -20,6 +20,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @DynamoDbBean
+@SuppressWarnings("PMD.TooManyFields")
 public class GameSessionEntity {
     private String sessionId;
     private List<PlayerEntity> players;
@@ -37,6 +38,7 @@ public class GameSessionEntity {
     @Getter(AccessLevel.NONE)
     private String ownerId;
     private GameConfigEntity config;
+    private List<GameEventEntity> events;
     @Getter(AccessLevel.NONE)
     private String createdAt;
     @Getter(AccessLevel.NONE)

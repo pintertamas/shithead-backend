@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CardSelection, fetchState, GameStateView, openGameSocket } from "../api/game";
+import { CardSelection, ChatMessage, fetchState, GameStateView, openGameSocket } from "../api/game";
+import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { playTableTransitions } from "../lib/tableAnimations";
@@ -9,6 +10,8 @@ import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
 import ShitheadModal from "../components/ShitheadModal";
 import ErrorAlert from "../components/ErrorAlert";
+import GameFeed from "../components/GameFeed";
+import ChatPanel from "../components/ChatPanel";
 
 export default function GameTable() {
   const { sessionId } = useParams();
@@ -20,6 +23,8 @@ export default function GameTable() {
   const [pickupSelected, setPickupSelected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [socketOpen, setSocketOpen] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
   const boardRef = useRef<HTMLElement>(null);
@@ -126,6 +131,10 @@ export default function GameTable() {
     if (sendWs(payload)) setPendingAction(true);
   }, [sessionId, selected, pendingAction, sendWs]);
 
+  const sendChat = useCallback((text: string) => {
+    return sessionId ? sendChatMessage(wsRef.current, sessionId, text) : false;
+  }, [sessionId]);
+
   useEffect(() => {
     if (!sessionId) return;
     fetchState(token, sessionId).then((next) => { applyState(next); setError(null); }).catch((cause: unknown) => {
@@ -156,9 +165,15 @@ export default function GameTable() {
     }
     wsRef.current = ws;
 
+    ws.onopen = () => setSocketOpen(true);
+
     ws.onmessage = (evt) => {
       try {
         const data = JSON.parse(evt.data) as GameStateView;
+        if ((data as unknown as { type?: string }).type === "chat") {
+          setChatMessages((prev) => appendChatMessage(prev, data as unknown as ChatMessage));
+          return;
+        }
         if ((data as unknown as { type?: string }).type === "error") {
           const errorData = data as unknown as { message?: string; status?: number };
           if (errorData.status === 404) {
@@ -185,6 +200,7 @@ export default function GameTable() {
     };
 
     ws.onclose = (event) => {
+      setSocketOpen(false);
       if (wsRef.current === ws && event.code !== 1000) {
         setError("The live game connection closed unexpectedly. Reload the page to reconnect.");
       }
@@ -322,6 +338,11 @@ export default function GameTable() {
         />
         <div className="table-fx" ref={fxLayerRef} aria-hidden="true" />
       </main>
+
+      <div className="game-companion">
+        <GameFeed events={state.events} />
+        <ChatPanel messages={chatMessages} currentUserId={you.playerId} connected={socketOpen} onSend={sendChat} />
+      </div>
 
       {showModal && state.shitheadId && (
         <ShitheadModal

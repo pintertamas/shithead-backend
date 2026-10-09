@@ -23,9 +23,14 @@ import java.util.Set;
 @Getter
 @Setter
 @Builder
-@SuppressWarnings({"PMD.TooManyMethods", "PMD.CyclomaticComplexity"})
+@SuppressWarnings({"PMD.TooManyMethods", "PMD.CyclomaticComplexity", "PMD.GodClass"})
 public class GameSession {
+    /** Activity feed keeps only the most recent entries so the persisted item stays small. */
+    public static final int MAX_EVENTS = 30;
+
     private final String sessionId;
+    @Builder.Default
+    private final List<GameEvent> events = new ArrayList<>();
     @Builder.Default
     private final List<Player> players = new ArrayList<>();
     @Builder.Default
@@ -114,12 +119,30 @@ public class GameSession {
             return false;
         }
         player.setReady(true);
+        recordEvent(GameEventType.READY, player, List.of(), 0);
         setupComplete = players.stream().allMatch(Player::isReady);
         return true;
     }
 
     private Player findPlayer(String playerId) {
         return players.stream().filter(player -> player.getPlayerId().equals(playerId)).findFirst().orElse(null);
+    }
+
+    /** Appends a feed entry, dropping the oldest once the cap is reached. Sequence numbers only ever grow. */
+    private void recordEvent(GameEventType type, Player player, List<Card> cards, int count) {
+        long seq = events.isEmpty() ? 1L : events.get(events.size() - 1).seq() + 1;
+        events.add(new GameEvent(seq, type, player.getPlayerId(), player.getUsername(),
+                List.copyOf(cards), count, System.currentTimeMillis()));
+        while (events.size() > MAX_EVENTS) {
+            events.remove(0);
+        }
+    }
+
+    /** Places the played cards on the pile, logs the play, then applies burn and out checks. */
+    private void commitPlay(Player player, List<Card> played) {
+        played.forEach(discardPile::addLast);
+        recordEvent(GameEventType.PLAYED, player, played, played.size());
+        postPlayCleanup(player);
     }
 
     private boolean notAllCardsAreTheSameValue(List<Card> cards) {
@@ -258,8 +281,7 @@ public class GameSession {
             return PlayResult.INVALID;
         }
         removeMixedSelections(player, selections, selectedCards);
-        selectedCards.forEach(discardPile::addLast);
-        postPlayCleanup(player);
+        commitPlay(player, selectedCards);
         return PlayResult.SUCCESS;
     }
 
@@ -282,14 +304,33 @@ public class GameSession {
     }
 
     private void finishSuccessfulPlay(Card card, Player player) {
-        boolean burnedByCount = lastPlayBurned;
-        lastPlayBurned = false;
-        RuleEngine.playAfterEffect(card, discardPile, player, players);
-        boolean burnedByRule = card.getRule() == CardRule.BURNER;
-        if ((!burnedByCount && !burnedByRule && !config.canPlayAgain(card.getValue())) || player.isOut()) {
+        boolean playsAgain = grantsAnotherTurn(card, player);
+        applyAfterEffect(card, player);
+        if (playsAgain) {
+            recordEvent(GameEventType.PLAYED_AGAIN, player, List.of(), 0);
+        } else {
             nextPlayer();
         }
         checkGameEnd();
+    }
+
+    /** Also consumes the pile-burn flag set by postPlayCleanup, so it must run exactly once per successful play. */
+    private boolean grantsAnotherTurn(Card card, Player player) {
+        boolean burnedByCount = lastPlayBurned;
+        lastPlayBurned = false;
+        boolean burnedByRule = card.getRule() == CardRule.BURNER;
+        return (burnedByCount || burnedByRule || config.canPlayAgain(card.getValue())) && !player.isOut();
+    }
+
+    private void applyAfterEffect(Card card, Player player) {
+        int pileBeforeRule = discardPile.size();
+        RuleEngine.playAfterEffect(card, discardPile, player, players);
+        if (card.getRule() == CardRule.BURNER && pileBeforeRule > 0) {
+            recordEvent(GameEventType.BURNED, player, List.of(), pileBeforeRule);
+        }
+        if (card.getRule() == CardRule.REVERSE) {
+            recordEvent(GameEventType.REVERSED, player, List.of(), 0);
+        }
     }
 
     private PlayResult resolvePlayResult(Player player, List<Card> cards) {
@@ -309,8 +350,18 @@ public class GameSession {
         if (finished || !setupComplete || discardPile.isEmpty()) {
             return PlayResult.INVALID;
         }
-        Player player = players.get(currentIndex);
+        return pickUpPile(players.get(currentIndex), List.of(), GameEventType.PICKED_UP);
+    }
+
+    /**
+     * Moves the pile and any failed cards into the player's hand, logs the pickup, and passes the turn.
+     * The failed cards are the ones revealed by a blind flip or an illegal face-up play.
+     */
+    private PlayResult pickUpPile(Player player, List<Card> failedCards, GameEventType type) {
+        int count = discardPile.size() + failedCards.size();
+        failedCards.forEach(player.getHand()::addLast);
         discardPile.forEach(player.getHand()::addLast);
+        recordEvent(type, player, failedCards, count);
         discardPile.clear();
         player.sortHand();
         nextPlayer();
@@ -330,9 +381,8 @@ public class GameSession {
         if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
             return PlayResult.INVALID;
         }
-        matched.forEach(discardPile::addLast);
         matched.forEach(player.getHand()::remove);
-        postPlayCleanup(player);
+        commitPlay(player, matched);
         return PlayResult.SUCCESS;
     }
 
@@ -351,9 +401,8 @@ public class GameSession {
                     ? pickUpAfterFailedFaceUpPlay(player, matched)
                     : PlayResult.INVALID;
         }
-        matched.forEach(discardPile::addLast);
         matched.forEach(player.getFaceUp()::remove);
-        postPlayCleanup(player);
+        commitPlay(player, matched);
         return PlayResult.SUCCESS;
     }
 
@@ -363,12 +412,7 @@ public class GameSession {
      */
     private PlayResult pickUpAfterFailedFaceUpPlay(Player player, List<Card> matched) {
         matched.forEach(player.getFaceUp()::remove);
-        matched.forEach(player.getHand()::addLast);
-        discardPile.forEach(player.getHand()::addLast);
-        discardPile.clear();
-        player.sortHand();
-        nextPlayer();
-        return PlayResult.PICKUP;
+        return pickUpPile(player, matched, GameEventType.FAILED_PLAY);
     }
 
     private PlayResult playFromFaceDown(List<Card> cards) {
@@ -383,21 +427,16 @@ public class GameSession {
         List<Card> matched = matchedCards.get();
         matched.forEach(player.getFaceDown()::remove);
         if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
-            matched.forEach(player.getHand()::addLast);
-            discardPile.forEach(player.getHand()::addLast);
-            discardPile.clear();
-            player.sortHand();
-            nextPlayer();
-            return PlayResult.PICKUP;
+            return pickUpPile(player, matched, GameEventType.FAILED_FLIP);
         }
-        matched.forEach(discardPile::addLast);
-        postPlayCleanup(player);
+        commitPlay(player, matched);
         return PlayResult.SUCCESS;
     }
 
     private void postPlayCleanup(Player player) {
         lastPlayBurned = RuleEngine.shouldBurn(discardPile, config.getBurnCount());
         if (lastPlayBurned) {
+            recordEvent(GameEventType.BURNED, player, List.of(), discardPile.size());
             discardPile.clear();
         }
         while (player.getHand().size() < config.getHandCount()) {
@@ -410,6 +449,7 @@ public class GameSession {
         player.sortHand();
         if (player.getHand().isEmpty() && player.getFaceUp().isEmpty() && player.getFaceDown().isEmpty()) {
             player.setOut(true);
+            recordEvent(GameEventType.OUT, player, List.of(), 0);
         }
     }
 
@@ -423,6 +463,7 @@ public class GameSession {
             if (remainingPlayer.isPresent()) {
                 Player remaining = remainingPlayer.get();
                 shitheadId = remaining.getPlayerId();
+                recordEvent(GameEventType.FINISHED, remaining, List.of(), 0);
             }
         }
     }
