@@ -297,6 +297,133 @@ class GameSessionTest {
         assertEquals(PlayResult.INVALID, result);
     }
 
+    /** Default config rules with the failed-face-up-play option set as requested. */
+    private GameConfig configWithFailedFaceUpPlay(boolean allowed) {
+        GameConfig defaults = GameConfig.defaultGameConfig();
+        return GameConfig.builder()
+                .faceDownCount(3)
+                .faceUpCount(3)
+                .handCount(3)
+                .burnCount(4)
+                .allowFailedFaceUpPlay(allowed)
+                .cardRuleMap(defaults.getCardRuleMap())
+                .alwaysPlayableMap(defaults.getAlwaysPlayableMap())
+                .canPlayAgainMap(defaults.getCanPlayAgainMap())
+                .build();
+    }
+
+    @Test
+    void failedFaceUpPlay_optionOn_picksUpPileAndPlayedCard() {
+        // Given
+        prepareStartedGame();
+        session.setConfig(configWithFailedFaceUpPlay(true));
+        Player p1 = session.getPlayers().get(0);
+        Card illegal = card(3);
+        p1.getFaceUp().add(illegal);
+        p1.getFaceDown().add(card(5)); // keep p1 from going out
+        Card pileCard = card(9);
+        session.getDiscardPile().add(pileCard);
+
+        // When
+        PlayResult result = session.playCards(List.of(illegal));
+
+        // Then
+        assertEquals(PlayResult.PICKUP, result);
+        assertTrue(p1.getHand().contains(illegal));
+        assertTrue(p1.getHand().contains(pileCard));
+        assertTrue(p1.getFaceUp().isEmpty());
+        assertTrue(session.getDiscardPile().isEmpty());
+        assertEquals(1, session.getCurrentIndex());
+    }
+
+    @Test
+    void failedFaceUpPlay_optionOn_viaPlaySelections_picksUpPile() {
+        // Given
+        prepareStartedGame();
+        session.setConfig(configWithFailedFaceUpPlay(true));
+        Player p1 = session.getPlayers().get(0);
+        Card illegal = card(3);
+        p1.getFaceUp().add(illegal);
+        p1.getFaceDown().add(card(5));
+        session.getDiscardPile().add(card(9));
+
+        // When
+        PlayResult result = session.playSelections(List.of(new CardSelection(CardSource.FACE_UP, 0)));
+
+        // Then
+        assertEquals(PlayResult.PICKUP, result);
+        assertEquals(2, p1.getHand().size());
+        assertEquals(1, session.getCurrentIndex());
+    }
+
+    @Test
+    void failedFaceUpPlay_optionOn_multipleMismatchedCards_picksUp() {
+        // Given
+        prepareStartedGame();
+        session.setConfig(configWithFailedFaceUpPlay(true));
+        Player p1 = session.getPlayers().get(0);
+        Card low = card(3);
+        Card high = card(4);
+        p1.getFaceUp().add(low);
+        p1.getFaceUp().add(high);
+        p1.getFaceDown().add(card(5));
+        session.getDiscardPile().add(card(9));
+
+        // When
+        PlayResult result = session.playCards(List.of(low, high));
+
+        // Then
+        assertEquals(PlayResult.PICKUP, result);
+        assertEquals(3, p1.getHand().size());
+        assertTrue(p1.getFaceUp().isEmpty());
+    }
+
+    @Test
+    void failedFaceUpPlay_optionOff_returnsInvalidAndLeavesStateUntouched() {
+        // Given
+        prepareStartedGame();
+        session.setConfig(configWithFailedFaceUpPlay(false));
+        Player p1 = session.getPlayers().get(0);
+        Card illegal = card(3);
+        p1.getFaceUp().add(illegal);
+        p1.getFaceDown().add(card(5));
+        Card pileCard = card(9);
+        session.getDiscardPile().add(pileCard);
+
+        // When
+        PlayResult result = session.playCards(List.of(illegal));
+
+        // Then
+        assertEquals(PlayResult.INVALID, result);
+        assertEquals(1, p1.getFaceUp().size());
+        assertTrue(p1.getFaceUp().contains(illegal));
+        assertTrue(p1.getHand().isEmpty());
+        assertEquals(1, session.getDiscardPile().size());
+        assertEquals(0, session.getCurrentIndex());
+    }
+
+    @Test
+    void legalFaceUpPlay_optionOn_stillSucceeds() {
+        // Given
+        prepareStartedGame();
+        session.setConfig(configWithFailedFaceUpPlay(true));
+        Player p1 = session.getPlayers().get(0);
+        Card legal = card(7);
+        p1.getFaceUp().add(legal);
+        p1.getFaceDown().add(card(5));
+        session.getDiscardPile().add(card(5));
+
+        // When
+        PlayResult result = session.playCards(List.of(legal));
+
+        // Then
+        assertEquals(PlayResult.SUCCESS, result);
+        assertTrue(p1.getFaceUp().isEmpty());
+        assertTrue(p1.getHand().isEmpty());
+        assertTrue(session.getDiscardPile().contains(legal));
+        assertEquals(0, p1.getHand().size());
+    }
+
     // =========================================================================
     // playFromFaceDown
     // =========================================================================

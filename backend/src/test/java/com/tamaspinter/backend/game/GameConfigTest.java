@@ -1,5 +1,6 @@
 package com.tamaspinter.backend.game;
 
+import com.tamaspinter.backend.entity.GameConfigEntity;
 import com.tamaspinter.backend.model.CardRule;
 import org.junit.jupiter.api.Test;
 
@@ -67,6 +68,38 @@ class GameConfigTest {
     @Test
     void testCanPlayAgain_trueForBurner() {
         assertTrue(config.canPlayAgain(10));
+    }
+
+    // =========================================================================
+    // allowFailedFaceUpPlay persistence
+    // =========================================================================
+
+    @Test
+    void testAllowFailedFaceUpPlay_defaultsToFalse() {
+        assertFalse(config.isAllowFailedFaceUpPlay());
+        assertFalse(GameConfig.builder().faceDownCount(3).faceUpCount(3).handCount(3).burnCount(4).build()
+                .isAllowFailedFaceUpPlay());
+    }
+
+    @Test
+    void testAllowFailedFaceUpPlay_roundTripsThroughEntity() {
+        GameConfig enabled = GameConfig.builder()
+                .faceDownCount(3).faceUpCount(3).handCount(3).burnCount(4)
+                .allowFailedFaceUpPlay(true)
+                .build();
+
+        GameConfig restored = GameConfig.fromEntity(enabled.toEntity());
+
+        assertTrue(restored.isAllowFailedFaceUpPlay());
+        assertTrue(enabled.toEntity().isAllowFailedFaceUpPlay());
+    }
+
+    @Test
+    void testAllowFailedFaceUpPlay_missingAttributeInOldItemDefaultsToFalse() {
+        // An item written before the option existed has no attribute, so the entity keeps its default
+        GameConfigEntity legacy = new GameConfigEntity();
+
+        assertFalse(GameConfig.fromEntity(legacy).isAllowFailedFaceUpPlay());
     }
 
     @Test
