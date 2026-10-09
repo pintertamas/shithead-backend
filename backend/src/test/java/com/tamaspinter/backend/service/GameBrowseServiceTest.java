@@ -6,6 +6,7 @@ import com.tamaspinter.backend.entity.PlayerEntity;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -66,6 +67,24 @@ class GameBrowseServiceTest {
 
         // When / Then
         assertEquals(50, service.listOpenGames().size());
+    }
+
+    @Test
+    void listOpenGames_skipsGamesWhoseTtlHasPassed() {
+        // Given: an expired game (DynamoDB TTL deletion lags), a live one, and one without a ttl
+        long now = Instant.now().getEpochSecond();
+        GameSessionEntity expired = game("g-expired", "2026-10-08T10:00:00Z", true, false, 2);
+        expired.setTtl(now - 60);
+        GameSessionEntity live = game("g-live", "2026-10-07T10:00:00Z", false, false, 1);
+        live.setTtl(now + 3600);
+        GameSessionEntity noTtl = game("g-no-ttl", "2026-10-06T10:00:00Z", false, false, 1);
+        when(sessionRepo.findAll()).thenReturn(List.of(expired, live, noTtl));
+
+        // When
+        List<String> ids = service.listOpenGames().stream().map(GameBrowseService.OpenGameView::sessionId).toList();
+
+        // Then
+        assertEquals(List.of("g-live", "g-no-ttl"), ids);
     }
 
     @Test

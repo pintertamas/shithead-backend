@@ -74,6 +74,7 @@ func (a *App) createGame(ctx context.Context, raw json.RawMessage) (any, error) 
 		"shitheadId":      nil,
 		"config":          config,
 		"created_at":      a.now().UTC().Format(pythonISOFormat),
+		"updated_at":      a.now().Unix(),
 		"ttl":             a.now().Unix() + sessionTTLSeconds,
 	}
 	if err := a.putItem(ctx, a.settings.GameSessionsTable, item); err != nil {

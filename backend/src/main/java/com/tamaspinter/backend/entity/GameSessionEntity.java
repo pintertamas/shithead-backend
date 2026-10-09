@@ -46,6 +46,8 @@ public class GameSessionEntity {
     private String createdAt;
     @Getter(AccessLevel.NONE)
     private Long ttl;
+    @Getter(AccessLevel.NONE)
+    private Long updatedAt;
 
     @DynamoDbAttribute("user_id")
     @DynamoDbSecondaryPartitionKey(indexNames = "user_id-index")
@@ -67,5 +69,11 @@ public class GameSessionEntity {
     @DynamoDbAttribute("ttl")
     public Long getTtl() {
         return ttl;
+    }
+
+    /** Epoch seconds of the last save, stamped by GameSessionRepository.save. Missing on games saved before the janitor. */
+    @DynamoDbAttribute("updated_at")
+    public Long getUpdatedAt() {
+        return updatedAt;
     }
 }
