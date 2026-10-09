@@ -13,6 +13,7 @@ import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.game.CardSource;
+import com.tamaspinter.backend.game.ChatMessageValidator;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.model.api.GameStateView;
 import com.tamaspinter.backend.model.api.LeaderboardEntry;
@@ -274,6 +275,9 @@ public class GameFunctionConfig {
                     .noneMatch(player -> userId.equals(player.getPlayerId()))) {
                 return websocketError(ev, 403, "Join this game before sending actions.");
             }
+            if ("chat".equals(msg.action())) {
+                return handleChatAction(ev, msg, entity, userId);
+            }
             if ("setup".equals(msg.action())) {
                 return handleSetupAction(ev, msg, entity, userId);
             }
@@ -303,6 +307,35 @@ public class GameFunctionConfig {
 
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
         };
+    }
+
+    /**
+     * Relays a session chat message to every connection of the game. Nothing is stored or logged. Rate limiting
+     * is left to API Gateway's route throttling (see the stage settings in infra/terraform/api_gateway).
+     */
+    private APIGatewayProxyResponseEvent handleChatAction(
+            APIGatewayV2WebSocketEvent event, PlayMessage message, GameSessionEntity entity, String userId) {
+        ChatMessageValidator.Result checked = ChatMessageValidator.validate(message.text());
+        if (checked.status() == ChatMessageValidator.Status.EMPTY) {
+            return new APIGatewayProxyResponseEvent().withStatusCode(200);
+        }
+        if (checked.status() == ChatMessageValidator.Status.TOO_LONG) {
+            return websocketError(event, 400,
+                    "Chat messages are limited to " + ChatMessageValidator.MAX_LENGTH + " characters.");
+        }
+        String username = entity.getPlayers().stream()
+                .filter(player -> userId.equals(player.getPlayerId()))
+                .map(PlayerEntity::getUsername)
+                .findFirst()
+                .orElse("Unknown");
+        Map<String, Object> chat = Map.of(
+                "type", "chat",
+                "userId", userId,
+                "username", username,
+                "text", checked.text(),
+                "ts", System.currentTimeMillis());
+        postToGameConnections(message.sessionId(), websocketEndpoint(event), recipient -> chat);
+        return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
 
     private APIGatewayProxyResponseEvent handleSetupAction(
@@ -528,6 +561,16 @@ public class GameFunctionConfig {
     }
 
     private void broadcastState(String gameSessionId, GameSessionEntity state, String endpoint, Card revealedCard) {
+        Map<String, Double> ratings = loadRatings(state);
+        postToGameConnections(gameSessionId, endpoint,
+                userId -> buildGameStateView(state, userId, ratings, revealedCard));
+    }
+
+    /**
+     * Posts one payload to every connection registered for the game. The payload may differ per connection,
+     * keyed by the connection's user ID. Connections API Gateway reports as gone are removed.
+     */
+    private void postToGameConnections(String gameSessionId, String endpoint, Function<String, Object> payloadForUser) {
         if (wsConnectionsTable == null) {
             log.warn("WS_CONNECTIONS_TABLE not set, skipping broadcast");
             return;
@@ -540,7 +583,6 @@ public class GameFunctionConfig {
                 .expressionAttributeValues(Map.of(":gid", AttributeValue.fromS(gameSessionId)))
                 .build());
 
-        Map<String, Double> ratings = loadRatings(state);
         try (ApiGatewayManagementApiClient apigwClient = ApiGatewayManagementApiClient.builder()
                 .endpointOverride(URI.create(endpoint))
                 .build()) {
@@ -548,13 +590,12 @@ public class GameFunctionConfig {
                 String connectionId = item.get("connection_id").s();
                 String userId = item.containsKey("user_id") ? item.get("user_id").s() : null;
                 try {
-                    GameStateView view = buildGameStateView(state, userId, ratings, revealedCard);
                     apigwClient.postToConnection(PostToConnectionRequest.builder()
                             .connectionId(connectionId)
-                            .data(SdkBytes.fromByteArray(mapper.writeValueAsBytes(view)))
+                            .data(SdkBytes.fromByteArray(mapper.writeValueAsBytes(payloadForUser.apply(userId))))
                             .build());
                 } catch (JsonProcessingException e) {
-                    log.error("Failed to serialize game state for broadcast", e);
+                    log.error("Failed to serialize WebSocket payload for broadcast", e);
                 } catch (GoneException e) {
                     log.info("Removing stale connection: {}", connectionId);
                     dynamoClient.deleteItem(DeleteItemRequest.builder()
@@ -667,6 +708,7 @@ public class GameFunctionConfig {
                 .discardCount(discard.size())
                 .discardPile(SessionMapper.entitiesToCardList(discard))
                 .players(playerViews)
+                .events(SessionMapper.entitiesToEvents(entity.getEvents()))
                 .build();
     }
 }

@@ -68,6 +68,14 @@ resource "aws_apigatewayv2_route" "setup" {
   target    = "integrations/${aws_apigatewayv2_integration.play_card.id}"
 }
 
+# Session chat is relayed by the play_card Lambda (no extra function). Messages are not stored. Rate limiting
+# relies on the stage's default route throttling below (burst 100, rate 50 requests/second).
+resource "aws_apigatewayv2_route" "chat" {
+  api_id    = aws_apigatewayv2_api.game_ws.id
+  route_key = "chat"
+  target    = "integrations/${aws_apigatewayv2_integration.play_card.id}"
+}
+
 resource "aws_apigatewayv2_integration" "pickup_pile" {
   api_id                 = aws_apigatewayv2_api.game_ws.id
   integration_type       = "AWS_PROXY"

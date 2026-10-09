@@ -36,7 +36,7 @@ A serverless Java backend for the card game *Shithead*. Players join sessions; t
 |---|---|
 | Language | Java 17 |
 | Framework | Spring Boot 3.4.5 + Spring Cloud Function 4.1.2 |
-| Compute | AWS Lambda (via `spring-cloud-function-adapter-aws`) |
+| Compute | AWS Lambda: one Java game API function (`spring-cloud-function-adapter-aws`, `gameApi`) plus one Go glue binary (`glue-go/`, `provided.al2023`, arm64) |
 | API | AWS API Gateway — REST (lobby) + WebSocket (gameplay) |
 | Persistence | AWS DynamoDB (Enhanced Client 2.x) |
 | Auth | AWS Cognito / OAuth2 JWT (`spring-boot-starter-oauth2-resource-server`) |
@@ -65,6 +65,7 @@ shithead-backend/
 │   │   └── service/         # Stateless services (EloService)
 │   └── src/test/java/com/tamaspinter/backend/
 │       └── <mirrors source package structure exactly>
+├── glue-go/                 # Go glue Lambda (create-game, WS connect/disconnect/default, authorizer, init-user)
 ├── infra/                   # Terraform
 ├── frontend/
 │   └── src/app/
@@ -84,7 +85,7 @@ shithead-backend/
 | `model.websocket` | Immutable message Records: `PlayMessage`, `PickupMessage`, `GameEnded` |
 | `entity` | DynamoDB-annotated POJOs |
 | `mapper` | `SessionMapper` — domain ↔ entity conversion |
-| `config` | `GameFunctionConfig` — game, profile, and admin Lambda `@Bean` definitions |
+| `config` | `GameApiFunctionConfig` (the `gameApi` dispatcher bean), `ApiRoutes` (the route table), `GameFunctionConfig` and `AccountManagementFunctionConfig` (the handler `@Bean`s the table points at) |
 | `repository` | `GameSessionRepository`, `UserProfileRepository` |
 | `service` | `EloService` — pure stateless computations |
 | `exception` | Custom exception hierarchy |
@@ -108,6 +109,14 @@ cd infra && terraform apply
 
 # Deploy Lambda code
 ./deploy.sh
+
+# Glue Lambda (Go): vet and test, then build the arm64 zip that Terraform deploys
+cd glue-go && go vet ./... && go test ./...
+cd glue-go && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o build/bootstrap . \
+  && cd build && zip -q glue.zip bootstrap
+
+# Terraform validation (no AWS calls; needs the two build artifacts above)
+cd infra/terraform && terraform init -backend=false && terraform validate
 ```
 
 ### Static Analysis (`-P codeQuality`)
@@ -136,12 +145,16 @@ All three fail the build on violations. To suppress a specific violation inline:
 
 ```
 Client
-  ├── REST (HTTP)  → API Gateway → Lambda (@Bean Function<Req, Res>)
+  ├── REST (HTTP)  → API Gateway → game-api Lambda (gameApi dispatcher)
+  │                                  ├── join/leave/start-game, state, leaderboard
   │                                  ├── Profile API (/profile)
   │                                  ├── Admin cleanup (/admin/doomsday; Cognito game-admin only)
   │                                  ├── Admin users (GET /admin/users, POST /admin/users/{id}/block|unblock; game-admin only)
   │                                  └── Lobby browser (GET /games; any signed-in user)
-  └── WebSocket    → API Gateway → Lambda (@Bean Function<WSEvent, Res>)
+  │                → API Gateway → glue Lambda (create-game, Go)
+  └── WebSocket    → API Gateway → authorizer Lambda (Go, $connect only)
+                   → API Gateway → glue Lambda ($connect, $disconnect, $default; Go)
+                   → API Gateway → game-api Lambda (play, setup, pickup)
                                          ↓
                                    GameSession (state machine)
                                          ↓
@@ -150,7 +163,47 @@ Client
                                    broadcastState() → WebSocket clients
 ```
 
-User nicknames are stored in the users DynamoDB table. `UserProfileService` creates profiles and reserves unique default nicknames; `UsernameReservationRepository` normalizes nickname comparisons case-insensitively, checks legacy profile rows, and transactionally reserves a nickname with a hidden same-table claim record. The account-management Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. Starting a game is a two-phase flow: the owner persists `starting=true`, then sends a `setup` WebSocket action to broadcast that state immediately (one-second lobby polling remains a fallback), and finalizes the deal after a short transition. Once dealt, the game enters a persisted card-swap/readiness phase; play is blocked until every player is ready.
+### Lambda Layout
+
+| Function | Runtime | Built from | Serves |
+|---|---|---|---|
+| `${project}-game-api` | java17, 1024 MB, SnapStart, alias `LIVE` | `backend/` fat JAR, `SPRING_CLOUD_FUNCTION_DEFINITION=gameApi` | Every game/profile/admin REST route and the `play`, `setup`, `pickup` WebSocket routes |
+| `${project}-glue` | provided.al2023, arm64 | `glue-go/` (`bootstrap` in `glue-go/build/glue.zip`) | REST `create-game`, WS `$connect`, `$disconnect`, `$default`, Cognito post-confirmation/post-authentication (init user) |
+| `${project}-authorizer` | provided.al2023, arm64 | same zip as glue | WebSocket REQUEST authorizer (Cognito ID token, denies `blocked` users) |
+
+The glue zip is deployed twice on purpose: the Cognito user pool references the init-user trigger, and the authorizer needs the pool id, so a single function would create a Terraform dependency cycle. The glue function gets no pool id.
+
+### One Game API Lambda (`gameApi`)
+
+`config/GameApiFunctionConfig` receives the raw event as `Map<String,Object>` and decides by shape:
+
+- WebSocket event (`requestContext.routeKey` or `eventType` present): the route key, or the body `action` when the route key is missing, selects the handler.
+- REST proxy event (`httpMethod` present): `resource`/`path` plus the method select the handler. Path parameters from API Gateway are kept; for events without them they are read from the template.
+- Anything else, and any route not in the table, returns `404` JSON with CORS headers.
+
+The event is converted with `ObjectMapper` to `APIGatewayProxyRequestEvent` or `APIGatewayV2WebSocketEvent` and passed to the existing handler `Function` beans. Handler logic is not duplicated in the dispatcher.
+
+### Adding a Route to the Game API
+
+1. Open `backend/src/main/java/com/tamaspinter/backend/config/ApiRoutes.java`.
+2. Add one line to the constructor:
+   - REST: `rest("GET", "/games/{gameId}", game.someHandler());` (the handler is a `Function` bean on a `*FunctionConfig`).
+   - WebSocket: `websocket("chat", game.playCardWS());` (the route key is the `action` the client sends; `chat` is routed inside `playCardWS` by action).
+3. Add a test case to `GameApiFunctionConfigTest` if the route has its own behaviour.
+4. Terraform needs no change for routes that stay within the existing REST resources. A new REST resource or WebSocket route also needs its API Gateway resource, method, integration and `aws_lambda_permission` in `infra/terraform/api_gateway/`, pointed at `game_api_alias_arn` / `game_api_function_name` from `infra/terraform/main.tf`.
+
+### Glue Lambda (Go, `glue-go/`)
+
+One binary, dispatched by event shape in `dispatch.go`:
+
+- Cognito trigger (`triggerSource`): `init-user` seeds `username`, `leaderboard_pk`, `elo_score` and `created_at` with `if_not_exists`, so a user-edited name survives later logins. The event is returned unchanged.
+- WebSocket REQUEST authorizer (`type` = `REQUEST`, `methodArn`): verifies the RS256 Cognito ID token from `?token=` or a bearer header (issuer, audience = app client id, `token_use` = `id`, expiry). The JWKS is cached and refetched when a `kid` is unknown, with a one-minute cooldown. A user whose users-table item has `blocked` = true gets a `Deny` policy.
+- REST `create-game`: requires the Cognito `sub`; validates `config` strictly (`decksCount` 1 or 2, `burnCount` derived, face/hand counts integers 0..10, `cardRules` values from `DEFAULT|JOKER|SMALLER|TRANSPARENT|REVERSE|BURNER`, boolean options must be booleans, unknown keys ignored). Invalid config returns 400 and writes nothing. It also hands over or deletes the caller's unstarted lobbies first.
+- WebSocket `$connect` / `$disconnect` record and remove connections. `$default` is a deliberate no-op returning 200, so clients cannot broadcast to other players.
+
+Tests use an in-memory fake of the DynamoDB interface (`fake_dynamo_test.go`) and an httptest JWKS server with a generated RSA key (`auth_test.go`).
+
+User nicknames are stored in the users DynamoDB table. `UserProfileService` creates profiles and reserves unique default nicknames; `UsernameReservationRepository` normalizes nickname comparisons case-insensitively, checks legacy profile rows, and transactionally reserves a nickname with a hidden same-table claim record. The game API Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. Starting a game is a two-phase flow: the owner persists `starting=true`, then sends a `setup` WebSocket action to broadcast that state immediately (one-second lobby polling remains a fallback), and finalizes the deal after a short transition. Once dealt, the game enters a persisted card-swap/readiness phase; play is blocked until every player is ready.
 
 ### Game State Machine (`GameSession`)
 
@@ -168,7 +221,9 @@ After dealing, `GameSession` sorts each player's hand and face-up cards by rank 
 
 The WebSocket `playSelections` path must run `finishSuccessfulPlay` after a successful hand, face-up, face-down, or mixed selection so after-effects execute and turn ownership advances. `setup` actions use the same WebSocket Lambda route for readiness and card swaps. Failed blind flips include a transient revealed card in the broadcast; the browser hides that notice after about one second. Keep these behaviors in sync if adding another selection source.
 
-The frontend keeps `/lobby`, `/config`, `/profile`, and leaderboard routes inside a shared `MenuLayout` with persistent desktop sidebar and mobile top navigation. The `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). It also has a "How to play" popup (`components/RulesModal.tsx`, styles in `styles/rules.css`) whose special-card list is generated from the current, unsaved selections. Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
+**Activity feed and session chat.** `GameSession` keeps the 30 most recent `GameEvent`s (`seq`, `type`, `playerId`, `username`, `cards`, `count`, `ts`) and persists them as the optional `events` list on the game item (`GameEventEntity`). Items written before the feed existed read as an empty list. The list is returned as `events` on `GameStateView`, so REST `/state` and WebSocket broadcasts both carry it. Events are recorded inside `GameSession` through `recordEvent`/`commitPlay`/`pickUpPile`; new move paths must go through those helpers. Session chat is the `chat` WebSocket action on the `play_card` integration, so it needs no extra Lambda. The handler checks membership, validates text with `ChatMessageValidator` (1–300 characters after trimming; empty is dropped silently), and relays `{type:"chat", userId, username, text, ts}` to every connection of the game. Chat is never written to DynamoDB or logged. Rate limiting relies on the stage's API Gateway throttling, because an in-memory counter is not reliable across Lambda instances.
+
+The frontend keeps `/lobby`, `/config`, `/profile`, and leaderboard routes inside a shared `MenuLayout` with persistent desktop sidebar and mobile top navigation. The `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). It also has a "How to play" popup (`components/RulesModal.tsx`, styles in `styles/rules.css`) whose special-card list is generated from the current, unsaved selections. Lobby game creation sends those settings to the Go `create-game` handler in the glue Lambda (`glue-go/games.go`). Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
 
 ### Card Rule Engine
 
@@ -330,12 +385,11 @@ private GameSessionRepository sessionRepo;
 
 The existing card-rule picker can assign the existing `CardRule` values to any rank per game. `JOKER` and `TRANSPARENT` ranks are marked always-playable, while `BURNER` ranks also receive the play-again effect. Adding new rule types still requires implementing their backend strategy/effects.
 
-### Adding a New Lambda Function
+### Adding a New Handler
 
-1. Add a `@Bean` method returning `Function<InputEvent, OutputEvent>` in `GameFunctionConfig`.
-2. The method name is the Spring Cloud Function route name.
+1. Add a `@Bean` method returning `Function<InputEvent, OutputEvent>` in `GameFunctionConfig` (or `AccountManagementFunctionConfig`). Its name is only the bean name; it is not a deployed function.
+2. Register it in `ApiRoutes` (see "Adding a Route to the Game API" above). Do not add a Lambda resource per handler.
 3. JWT claims are extracted from: `req.getRequestContext().getAuthorizer().get("claims")`.
-4. Wire the API Gateway route in Terraform under `infra/`.
 
 ### Profiles and Administrative Cleanup
 
@@ -343,7 +397,7 @@ The existing card-rule picker can assign the existing `CardRule` values to any r
 - `GET /profile` and `PUT /profile` read/update the authenticated user's display name. A name change is also copied to that user's active game entries.
 - `POST /admin/doomsday` deletes active game sessions and closes WebSocket connections. It does not delete user profiles or Elo ratings.
 - The route checks the Cognito `game-admin` group in JWT claims. Terraform creates the group but does not assign members; membership must be granted deliberately.
-- The account management Lambda uses a dedicated IAM role scoped to profiles, game cleanup, connection cleanup, and API Gateway connection management.
+- The game API Lambda uses one IAM role (`game_api_exec`) that holds the union of the permissions the former per-handler roles had: profiles, game cleanup, connection cleanup, and API Gateway connection management.
 - The profile screen renders the Game Maintenance card only when `/profile` reports `canClearGames` for a `game-admin` member.
 - User blocking: the users table item has an optional `blocked` boolean (missing = not blocked). Only `UserProfileRepository.setBlocked` writes it (UpdateItem SET/REMOVE); profile saves use UpdateItem with `withoutBlockedFlag()` and `ignoreNulls` so they never reset it. `GET /admin/users` scans the table and skips `__username__#` claim rows. `POST /admin/users/{userId}/block|unblock` refuses self-block, then best-effort closes the user's WebSocket connections (`UserConnectionService`, filtered scan) and removes them from unstarted lobbies (`LobbyMembershipService`).
 - `BlockedUserGuard.isBlocked(userId)` is checked at the top of the account management dispatch and in each authenticated game REST and WebSocket handler (play, pickup, setup); blocked users get 403 `{"message":"Your account has been blocked."}`. Leaderboard reads do not identify the user and are not guarded.
@@ -646,7 +700,10 @@ log.info("Game {} ended — shithead: {}", sessionId, shitheadId);
 | File | Why it matters |
 |---|---|
 | `game/GameSession.java` | Core state machine — understand before touching game logic |
-| `config/GameFunctionConfig.java` | All Lambda entry points |
+| `config/ApiRoutes.java` | Route table of the game API Lambda; add new routes here |
+| `config/GameApiFunctionConfig.java` | `gameApi` dispatcher bean (the game API Lambda entry point) |
+| `config/GameFunctionConfig.java` | Game handler `@Bean`s (join, leave, start, state, leaderboard, play, pickup) |
+| `glue-go/dispatch.go` | Go glue entry point and event-shape dispatch |
 | `rules/RuleEngine.java` | Static dispatcher for `canPlay` + `afterEffect` |
 | `game/GameConfig.java` | Card value → rule mapping; source of truth for special cards |
 | `mapper/SessionMapper.java` | Domain ↔ DynamoDB; has a known bug (see below) |
@@ -681,3 +738,4 @@ Include a **change log entry** at the top of this section with date and model na
 | 2026-02-20 | Initial file created | Claude Sonnet 4.6 |
 | 2026-02-20 | Added Builder pattern, Records, constructor injection, test naming, exception hierarchy | Claude Sonnet 4.6 |
 | 2026-02-20 | Added PMD, Checkstyle, SpotBugs setup and codeQuality profile docs | Claude Sonnet 4.6 |
+| 2026-10-09 | Added game activity feed (`events` attribute) and session chat (`chat` WebSocket route) | Claude Sonnet 5.5 |

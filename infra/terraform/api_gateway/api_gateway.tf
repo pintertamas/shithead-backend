@@ -634,6 +634,15 @@ resource "aws_api_gateway_deployment" "deployment" {
 
   triggers = {
     redeploy = sha1(join(",", [
+      # Integration ids alone do not change when a route is retargeted to another Lambda, so include the targets.
+      var.create_game_invoke_arn,
+      var.join_game_invoke_arn,
+      var.leave_game_invoke_arn,
+      var.start_game_invoke_arn,
+      var.get_state_invoke_arn,
+      var.leaderboard_session_invoke_arn,
+      var.leaderboard_top_invoke_arn,
+      var.account_management_invoke_arn,
       aws_api_gateway_integration.lambda_integration.id,
       aws_api_gateway_integration.join_game.id,
       aws_api_gateway_integration.leave_game.id,

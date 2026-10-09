@@ -1,0 +1,217 @@
+/* Game log and session chat, shown beside/below the game table and in the room. */
+
+.game-companion {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.game-feed,
+.chat-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.game-feed-toggle,
+.chat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.game-feed-toggle span:first-child,
+.chat-toggle span:first-child {
+  flex: 1;
+}
+
+.game-feed-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(229, 189, 112, 0.16);
+  color: var(--accent);
+  font-size: 12px;
+  text-align: center;
+}
+
+.game-feed-chevron {
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.game-feed-banner {
+  padding: 8px 10px;
+  border-radius: 12px;
+  border-left: 3px solid var(--accent);
+  background: rgba(229, 189, 112, 0.12);
+  font-size: 14px;
+  animation: feed-banner-in 0.25s ease-out;
+}
+
+.game-feed-banner[data-type="FAILED_FLIP"],
+.game-feed-banner[data-type="FAILED_PLAY"],
+.game-feed-banner[data-type="PICKED_UP"] {
+  border-left-color: var(--danger);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.game-feed-banner[data-type="FINISHED"] {
+  border-left-color: var(--accent-2);
+}
+
+.game-feed-empty,
+.chat-empty,
+.chat-hint {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+
+.game-feed-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.game-feed-item {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+  overflow-wrap: anywhere;
+}
+
+.game-feed-item[data-type="FAILED_FLIP"],
+.game-feed-item[data-type="FAILED_PLAY"],
+.game-feed-item[data-type="PICKED_UP"] {
+  color: #ffc4c4;
+}
+
+.game-feed-item[data-type="BURNED"],
+.game-feed-item[data-type="REVERSED"] {
+  color: var(--accent);
+}
+
+.game-feed-item[data-type="FINISHED"] {
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.chat-unread {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #1b2a22;
+  font-size: 12px;
+  text-align: center;
+}
+
+.chat-list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  max-height: 220px;
+  min-height: 96px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chat-message {
+  display: grid;
+  gap: 1px;
+  max-width: 85%;
+  padding: 6px 9px;
+  border-radius: 12px 12px 12px 4px;
+  background: rgba(0, 0, 0, 0.18);
+  justify-self: start;
+  overflow-wrap: anywhere;
+}
+
+.chat-message.own {
+  justify-self: end;
+  border-radius: 12px 12px 4px 12px;
+  background: rgba(186, 211, 168, 0.18);
+  text-align: right;
+}
+
+.chat-author {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.chat-text {
+  font-size: 14px;
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.chat-input:disabled {
+  opacity: 0.6;
+}
+
+.chat-send {
+  padding: 9px 16px;
+}
+
+@media (min-width: 900px) {
+  .game-companion {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .game-feed-list {
+    max-height: 260px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-feed-banner {
+    animation: none;
+  }
+}
+
+@keyframes feed-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
