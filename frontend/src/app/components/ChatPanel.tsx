@@ -15,9 +15,12 @@ const PHONE_QUERY = "(max-width: 700px)";
 /** Within this many pixels of the bottom, the list counts as scrolled to the bottom. */
 const BOTTOM_THRESHOLD_PX = 24;
 
-function voiceDotLabel(dot: "on" | "muted" | "pending"): string {
+type VoiceDot = "on" | "muted" | "pending" | "blocked";
+
+function voiceDotLabel(dot: VoiceDot): string {
   if (dot === "on") return "connected, microphone on";
   if (dot === "muted") return "connected, microphone muted";
+  if (dot === "blocked") return "connected, sound blocked, tap to enable sound";
   return "connecting";
 }
 
@@ -121,7 +124,13 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend, 
   const voiceGameId = voiceEnabled && sessionId ? sessionId : undefined;
   const voice = useVoiceSession(voiceGameId, Boolean(finished));
   const voiceLive = voice.status === "connected" || voice.status === "connecting" || voice.status === "reconnecting";
-  const voiceDot = !voiceLive ? null : voice.status === "connected" ? (voice.micOn ? "on" : "muted") : "pending";
+  const voiceDot: VoiceDot | null = !voiceLive
+    ? null
+    : voice.audioBlocked
+      ? "blocked"
+      : voice.status === "connected"
+        ? (voice.micOn ? "on" : "muted")
+        : "pending";
   const voiceNode = voiceGameId ? (
     <VoicePanel sessionId={voiceGameId} players={players ?? []} finished={Boolean(finished)} />
   ) : null;
