@@ -1,0 +1,82 @@
+/* Room screen (screens/Room.tsx): a slim top bar, then the Players card and the chat filling the viewport on wide screens. */
+
+.room-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.room-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+}
+
+.room-bar-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.room-bar-title .title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.room-bar-count {
+  color: var(--ink-dim);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.room-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.room-players {
+  min-width: 0;
+}
+
+.room-players .player-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 900px) {
+  /* Fill the viewport: the two columns take whatever height the top bar leaves, and their contents scroll inside. */
+  .room-page {
+    height: 100dvh;
+    box-sizing: border-box;
+  }
+
+  .room-page > .room-columns {
+    flex: 1 1 0;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
+  .room-columns > .room-players {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .room-columns > .room-players .player-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .room-columns > .chat-panel {
+    height: auto;
+    min-height: 0;
+  }
+}

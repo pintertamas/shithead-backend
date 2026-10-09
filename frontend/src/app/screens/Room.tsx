@@ -5,8 +5,9 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
 import ChatPanel from "../components/ChatPanel";
-import VoicePanel from "../components/VoicePanel";
 import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
+import { disconnectVoice } from "../lib/voice";
+import "../styles/room-header.css";
 
 export default function Room() {
   const { sessionId } = useParams();
@@ -148,15 +149,16 @@ export default function Room() {
   };
 
   return (
-    <div className="page fade-in">
+    <div className="page fade-in room-page">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      <div className="topbar">
-        <div>
-          <div className="badge">Lobby</div>
+      <header className="room-bar">
+        <div className="room-bar-title">
           <h2 className="title">Room {sessionId}</h2>
+          {state && (
+            <span className="room-bar-count">{state.players.length} {state.players.length === 1 ? "player" : "players"}</span>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {state?.voiceEnabled === true && sessionId && <VoicePanel sessionId={sessionId} players={state.players} finished={state.finished} />}
+        <div className="room-bar-actions">
           {canStart && (
             <button className="button" onClick={onStart} disabled={loading !== null && startRequestInProgress.current}>
               {loading === "starting" && startRequestInProgress.current
@@ -166,6 +168,7 @@ export default function Room() {
           )}
           <button className="button secondary" disabled={loading !== null} onClick={async () => {
             setLoading("leaving");
+            void disconnectVoice(null);
             if (sessionId) {
               try { await leaveGame(token, sessionId); } catch {}
             }
@@ -174,26 +177,29 @@ export default function Room() {
             {loading === "leaving" ? "Leaving..." : "Leave"}
           </button>
         </div>
-      </div>
+      </header>
 
       <div className="room-columns">
         <div className="glass card room-players">
-          <h3 className="title">Players</h3>
           {!state && !error && <p style={{ color: "var(--ink-dim)" }}>Loading...</p>}
-          <div className="player-list">
+          <ul className="player-list" aria-label="Players">
             {state?.players.map((player) => (
-              <div key={player.playerId} className="player-item">
+              <li key={player.playerId} className="player-item">
                 <span>{player.username}</span>
                 {player.isYou && <span className="badge">You</span>}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
         <ChatPanel
           messages={chatMessages}
           currentUserId={state?.players.find((player) => player.isYou)?.playerId}
           connected={socketOpen}
           onSend={(text) => (sessionId ? sendChatMessage(wsRef.current, sessionId, text) : false)}
+          voiceEnabled={state?.voiceEnabled === true}
+          sessionId={sessionId}
+          players={state?.players}
+          finished={state?.finished}
         />
       </div>
       {loading === "starting" && (

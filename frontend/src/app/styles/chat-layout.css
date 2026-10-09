@@ -79,6 +79,33 @@
   outline-offset: 2px;
 }
 
+/* Voice state on the floating button: green when live, red when the microphone is muted, amber while connecting. */
+.chat-fab-voice {
+  position: absolute;
+  bottom: -2px;
+  left: -2px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--card-border);
+  border-radius: 50%;
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.chat-fab-voice.is-on {
+  background: #2f9e5b;
+}
+
+.chat-fab-voice.is-muted {
+  background: var(--danger);
+}
+
+.chat-fab-voice.is-pending {
+  background: #c28a1e;
+}
+
 .chat-fab-badge {
   position: absolute;
   top: -4px;

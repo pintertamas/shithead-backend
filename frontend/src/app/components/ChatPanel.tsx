@@ -3,7 +3,9 @@ import type { FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ChatMessage } from "../api/game";
 import { CHAT_MAX_LENGTH } from "../lib/sessionChat";
+import { useVoiceSession } from "../lib/voice";
 import Icon from "./Icon";
+import VoicePanel from "./VoicePanel";
 import "../styles/feed.css";
 import "../styles/chat-layout.css";
 import "../styles/scrollbars.css";
@@ -12,6 +14,12 @@ import "../styles/scrollbars.css";
 const PHONE_QUERY = "(max-width: 700px)";
 /** Within this many pixels of the bottom, the list counts as scrolled to the bottom. */
 const BOTTOM_THRESHOLD_PX = 24;
+
+function voiceDotLabel(dot: "on" | "muted" | "pending"): string {
+  if (dot === "on") return "connected, microphone on";
+  if (dot === "muted") return "connected, microphone muted";
+  return "connecting";
+}
 
 function matchesPhone(): boolean {
   try {
@@ -89,10 +97,15 @@ type Props = {
   currentUserId?: string;
   connected: boolean;
   onSend: (text: string) => boolean;
+  /** Voice controls appear in the chat when the game has voice enabled. */
+  voiceEnabled?: boolean;
+  sessionId?: string;
+  players?: { playerId: string; username: string }[];
+  finished?: boolean;
 };
 
 /** Session chat. Messages live in React state only, so a refresh clears them by design. */
-export default function ChatPanel({ messages, currentUserId, connected, onSend }: Props) {
+export default function ChatPanel({ messages, currentUserId, connected, onSend, voiceEnabled, sessionId, players, finished }: Props) {
   const phone = useIsPhone();
   // Only the phone popup has an open state. The inline panel on wider screens is always shown.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -103,6 +116,15 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
   const stickToBottom = useRef(true);
   const unread = useUnreadCount(messages, !phone || sheetOpen, currentUserId);
   const keyboardInset = useKeyboardInset(phone && sheetOpen);
+  // Owns the voice connection's lifecycle for this game. The chat is always mounted on the room and the table,
+  // so this keeps working while the phone sheet is closed.
+  const voiceGameId = voiceEnabled && sessionId ? sessionId : undefined;
+  const voice = useVoiceSession(voiceGameId, Boolean(finished));
+  const voiceLive = voice.status === "connected" || voice.status === "connecting" || voice.status === "reconnecting";
+  const voiceDot = !voiceLive ? null : voice.status === "connected" ? (voice.micOn ? "on" : "muted") : "pending";
+  const voiceNode = voiceGameId ? (
+    <VoicePanel sessionId={voiceGameId} players={players ?? []} finished={Boolean(finished)} />
+  ) : null;
 
   useEffect(() => {
     setSheetOpen(false);
@@ -189,6 +211,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
     return (
       <section className="chat-panel glass" aria-label="Session chat">
         <div className="chat-heading">Chat</div>
+        {voiceNode}
         {body}
       </section>
     );
@@ -203,11 +226,16 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
           className="chat-fab"
           aria-haspopup="dialog"
           aria-expanded={sheetOpen}
-          aria-label={unread > 0 ? `Open chat, ${unread} unread messages` : "Open chat"}
+          aria-label={`${unread > 0 ? `Open chat, ${unread} unread messages` : "Open chat"}${voiceDot ? `, voice ${voiceDotLabel(voiceDot)}` : ""}`}
           onClick={() => setSheetOpen(true)}
         >
           <Icon name="chat" size={22} />
           {unread > 0 && <span className="chat-fab-badge" aria-hidden="true">{unread > 99 ? "99+" : unread}</span>}
+          {voiceDot && (
+            <span className={`chat-fab-voice is-${voiceDot}`} aria-hidden="true">
+              <Icon name={voiceDot === "muted" ? "mic-off" : "mic"} size={11} />
+            </span>
+          )}
         </button>,
         document.body
       )}
@@ -231,6 +259,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
                 <Icon name="close" />
               </button>
             </header>
+            {voiceNode}
             {body}
           </section>
         </div>,

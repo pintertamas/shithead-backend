@@ -1,5 +1,5 @@
 /*
- * Voice chat controls (components/VoicePanel.tsx). Compact enough for the table top bar and the room.
+ * Voice chat controls (components/VoicePanel.tsx), shown inside the chat panel and the phone chat sheet.
  * Touch targets are at least 44px.
  */
 
@@ -8,7 +8,11 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
+  width: 100%;
   min-width: 0;
+  box-sizing: border-box;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--card-border);
   color: var(--ink);
   font-size: 13px;
 }
@@ -18,6 +22,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+.voice-controls .voice-status {
+  font-size: 13px;
 }
 
 .voice-button {
