@@ -1,9 +1,36 @@
 ﻿import { useAuth } from "../auth/useAuth";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+const BACKEND_STORAGE_KEY = "shithead_backend";
+
+export type BackendName = "default" | "go";
+
+/**
+ * Which backend the app talks to. `?backend=go` stores "go" in localStorage and
+ * `?backend=default` clears it. "go" is only effective when both VITE_*_GO
+ * variables are set; otherwise the default backend is used.
+ */
+export function activeBackend(): BackendName {
+  try {
+    const requested = new URLSearchParams(window.location.search).get("backend");
+    if (requested === "go") window.localStorage.setItem(BACKEND_STORAGE_KEY, "go");
+    if (requested === "default") window.localStorage.removeItem(BACKEND_STORAGE_KEY);
+    const goConfigured = Boolean(import.meta.env.VITE_API_BASE_URL_GO && import.meta.env.VITE_WS_BASE_URL_GO);
+    return goConfigured && window.localStorage.getItem(BACKEND_STORAGE_KEY) === "go" ? "go" : "default";
+  } catch {
+    return "default";
+  }
+}
+
+export function apiBaseUrl(): string {
+  return activeBackend() === "go" ? import.meta.env.VITE_API_BASE_URL_GO : import.meta.env.VITE_API_BASE_URL;
+}
+
+export function wsBaseUrl(): string {
+  return activeBackend() === "go" ? import.meta.env.VITE_WS_BASE_URL_GO : import.meta.env.VITE_WS_BASE_URL;
+}
 
 export function apiFetch(path: string, token: string, options: RequestInit = {}) {
-  return fetch(`${API_BASE}${path}`, {
+  return fetch(`${apiBaseUrl()}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",

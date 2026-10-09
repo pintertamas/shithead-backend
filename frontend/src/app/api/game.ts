@@ -1,4 +1,4 @@
-﻿import { apiFetch, throwForError } from "./client";
+﻿import { apiFetch, throwForError, wsBaseUrl } from "./client";
 
 export type Card = {
   suit: string;
@@ -84,7 +84,7 @@ export async function fetchState(token: string, sessionId: string) {
 }
 
 export function openGameSocket(sessionId: string, token: string) {
-  const url = new URL(import.meta.env.VITE_WS_BASE_URL);
+  const url = new URL(wsBaseUrl());
   if (url.pathname === "/" || url.pathname === "") url.pathname = "/$default";
   url.searchParams.set("game_session_id", sessionId);
   url.searchParams.set("token", token);
