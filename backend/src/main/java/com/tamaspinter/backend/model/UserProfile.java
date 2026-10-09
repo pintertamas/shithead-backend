@@ -26,6 +26,8 @@ public class UserProfile {
     private double eloScore;
     @Getter(AccessLevel.NONE)
     private String leaderboardPk;
+    @Getter(AccessLevel.NONE)
+    private Boolean blocked;
 
     @DynamoDbPartitionKey
     @DynamoDbAttribute("user_id")
@@ -43,5 +45,28 @@ public class UserProfile {
     @DynamoDbAttribute("leaderboard_pk")
     public String getLeaderboardPk() {
         return leaderboardPk;
+    }
+
+    /**
+     * Admin block flag. A missing attribute means not blocked; it is written only via UpdateItem
+     * in {@code UserProfileRepository#setBlocked}, never by profile saves.
+     */
+    @DynamoDbAttribute("blocked")
+    public Boolean getBlocked() {
+        return blocked;
+    }
+
+    /**
+     * Returns a copy without the block flag, so a full-item save can never overwrite it.
+     * Used together with an UpdateItem that ignores null attributes.
+     */
+    public UserProfile withoutBlockedFlag() {
+        return UserProfile.builder()
+                .userId(userId)
+                .username(username)
+                .avatarUrl(avatarUrl)
+                .eloScore(eloScore)
+                .leaderboardPk(leaderboardPk)
+                .build();
     }
 }

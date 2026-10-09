@@ -1,0 +1,40 @@
+.games-page { width: 100%; color: #f5edda; }
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.game-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
+
+.game-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+
+.game-card-owner {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: "Fraunces", serif;
+  font-size: 18px;
+}
+
+.game-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 14px;
+}
+
+.game-card-footer { display: flex; justify-content: flex-end; margin-top: auto; }
+
+.game-card-footer .button { min-height: 44px; }
+
+.game-badge-muted { color: #aab4c4; background: rgba(120, 130, 150, 0.2); }
+
+.games-empty { padding: 28px; text-align: center; }
+
+.games-empty p { color: var(--ink-dim); }

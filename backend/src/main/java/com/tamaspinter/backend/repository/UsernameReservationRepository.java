@@ -16,6 +16,7 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.UpdateItemEnhancedRequest;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -48,7 +49,10 @@ public class UsernameReservationRepository {
         String normalizedCurrentUsername = currentUsername == null ? null : normalizeUsername(currentUsername);
         if (normalizedUsername.equals(normalizedCurrentUsername)) {
             profile.setUsername(username);
-            table.putItem(profile);
+            table.updateItem(UpdateItemEnhancedRequest.builder(UserProfile.class)
+                    .item(profile.withoutBlockedFlag())
+                    .ignoreNulls(true)
+                    .build());
             return true;
         }
         if (usernameInUse(normalizedUsername, userId)) {
