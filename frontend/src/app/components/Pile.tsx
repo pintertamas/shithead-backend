@@ -1,11 +1,59 @@
+import { CSSProperties } from "react";
 import { Card } from "../api/game";
+import { CardFaceContent, cardRank, isRedSuit } from "./CardFace";
+import PeekWrap from "./PeekWrap";
 
-function cardRank(value: number) {
-  return ({ 11: "J", 12: "Q", 13: "K", 14: "A" } as Record<number, string>)[value] || String(value);
+const MAX_DRAW_LAYERS = 6;
+
+function faceClass(card: Card, extra: string) {
+  return `playing-card face-up-card${isRedSuit(card.suit) ? " red-card" : ""} ${extra}`;
 }
 
-function suitSymbol(suit: string) {
-  return ({ CLUBS: "♣", DIAMONDS: "♦", HEARTS: "♥", SPADES: "♠" } as Record<string, string>)[suit] || suit;
+function cardLabel(card: Card) {
+  return `${cardRank(card.value)} of ${card.suit}`;
+}
+
+function DrawPile({ title, count, fxAnchor }: { title: string; count: number; fxAnchor?: string }) {
+  const layers = count <= 0 ? 0 : Math.min(MAX_DRAW_LAYERS, 1 + Math.floor(count / 8));
+  const stackLayers = Math.max(layers, 1);
+  return (
+    <div
+      className={`card pile pile-draw${count === 0 ? " pile-empty" : ""}`}
+      data-fx={fxAnchor}
+      aria-label={`${title}, ${count} ${count === 1 ? "card" : "cards"} left`}
+    >
+      <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>{title}</div>
+      <div className="draw-stack" style={{ "--stack-layers": stackLayers } as CSSProperties}>
+        {Array.from({ length: layers }, (_, layer) => (
+          <div
+            key={layer}
+            className="playing-card face-down-card draw-layer"
+            style={{ "--layer": layer, "--layers": layers } as CSSProperties}
+            aria-hidden="true"
+          />
+        ))}
+        <span className="draw-count">{count}</span>
+      </div>
+    </div>
+  );
+}
+
+function PileContents({ cards }: { cards: Card[] }) {
+  return (
+    <div className="pile-contents">
+      <div className="pile-contents-title">
+        Discard pile · {cards.length} {cards.length === 1 ? "card" : "cards"}
+        <span>newest last</span>
+      </div>
+      <div className="pile-contents-cards">
+        {cards.map((card, index) => (
+          <div key={index} className={faceClass(card, "pile-contents-card")} aria-label={cardLabel(card)}>
+            <CardFaceContent card={card} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function Pile({
@@ -15,7 +63,9 @@ export default function Pile({
   onClick,
   selectable = false,
   selected = false,
-  disabled = false
+  disabled = false,
+  variant = "discard",
+  fxAnchor
 }: {
   title: string;
   count: number;
@@ -24,22 +74,28 @@ export default function Pile({
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
+  variant?: "discard" | "draw";
+  /** Marks the element so table animations can find it. */
+  fxAnchor?: string;
 }) {
+  if (variant === "draw") return <DrawPile title={title} count={count} fxAnchor={fxAnchor} />;
+
   const pileCards = cards || [];
   const topCard = pileCards[pileCards.length - 1];
-  let transparentStart = pileCards.length - 1;
-  while (transparentStart > 0 && pileCards[transparentStart - 1].rule === "TRANSPARENT") {
-    transparentStart--;
+  const topIsTransparent = topCard?.rule === "TRANSPARENT";
+  // First non-transparent card beneath the run of transparent cards on top (-1 when there is none).
+  let beneathIndex = -1;
+  if (topIsTransparent) {
+    let index = pileCards.length - 1;
+    while (index >= 0 && pileCards[index].rule === "TRANSPARENT") index--;
+    beneathIndex = index;
   }
-  const hasTransparentTop = topCard?.rule === "TRANSPARENT";
-  const hasUnderlyingCard = hasTransparentTop && transparentStart > 0;
-  const visibleCards = hasTransparentTop
-    ? [...(hasUnderlyingCard ? [pileCards[transparentStart - 1]] : []), ...pileCards.slice(transparentStart)]
-    : topCard ? [topCard] : [];
+  const beneathCard = beneathIndex >= 0 ? pileCards[beneathIndex] : undefined;
 
-  return (
+  const pileElement = (
     <div
-      className={`card pile${hasTransparentTop ? " pile-with-transparent" : ""}${selectable ? " pile-selectable" : ""}${selected ? " pile-selected" : ""}${disabled ? " pile-disabled" : ""}`}
+      className={`card pile${topIsTransparent ? " pile-with-transparent" : ""}${selectable ? " pile-selectable" : ""}${selected ? " pile-selected" : ""}${disabled ? " pile-disabled" : ""}`}
+      data-fx={fxAnchor}
       role={selectable ? "button" : undefined}
       tabIndex={selectable && !disabled ? 0 : undefined}
       aria-label={selectable ? `${title}, ${count} cards${disabled ? ", unavailable" : ""}` : undefined}
@@ -54,27 +110,41 @@ export default function Pile({
       } : undefined}
     >
       <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>{title}</div>
-      {visibleCards.length > 0 && (
-        <div className="pile-visible-cards" aria-label={hasTransparentTop ? "Latest transparent cards and the card beneath them" : "Top card"}>
-          {visibleCards.map((card, index) => {
-            const isUnderlyingCard = hasUnderlyingCard && index === 0;
-            const isRed = card.suit === "HEARTS" || card.suit === "DIAMONDS";
-            return (
-              <div
-                key={`${card.suit}-${card.value}-${index}`}
-                className={`playing-card face-up-card${isRed ? " red-card" : ""}${isUnderlyingCard ? " pile-under-card" : index > 0 && hasTransparentTop ? " pile-transparent-card" : " pile-top-card"}`}
-                style={{ zIndex: index + 1 }}
-                aria-label={`${cardRank(card.value)} of ${card.suit}${isUnderlyingCard ? ", beneath transparent cards" : ""}`}
-              >
-                <span className="playing-card-corner">{cardRank(card.value)}<br />{suitSymbol(card.suit)}</span>
-                <span className="playing-card-corner-opposite" aria-hidden="true">{cardRank(card.value)}<br />{suitSymbol(card.suit)}</span>
-                <span className="playing-card-center">{suitSymbol(card.suit)}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div
+        className="pile-visible-cards"
+        aria-label={topCard ? (beneathCard ? "Transparent card and the card it covers" : "Top card") : undefined}
+      >
+        {!topCard && <div className="pile-slot" aria-hidden="true" />}
+        {topCard && beneathCard && (
+          <div className="pile-overlap">
+            <div className={faceClass(beneathCard, "pile-under-card")} aria-label={`${cardLabel(beneathCard)}, beneath transparent cards`}>
+              <CardFaceContent card={beneathCard} />
+            </div>
+            <div className={faceClass(topCard, "pile-over-card pile-transparent-card")} aria-label={`${cardLabel(topCard)}, transparent`}>
+              <CardFaceContent card={topCard} />
+            </div>
+          </div>
+        )}
+        {topCard && !beneathCard && (
+          <div className={faceClass(topCard, "pile-top-card")} aria-label={cardLabel(topCard)}>
+            <CardFaceContent card={topCard} />
+          </div>
+        )}
+      </div>
       <div className="pile-count">{count}</div>
     </div>
+  );
+
+  if (pileCards.length === 0) return pileElement;
+
+  return (
+    <PeekWrap
+      className="pile-peek-wrap"
+      label={`View all ${title.toLowerCase()} cards`}
+      toggleText="View pile"
+      popover={<PileContents cards={pileCards} />}
+    >
+      {pileElement}
+    </PeekWrap>
   );
 }
