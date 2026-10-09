@@ -85,7 +85,7 @@ export default function Login() {
         code_challenge: challenge
       });
 
-      window.location.assign(`${domain}/login?${loginParams.toString()}`);
+      window.location.assign(`${domain}/oauth2/authorize?${loginParams.toString()}`);
     } catch (error) {
       console.error("Failed to start login", error);
       setStartError("Could not start sign-in. Make sure cookies and local storage are enabled, then try again.");
