@@ -14,6 +14,7 @@ import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.game.CardSource;
 import com.tamaspinter.backend.game.ChatMessageValidator;
+import com.tamaspinter.backend.game.NudgeMessage;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.model.api.GameStateView;
 import com.tamaspinter.backend.model.api.LeaderboardEntry;
@@ -260,6 +261,9 @@ public class GameFunctionConfig {
             if ("chat".equals(msg.action())) {
                 return handleChatAction(ev, msg, entity, userId);
             }
+            if ("nudge".equals(msg.action())) {
+                return handleNudgeAction(ev, msg, entity, userId);
+            }
             if ("setup".equals(msg.action())) {
                 return handleSetupAction(ev, msg, entity, userId);
             }
@@ -317,6 +321,16 @@ public class GameFunctionConfig {
                 "text", checked.text(),
                 "ts", System.currentTimeMillis());
         postToGameConnections(message.sessionId(), websocketEndpoint(event), recipient -> chat);
+        return new APIGatewayProxyResponseEvent().withStatusCode(200);
+    }
+
+    /**
+     * Relays a nudge (the farting sound) to every connection of the game. Nothing is stored or logged.
+     */
+    private APIGatewayProxyResponseEvent handleNudgeAction(
+            APIGatewayV2WebSocketEvent event, PlayMessage message, GameSessionEntity entity, String userId) {
+        Map<String, Object> nudge = NudgeMessage.build(entity.getPlayers(), userId, System.currentTimeMillis());
+        postToGameConnections(message.sessionId(), websocketEndpoint(event), recipient -> nudge);
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
 

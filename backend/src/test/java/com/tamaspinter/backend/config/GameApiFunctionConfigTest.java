@@ -95,11 +95,12 @@ class GameApiFunctionConfigTest {
     }
 
     @Test
-    void webSocketPlaySetupAndChatRouteToPlayCardWS() {
+    void webSocketPlaySetupChatAndNudgeRouteToPlayCardWS() {
         assertEquals("playCardWS", invoke(wsEvent("play", "{\"action\":\"play\"}")).getBody());
         assertEquals("playCardWS", invoke(wsEvent("setup", "{\"action\":\"setup\"}")).getBody());
         assertEquals("playCardWS", invoke(wsEvent("chat", "{\"action\":\"chat\"}")).getBody());
-        verify(playCardWS, org.mockito.Mockito.times(3)).apply(any(APIGatewayV2WebSocketEvent.class));
+        assertEquals("playCardWS", invoke(wsEvent("nudge", "{\"action\":\"nudge\"}")).getBody());
+        verify(playCardWS, org.mockito.Mockito.times(4)).apply(any(APIGatewayV2WebSocketEvent.class));
         verify(pickupPileWS, never()).apply(any(APIGatewayV2WebSocketEvent.class));
     }
 
