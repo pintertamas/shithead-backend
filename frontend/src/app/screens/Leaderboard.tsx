@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { fetchGlobalLeaderboard, fetchSessionLeaderboard, LeaderboardEntry } from "../api/leaderboard";
 import Tabs from "../components/Tabs";
@@ -20,7 +20,6 @@ function TrophyIcon() {
 
 export default function Leaderboard() {
   const { sessionId } = useParams();
-  const navigate = useNavigate();
   const { token } = useAuth();
   const [tab, setTab] = useState(sessionId ? "Session" : "Global");
   const [sessionData, setSessionData] = useState<LeaderboardEntry[]>([]);
@@ -52,17 +51,14 @@ export default function Leaderboard() {
   const loading = tab === "Session" ? sessionLoading : globalLoading;
 
   return (
-    <div className="page fade-in leaderboard-page">
-      <main className="leaderboard-main">
+    <div className="leaderboard-page fade-in">
+      <div className="leaderboard-main">
         <ErrorAlert message={error} onDismiss={() => setError(null)} />
         <header className="lobby-welcome leaderboard-welcome">
           <div>
             <h1>Full leaderboard</h1>
             <p>See how every player ranks by ELO.</p>
           </div>
-          <button className="button secondary lobby-rankings-link" onClick={() => navigate("/lobby")}>
-            Go to Home
-          </button>
         </header>
 
         <section className="lobby-rankings" aria-labelledby="leaderboard-title">
@@ -97,7 +93,7 @@ export default function Leaderboard() {
                 </div>
               )}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

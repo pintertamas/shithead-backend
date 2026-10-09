@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   CARD_RULES,
   CARD_VALUES,
@@ -9,7 +8,6 @@ import {
 } from "../config/gameConfig";
 
 export default function GameConfig() {
-  const navigate = useNavigate();
   const [config, setConfig] = useState<GameConfigType>(() => loadGameConfig());
   const [saved, setSaved] = useState(false);
 
@@ -28,15 +26,12 @@ export default function GameConfig() {
   };
 
   return (
-    <div className="page fade-in">
+    <div className="menu-content fade-in">
       <div className="topbar">
         <div>
           <div className="badge">Next Game</div>
           <h2 className="title">Game Configuration</h2>
         </div>
-        <button className="button secondary" type="button" onClick={() => navigate("/lobby")}>
-          Back to Lobby
-        </button>
       </div>
 
       <div className="config-layout">

@@ -68,8 +68,9 @@ shithead-backend/
 ├── infra/                   # Terraform
 ├── frontend/
 │   └── src/app/
+│       ├── components/       # Shared UI, including persistent menu navigation
 │       ├── config/           # Browser-local next-game settings
-│       └── screens/          # Lobby, profile, game configuration, and game UI
+│       └── screens/          # Lobby, profile, game configuration, leaderboard, and game UI
 └── AI-CONTEXT.md
 ```
 
@@ -165,7 +166,7 @@ After dealing, `GameSession` sorts each player's hand and face-up cards by rank 
 
 The WebSocket `playSelections` path must run `finishSuccessfulPlay` after a successful hand, face-up, face-down, or mixed selection so after-effects execute and turn ownership advances. `setup` actions use the same WebSocket Lambda route for readiness and card swaps. Failed blind flips include a transient revealed card in the broadcast; the browser hides that notice after about one second. Keep these behaviors in sync if adding another selection source.
 
-The frontend's `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
+The frontend keeps `/lobby`, `/config`, `/profile`, and leaderboard routes inside a shared `MenuLayout` with persistent desktop sidebar and mobile top navigation. The `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). Lobby game creation sends those settings to the Python `create_game` Lambda. Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
 
 ### Card Rule Engine
 
