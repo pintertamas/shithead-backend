@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
 import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
@@ -314,7 +314,7 @@ export default function GameTable() {
         <NudgeButton onNudge={sendNudgeToTable} />
         {state.voiceEnabled === true && <VoicePanel sessionId={state.sessionId} players={state.players} finished={state.finished} />}
       </header>
-      <main className="game-board" ref={boardRef}>
+      <main className="game-board" ref={boardRef} style={{ "--opponent-count": Math.max(1, others.length) } as CSSProperties}>
         {state.revealedCard && (
           <div className="failed-blind-reveal" role="status">
             <span className="blind-flip" aria-hidden="true">
