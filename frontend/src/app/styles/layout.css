@@ -508,13 +508,6 @@ button.playing-card { cursor: pointer; }
   background: radial-gradient(ellipse at 50% 42%, #356247 0%, #214b38 62%, #173a2e 100%);
   border-color: rgba(230, 215, 173, 0.26);
 }
-.game-middle {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(210px, 300px);
-  align-items: center;
-  gap: clamp(18px, 4vw, 54px);
-  min-height: 190px;
-}
 .game-piles { justify-content: center; gap: clamp(16px, 4vw, 48px); min-width: 0; }
 .game-piles .pile { min-width: 94px; }
 .game-actions {

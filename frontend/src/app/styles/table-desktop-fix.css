@@ -1,0 +1,109 @@
+/*
+ * Desktop table layout (viewports 701px and wider). The board is one column, top to bottom:
+ *   1. opponents, centred, on one row (each panel capped to its share of the board width);
+ *   2. the middle row: draw and discard piles with the setup controls (nothing extra in play), centred as a group;
+ *   3. the player's own panel, centred, with the Play row below it in the play phase.
+ * Card size is the largest size at which that column fits the viewport height (no page scroll) and the
+ * opponents still share one row. Loaded after table-fit.css (main.tsx).
+ */
+
+@media (min-width: 701px) {
+  /* The board is a flex column: a panel that is not stretched keeps the start edge unless centred here.
+     The opponent row centres itself (table.css); the own panel and the Play row need this. */
+  .game-page .game-board > .game-seat-own,
+  .game-page .game-board > .game-actions-play {
+    align-self: center;
+  }
+
+  /* The middle row takes the height the other rows leave, and stays on one line: the piles keep their size
+     and the setup block takes what is left (up to 680px). In play the controls block is empty and takes no space. */
+  .game-page .game-middle {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    align-self: stretch;
+    min-height: 0;
+  }
+
+  .game-page .game-middle > .game-piles {
+    flex: 0 0 auto;
+  }
+
+  .game-page .game-middle > .game-actions {
+    flex: 0 1 680px;
+    min-width: 0;
+    max-width: 680px;
+  }
+
+  .game-page .game-middle > .game-actions:empty {
+    display: none;
+  }
+
+  /* Setup controls: a two-column block (starter and instructions, then the buttons) instead of one tall
+     column, so the middle row keeps about the height of the piles. */
+  .game-page .setup-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px 20px;
+    align-items: start;
+  }
+
+  .game-page .setup-controls > h3 {
+    grid-column: 1 / -1;
+  }
+
+  .game-page .setup-controls .button {
+    justify-self: start;
+  }
+
+  /* Opponent panels share the row: each is capped at its share of the board, and its name (already an
+     ellipsis) and count line shrink to fit instead of pushing the row onto a second line. */
+  .game-page .game-opponents > .game-seat {
+    max-width: calc((var(--board-inner-w) - (var(--opponent-count, 1) - 1) * 10px) / var(--opponent-count, 1));
+  }
+
+  /* Board sizes. --rows-h is the height left for the three rows once the board's padding, gaps and border
+     are taken out. Heights per card width w: opponent panel 2.8w + 101px, own panel 2.8w + 127px (together
+     5.6w + 228px), piles 1.4w + 73px plus 12px of row padding. Setup needs the setup block, play needs the
+     piles, the Play row and their gaps (the 400px constant). Width: n opponent panels of (3w + 34px) with
+     10px gaps must fit on one row. */
+  .game-page .game-board {
+    --board-w: calc(min(1480px, 100vw) - 2 * clamp(8px, 1.6vw, 20px));
+    --board-h: calc(78dvh - 78px);
+    --rows-h: calc(var(--board-h) - 2px - 2 * clamp(6px, 1.2dvh, 14px) - 2 * clamp(4px, 1.2dvh, 12px));
+    --board-inner-w: calc(var(--board-w) - 2 * clamp(8px, 1.4vw, 18px) - 2px);
+    /* Height the middle row needs in setup: the setup block with its padding. */
+    --setup-block-h: 222px;
+    --card-w: max(26px, min(
+      calc((var(--rows-h) - 228px - var(--setup-block-h)) / 5.6),
+      calc((var(--rows-h) - 400px) / 7),
+      calc((var(--board-inner-w) - var(--opponent-count, 1) * 44px + 4px) / (3 * var(--opponent-count, 1))),
+      72px
+    ));
+  }
+}
+
+/* Wide screens: the side column (log and chat) sits beside the board, so the board is narrower and the
+   page is 100dvh tall with the side column in the same height. */
+@media (min-width: 900px) {
+  .game-page .game-board {
+    --board-w: calc(min(1480px, 100vw) - 2 * clamp(8px, 1.6vw, 20px) - clamp(260px, 22vw, 320px) - 20px);
+    --board-h: calc(100dvh - 62px);
+  }
+}
+
+/* Narrower desktop boards: the setup block is taller (the starter chips wrap, more so with more players),
+   so its height depends on the player count, and its chips are a little smaller. */
+@media (min-width: 701px) and (max-width: 1100px) {
+  .game-page .game-board {
+    --setup-block-h: calc(218px + (var(--opponent-count, 1) - 1) * 16.5px);
+  }
+
+  .game-page .starter-picker-chips {
+    gap: 4px;
+  }
+
+  .game-page .starter-picker-chip {
+    padding: 2px 7px;
+    font-size: 11px;
+  }
+}
