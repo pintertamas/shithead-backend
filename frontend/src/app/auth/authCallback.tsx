@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { saveAuth, loadAuth } from "./useAuth";
+import "../styles/login.css";
 
 const domain = import.meta.env.VITE_COGNITO_DOMAIN;
 const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
@@ -91,7 +92,7 @@ export default function AuthCallback() {
       if (error) {
         const desc = queryParams.get("error_description") || error;
         console.error("[auth] Cognito authorize error", error, desc);
-        if (!cancelled) setErrorMsg(`Sign-in was rejected by the auth server: ${desc}`);
+        if (!cancelled) setErrorMsg(`Google sign-in was not completed: ${desc}`);
         return;
       }
 
@@ -123,19 +124,16 @@ export default function AuthCallback() {
       }
 
       if (!localStorage.getItem(PKCE_VERIFIER_KEY)) {
-        if (!cancelled) setErrorMsg("Login session expired (PKCE verifier missing). Please try signing in again.");
+        if (!cancelled) setErrorMsg("Your sign-in session expired. Please try signing in again.");
         return;
       }
 
-      let exchanged: { idToken: string; accessToken: string; expiresIn: number } | null = null;
+      let exchanged: { idToken: string; accessToken: string; expiresIn: number; refreshToken?: string } | null = null;
       try {
         exchanged = await exchangeCodeForTokens(code);
       } catch (exchangeErr) {
         console.error("[auth] token exchange threw", exchangeErr);
-        if (!cancelled) {
-          const msg = exchangeErr instanceof Error ? exchangeErr.message : String(exchangeErr);
-          setErrorMsg(msg);
-        }
+        if (!cancelled) setErrorMsg("We could not complete your sign-in. Please try again.");
         return;
       }
 
@@ -166,7 +164,7 @@ export default function AuthCallback() {
       if (!authCheck) {
         const raw = rawStored ? JSON.parse(rawStored) : null;
         console.error("[auth] loadAuth returned null despite save. Raw:", raw);
-        if (!cancelled) setErrorMsg(`Session saved but loadAuth() returned null. Raw in storage: ${JSON.stringify(raw)}`);
+        if (!cancelled) setErrorMsg("Your session could not be verified. Please try signing in again.");
         return;
       }
 
@@ -184,20 +182,27 @@ export default function AuthCallback() {
 
   if (errorMsg) {
     return (
-      <div className="page">
-        <div className="glass card">
-          <p style={{ color: "var(--ink-dim)", marginBottom: "1rem" }}>{errorMsg}</p>
+      <main className="auth-screen fade-in">
+        <section className="auth-panel glass" role="alert" aria-labelledby="auth-error-title">
+          <p className="login-kicker">Shithead</p>
+          <span className="auth-error-mark" aria-hidden="true">!</span>
+          <h1 id="auth-error-title" className="auth-title">We could not sign you in</h1>
+          <p className="auth-detail">{errorMsg}</p>
           <button className="button" type="button" onClick={() => navigate("/login", { replace: true })}>
-            Back to Login
+            Back to login
           </button>
-        </div>
-      </div>
+        </section>
+      </main>
     );
   }
 
   return (
-    <div className="page">
-      <div className="glass card">Signing you in...</div>
-    </div>
+    <main className="auth-screen fade-in">
+      <section className="auth-panel glass" role="status" aria-live="polite">
+        <p className="login-kicker">Shithead</p>
+        <span className="auth-spinner" aria-hidden="true" />
+        <h1 className="auth-title">Signing you in...</h1>
+      </section>
+    </main>
   );
 }
