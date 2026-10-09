@@ -15,6 +15,7 @@ export type CardRule = typeof CARD_RULES[number];
 
 export type GameConfig = {
   allowMixedHandAndFaceUpWhenDeckEmpty: boolean;
+  allowFailedFaceUpPlay: boolean;
   decksCount: 1 | 2;
   burnCount: 4 | 6;
   cardRules: Record<string, CardRule>;
@@ -38,6 +39,7 @@ const DEFAULT_CARD_RULES: Record<string, CardRule> = {
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
   allowMixedHandAndFaceUpWhenDeckEmpty: false,
+  allowFailedFaceUpPlay: false,
   decksCount: 1,
   burnCount: 4,
   cardRules: DEFAULT_CARD_RULES
@@ -59,6 +61,7 @@ export function loadGameConfig(): GameConfig {
     }
     return {
       allowMixedHandAndFaceUpWhenDeckEmpty: Boolean(parsed.allowMixedHandAndFaceUpWhenDeckEmpty),
+      allowFailedFaceUpPlay: Boolean(parsed.allowFailedFaceUpPlay),
       decksCount,
       burnCount: decksCount === 2 ? 6 : 4,
       cardRules
@@ -78,6 +81,7 @@ export function getCreateGameConfig(config: GameConfig) {
   );
   return {
     ...config,
+    allowFailedFaceUpPlay: Boolean(config.allowFailedFaceUpPlay),
     cardRules,
     alwaysPlayable: CARD_VALUES.filter((value) => ["JOKER", "TRANSPARENT"].includes(cardRules[String(value)])),
     canPlayAgain: CARD_VALUES.filter((value) => cardRules[String(value)] === "BURNER")

@@ -6,10 +6,12 @@ import {
   loadGameConfig,
   saveGameConfig
 } from "../config/gameConfig";
+import RulesModal, { rankName, SpecialCardRule } from "../components/RulesModal";
 
 export default function GameConfig() {
   const [config, setConfig] = useState<GameConfigType>(() => loadGameConfig());
   const [saved, setSaved] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const updateConfig = (patch: Partial<GameConfigType>) => {
     setConfig((current) => ({ ...current, ...patch }));
@@ -24,6 +26,12 @@ export default function GameConfig() {
     saveGameConfig(config);
     setSaved(true);
   };
+
+  // Generated from the current (possibly unsaved) selections so the popup matches what the player picked.
+  const specialRules: SpecialCardRule[] = CARD_VALUES.flatMap((value) => {
+    const rule = config.cardRules[String(value)];
+    return rule && rule !== "DEFAULT" ? [{ value, rule }] : [];
+  });
 
   return (
     <div className="menu-content fade-in">
@@ -55,15 +63,51 @@ export default function GameConfig() {
         </section>
 
         <section className="glass card">
-          <h3 className="title">Play Face-Up Cards with Your Hand</h3>
-          <label className="config-toggle-row">
-            <input
-              type="checkbox"
-              checked={config.allowMixedHandAndFaceUpWhenDeckEmpty}
-              onChange={(event) => updateConfig({ allowMixedHandAndFaceUpWhenDeckEmpty: event.target.checked })}
+          <h3 className="title">How to play</h3>
+          <p className="config-description">
+            Read the rules of Shithead, including the special cards selected for this configuration.
+          </p>
+          <button
+            className="button secondary"
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={rulesOpen}
+            onClick={() => setRulesOpen(true)}
+          >
+            How to play
+          </button>
+        </section>
+
+        <section className="glass card config-face-up-card" aria-labelledby="face-up-cards-title">
+          <h3 className="title" id="face-up-cards-title">Face-up cards</h3>
+          <p className="config-description">Choose how face-up cards can be played.</p>
+
+          <div className="config-option">
+            <h4 className="config-option-title" id="mixed-face-up-label">Play Face-Up Cards with Your Hand</h4>
+            <p className="config-note">
+              When the draw pile is empty, allow matching face-up cards to be played with cards from your hand.
+            </p>
+            <OnOffSwitch
+              labelId="mixed-face-up-label"
+              value={config.allowMixedHandAndFaceUpWhenDeckEmpty}
+              onChange={(allowMixedHandAndFaceUpWhenDeckEmpty) => updateConfig({ allowMixedHandAndFaceUpWhenDeckEmpty })}
             />
-            <span>When the draw pile is empty, allow matching face-up cards to be played with cards from your hand.</span>
-          </label>
+          </div>
+
+          <div className="config-option">
+            <h4 className="config-option-title" id="failed-face-up-label">
+              Pick up the pile when a face-up card can&apos;t be played
+            </h4>
+            <p className="config-note">
+              When your hand is empty and the face-up card you choose cannot be played, it is placed on the pile and you
+              pick up the whole pile, like a failed blind flip. When off, an illegal face-up play is rejected.
+            </p>
+            <OnOffSwitch
+              labelId="failed-face-up-label"
+              value={config.allowFailedFaceUpPlay}
+              onChange={(allowFailedFaceUpPlay) => updateConfig({ allowFailedFaceUpPlay })}
+            />
+          </div>
         </section>
 
         <section className="glass card config-rules-card">
@@ -79,7 +123,7 @@ export default function GameConfig() {
               <tbody>
                 {CARD_VALUES.map((value) => (
                   <tr key={value}>
-                    <th scope="row">{value === 11 ? "Jack" : value === 12 ? "Queen" : value === 13 ? "King" : value === 14 ? "Ace" : value}</th>
+                    <th scope="row">{rankName(value)}</th>
                     <td>
                       <select
                         className="input rules-select"
@@ -105,6 +149,32 @@ export default function GameConfig() {
           <button className="button" type="button" onClick={save}>Save Configuration</button>
         </div>
       </div>
+
+      {rulesOpen && (
+        <RulesModal
+          specialRules={specialRules}
+          faceUpFailurePickup={config.allowFailedFaceUpPlay}
+          onClose={() => setRulesOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function OnOffSwitch({ labelId, value, onChange }: { labelId: string; value: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <div className="choice-switch" role="group" aria-labelledby={labelId}>
+      {([true, false] as const).map((option) => (
+        <button
+          key={option ? "on" : "off"}
+          className={`choice-switch-option${value === option ? " active" : ""}`}
+          type="button"
+          aria-pressed={value === option}
+          onClick={() => onChange(option)}
+        >
+          {option ? "On" : "Off"}
+        </button>
+      ))}
     </div>
   );
 }
