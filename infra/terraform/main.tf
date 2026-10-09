@@ -43,6 +43,9 @@ module "lambda" {
   aws_dynamodb_table_ws_connections_arn = module.dynamodb.aws_dynamodb_table_ws_connections_arn
   cognito_user_pool_client_id           = module.cognito.user_pool_client_id
   cognito_user_pool_id                  = module.cognito.user_pool_id
+  livekit_url                           = var.livekit_url
+  livekit_api_key                       = var.livekit_api_key
+  livekit_api_secret                    = var.livekit_api_secret
 }
 
 module "dynamodb" {

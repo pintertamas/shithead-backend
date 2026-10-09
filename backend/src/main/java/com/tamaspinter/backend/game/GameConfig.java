@@ -23,6 +23,8 @@ public class GameConfig {
     @Builder.Default
     private final boolean allowFailedFaceUpPlay = false;
     @Builder.Default
+    private final boolean voiceEnabled = false;
+    @Builder.Default
     private final Map<Integer, CardRule> cardRuleMap = new HashMap<>();
     @Builder.Default
     private final Map<Integer, Boolean> alwaysPlayableMap = new HashMap<>();
@@ -38,6 +40,7 @@ public class GameConfig {
                 .burnCount(4)
                 .allowMixedHandAndFaceUpWhenDeckEmpty(false)
                 .allowFailedFaceUpPlay(false)
+                .voiceEnabled(false)
                 .build();
         config.cardRuleMap.put(2, CardRule.JOKER);
         config.cardRuleMap.put(6, CardRule.SMALLER);
@@ -59,6 +62,7 @@ public class GameConfig {
                 .burnCount(e.getBurnCount())
                 .allowMixedHandAndFaceUpWhenDeckEmpty(e.isAllowMixedHandAndFaceUpWhenDeckEmpty())
                 .allowFailedFaceUpPlay(e.isAllowFailedFaceUpPlay())
+                .voiceEnabled(e.isVoiceEnabled())
                 .build();
         e.getCardRules().forEach((key, value) ->
                 config.cardRuleMap.put(Integer.parseInt(key), CardRule.valueOf(value)));
@@ -75,6 +79,7 @@ public class GameConfig {
                 .burnCount(this.burnCount)
                 .allowMixedHandAndFaceUpWhenDeckEmpty(this.allowMixedHandAndFaceUpWhenDeckEmpty)
                 .allowFailedFaceUpPlay(this.allowFailedFaceUpPlay)
+                .voiceEnabled(this.voiceEnabled)
                 .faceDownCount(this.faceDownCount)
                 .faceUpCount(this.faceUpCount)
                 .handCount(this.handCount)
