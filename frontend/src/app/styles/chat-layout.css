@@ -106,6 +106,17 @@
   background: #c28a1e;
 }
 
+/* Remote audio blocked by the browser: pulsing amber until the player taps "Tap to enable sound". */
+.chat-fab-voice.is-blocked {
+  background: #c28a1e;
+  animation: chat-fab-voice-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chat-fab-voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(194, 138, 30, 0.7); }
+  50% { box-shadow: 0 0 0 6px rgba(194, 138, 30, 0); }
+}
+
 .chat-fab-badge {
   position: absolute;
   top: -4px;
@@ -192,7 +203,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .chat-sheet-backdrop,
-  .chat-sheet {
+  .chat-sheet,
+  .chat-fab-voice.is-blocked {
     animation: none;
   }
 }
