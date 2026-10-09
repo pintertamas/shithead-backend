@@ -129,8 +129,10 @@ public class UserProfileRepository {
                 .scanIndexForward(false)
                 .limit(limit));
 
-        List<UserProfile> result = new ArrayList<>();
-        pages.stream().forEach(page -> result.addAll(page.items()));
-        return result;
+        // DynamoDB applies the limit per page, so stop collecting once enough entries were read.
+        return pages.stream()
+                .flatMap(page -> page.items().stream())
+                .limit(limit)
+                .collect(java.util.stream.Collectors.toList());
     }
 }
