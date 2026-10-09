@@ -675,3 +675,62 @@ Include a **change log entry** at the top of this section with date and model na
 | 2026-02-20 | Initial file created | Claude Sonnet 4.6 |
 | 2026-02-20 | Added Builder pattern, Records, constructor injection, test naming, exception hierarchy | Claude Sonnet 4.6 |
 | 2026-02-20 | Added PMD, Checkstyle, SpotBugs setup and codeQuality profile docs | Claude Sonnet 4.6 |
+| 2026-10-09 | Added the side-by-side Go backend (`backend-go/`, `infra/terraform/go_api/`), see section 15 | Claude Haiku 5.5 |
+
+---
+
+## 15. Go Backend (Side-by-Side)
+
+A second backend, written in Go, lives in `backend-go/`. It implements the whole game API (REST, WebSocket and the WebSocket authorizer) in **one Lambda** and is deployed next to the existing Java/Python stack. The old backend is untouched; the Go one is switched on per browser for testing.
+
+### Layout
+
+| Path | Contents |
+|---|---|
+| `backend-go/cmd/lambda/main.go` | Lambda entry point (`lambda.Start(h.Handle)`), wiring from env vars |
+| `backend-go/internal/rules` | Card/Player types and the stateless rule engine (`CanPlay`, `ShouldBurn`, after-effects) |
+| `backend-go/internal/game` | `Session` state machine, `GameConfig` (+ `ParseConfig` validation), `Deck` |
+| `backend-go/internal/elo` | K=32 rating update |
+| `backend-go/internal/store` | DynamoDB records (same attribute names as Java/Python), games/users/connections repositories, username reservation transaction |
+| `backend-go/internal/auth` | Cognito ID-token verification (RS256, iss/aud/token_use/exp, JWKS cached, refetch on unknown kid) and claim helpers |
+| `backend-go/internal/handler` | Event dispatch (REST proxy / WebSocket / REQUEST authorizer), routes, views, broadcast, AWS notifier |
+
+The handler depends only on interfaces (`GameRepo`, `UserRepo`, `ConnectionRepo`, `Notifier`, `TokenVerifier`), so `go test ./...` needs no AWS.
+
+### Build and test
+
+```bash
+cd backend-go
+go vet ./...
+go test ./...
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -trimpath -o build/stage/bootstrap ./cmd/lambda
+cd build/stage && zip -q -j ../shithead-api.zip bootstrap   # -> backend-go/build/shithead-api.zip
+```
+
+The module pins `aws-lambda-go` v1.47.0 and `golang.org/x/text` v0.22.0 because newer releases require Go 1.26; the toolchain is Go 1.24 (`go 1.24` in `go.mod`). CI (`deploy-backend`) runs the same build before `terraform apply`.
+
+### Routes
+
+- REST (`{proxy+}`, Cognito authorizer, `OPTIONS` unauthenticated): `POST /create-game`, `POST /join-game`, `POST /leave-game`, `POST /start-game` (`phase: "prepare"` marks starting), `GET /state/{sessionId}`, `GET /leaderboard/top?limit=`, `GET /leaderboard/session/{sessionId}`, `GET|PUT /profile`, `POST /admin/doomsday` (Cognito group `game-admin`).
+- WebSocket (`$request.body.action` selects the route): `$connect` (REQUEST authorizer, token in `?token=`), `$disconnect`, `$default` (no-op, 200), `play`, `setup`, `pickup`. Message and error shapes are unchanged.
+
+Behaviour matches the Java/Python backend, with these deliberate differences:
+- `$default` does not broadcast client data (the Python `default.py` did).
+- Every save keeps `starting` and `eloUpdated`; the Java code dropped them on play.
+- Profile and Elo writes are `UpdateItem`s, so attributes such as `created_at` are no longer dropped by a full put.
+- `/leaderboard/top` returns the top N (the Java query paginated through the whole index).
+- Create-game validates the configuration (decks 1|2, zone counts 0..10 that fit the deck, known card rules, boolean flags; unknown keys ignored).
+- `allowFailedFaceUpPlay` (default false): an illegal face-up play picks up the whole pile instead of being rejected, and reveals the card.
+
+### Side-by-side infrastructure
+
+`infra/terraform/go_api/` is a self-contained module, called as `module "go_api"` in `infra/terraform/main.tf`. It creates the Lambda `${project}-go-api` (arm64, `provided.al2023`, 256 MB, 30 s, no SnapStart), its IAM role (`${project}-go-*`), the REST API `${project}-go-api` (stage `prod`) and the WebSocket API `${project}-go-ws` (stage `$default`, throttling 100/50, own access log group). It reads the existing tables and the Cognito pool through outputs and changes none of them. Outputs: `go_api_base_url` and `go_websocket_url`.
+
+### Switching the frontend to the Go backend
+
+- Add repo variables `VITE_API_BASE_URL_GO` (= `go_api_base_url`) and `VITE_WS_BASE_URL_GO` (= `go_websocket_url`). CI passes them to both frontend builds.
+- Open the app with `?backend=go`. `activeBackend()` in `frontend/src/app/api/client.ts` stores `shithead_backend=go` in localStorage. `?backend=default` clears it. The Go backend is used only when the preference is set and both `_GO` variables are present.
+
+### Status
+
+Side-by-side and additive: nothing in the Java/Python stack is modified or redeployed by this module. Switching the default frontend to Go is a separate, later decision.
