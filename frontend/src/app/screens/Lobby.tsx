@@ -40,7 +40,7 @@ export default function Lobby() {
 
   useEffect(() => {
     let active = true;
-    fetchGlobalLeaderboard(token, 10)
+    fetchGlobalLeaderboard(token, 3)
       .then((entries) => { if (active) setLeaders(entries); })
       .catch(() => { if (active) setLeaders([]); })
       .finally(() => { if (active) setLeaderboardLoading(false); });

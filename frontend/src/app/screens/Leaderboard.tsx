@@ -4,7 +4,12 @@ import { useAuth } from "../auth/useAuth";
 import { fetchGlobalLeaderboard, fetchSessionLeaderboard, LeaderboardEntry } from "../api/leaderboard";
 import Tabs from "../components/Tabs";
 import ErrorAlert from "../components/ErrorAlert";
+import Icon from "../components/Icon";
 import "../styles/leaderboard.css";
+import "../styles/rankings.css";
+
+// The API accepts 1..100 for the global list.
+const GLOBAL_LIMIT = 100;
 
 function TrophyIcon() {
   return (
@@ -24,6 +29,7 @@ export default function Leaderboard() {
   const [tab, setTab] = useState(sessionId ? "Session" : "Global");
   const [sessionData, setSessionData] = useState<LeaderboardEntry[]>([]);
   const [globalData, setGlobalData] = useState<LeaderboardEntry[]>([]);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sessionLoading, setSessionLoading] = useState(Boolean(sessionId));
   const [globalLoading, setGlobalLoading] = useState(true);
@@ -41,7 +47,7 @@ export default function Leaderboard() {
   useEffect(() => {
     let active = true;
     setGlobalLoading(true);
-    fetchGlobalLeaderboard(token, 20).then((rows) => { if (active) setGlobalData(rows); }).catch((cause: unknown) => {
+    fetchGlobalLeaderboard(token, GLOBAL_LIMIT).then((rows) => { if (active) setGlobalData(rows); }).catch((cause: unknown) => {
       if (active) setError(cause instanceof Error ? cause.message : "Couldn't load the global leaderboard.");
     }).finally(() => { if (active) setGlobalLoading(false); });
     return () => { active = false; };
@@ -49,6 +55,13 @@ export default function Leaderboard() {
 
   const rows = tab === "Session" ? sessionData : globalData;
   const loading = tab === "Session" ? sessionLoading : globalLoading;
+
+  // Rank is the position in the full list, so filtering never renumbers players.
+  const ranked = rows.map((entry, index) => ({ entry, rank: index + 1 }));
+  const needle = query.trim().toLowerCase();
+  const visible = needle
+    ? ranked.filter(({ entry }) => entry.username.toLowerCase().includes(needle))
+    : ranked;
 
   return (
     <div className="leaderboard-page fade-in">
@@ -67,7 +80,7 @@ export default function Leaderboard() {
               <TrophyIcon />
               <div>
                 <h2 id="leaderboard-title">Rankings</h2>
-                <p>{sessionId && tab === "Session" ? "Final standings for this game." : "Top players and their current ELO."}</p>
+                <p>{sessionId && tab === "Session" ? "Final standings for this game." : "Every player and their current ELO."}</p>
               </div>
             </div>
           </div>
@@ -75,22 +88,55 @@ export default function Leaderboard() {
           {sessionId && <Tabs tabs={["Session", "Global"]} active={tab} onChange={setTab} />}
 
           {loading ? <div className="lobby-rankings-message" role="status"><span className="game-starting-spinner" />Loading rankings…</div>
-            : rows.length === 0 ? <p className="lobby-rankings-message">No rankings are available yet.</p>
+            : rows.length === 0 ? <p className="lobby-rankings-message">{error ? "Rankings couldn't be loaded." : "No rankings are available yet."}</p>
               : (
-                <div className="lobby-table-wrap">
-                  <table className="lobby-rankings-table">
-                    <thead><tr><th scope="col">#</th><th scope="col">Name</th><th scope="col">ELO</th></tr></thead>
-                    <tbody>
-                      {rows.map((entry, index) => (
-                        <tr key={entry.userId}>
-                          <td><span className={`lobby-rank${index < 3 ? ` top-${index + 1}` : ""}`}>{index + 1}</span></td>
-                          <td>{entry.username}</td>
-                          <td>{Math.round(entry.eloScore)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div className="rankings-toolbar">
+                    <div className="rankings-search">
+                      <Icon name="search" size={16} className="rankings-search-icon" />
+                      <input
+                        type="search"
+                        className="input rankings-search-input"
+                        aria-label="Filter players by name"
+                        placeholder="Search by name"
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); }}
+                      />
+                      {query && (
+                        <button type="button" className="rankings-search-clear" aria-label="Clear search" onClick={() => setQuery("")}>
+                          <Icon name="close" size={16} />
+                        </button>
+                      )}
+                    </div>
+                    {needle && (
+                      <span className="rankings-count" role="status" aria-live="polite">
+                        {visible.length} of {rows.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {visible.length === 0 ? (
+                    <p className="lobby-rankings-message rankings-no-match" role="status">No players match “{query.trim()}”.</p>
+                  ) : (
+                    <div className="lobby-table-wrap">
+                      <table className="lobby-rankings-table">
+                        <thead><tr><th scope="col">#</th><th scope="col">Name</th><th scope="col">ELO</th></tr></thead>
+                        <tbody>
+                          {visible.map(({ entry, rank }) => (
+                            <tr key={entry.userId}>
+                              <td><span className={`lobby-rank${rank <= 3 ? ` top-${rank}` : ""}`}>{rank}</span></td>
+                              <td>{entry.username}</td>
+                              <td>{Math.round(entry.eloScore)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
         </section>
       </div>
