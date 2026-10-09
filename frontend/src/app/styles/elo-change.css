@@ -1,0 +1,47 @@
+/* Elo change indicator on the session leaderboard: "▲ +16" with a muted "from 985" line under it. */
+
+:root {
+  --elo-up: #7fd39a;
+  --elo-down: var(--danger);
+  --elo-flat: var(--ink-dim);
+}
+
+.elo-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.elo-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.elo-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.elo-change-icon {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  fill: currentColor;
+}
+
+.elo-change-up { color: var(--elo-up); }
+.elo-change-down { color: var(--elo-down); }
+.elo-change-flat { color: var(--elo-flat); }
+
+.elo-change-from {
+  color: var(--ink-dim);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

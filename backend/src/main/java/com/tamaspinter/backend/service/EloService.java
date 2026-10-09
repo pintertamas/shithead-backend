@@ -6,6 +6,10 @@ import java.util.Map;
 public class EloService {
     private static final double K = 32.0;
 
+    /** A player's rating before and after one Elo update. */
+    public record EloChange(double before, double after) {
+    }
+
     public static Map<String, Double> updateRatings(Map<String, Double> current, Map<String, Double> scores) {
         Map<String, Double> updated = new HashMap<>();
         for (Map.Entry<String, Double> entry : current.entrySet()) {
@@ -25,5 +29,15 @@ public class EloService {
             updated.put(id, newRating);
         }
         return updated;
+    }
+
+    /**
+     * Runs {@link #updateRatings} and pairs every player's old and new rating.
+     */
+    public static Map<String, EloChange> calculateChanges(Map<String, Double> current, Map<String, Double> scores) {
+        Map<String, Double> updated = updateRatings(current, scores);
+        Map<String, EloChange> changes = new HashMap<>();
+        updated.forEach((id, after) -> changes.put(id, new EloChange(current.get(id), after)));
+        return changes;
     }
 }
