@@ -90,10 +90,10 @@ export default function Lobby() {
           </svg>
         </div>
         <nav className="lobby-nav">
-          <button className="lobby-nav-item active" aria-current="page"><span aria-hidden="true">⌂</span>Home</button>
-          <button className="lobby-nav-item" onClick={() => navigate("/config")}><span aria-hidden="true">⚙</span>Game Config</button>
-          <button className="lobby-nav-item" onClick={() => navigate("/profile")}><span aria-hidden="true">♙</span>Profile</button>
-          <button className="lobby-nav-item" onClick={() => { logout(); navigate("/login"); }}><span aria-hidden="true">↪</span>Log out</button>
+          <button className="lobby-nav-item active" aria-current="page" aria-label="Home" title="Home"><span className="lobby-nav-icon" aria-hidden="true">🏠</span><span className="lobby-nav-label">Home</span></button>
+          <button className="lobby-nav-item" onClick={() => navigate("/config")} aria-label="Game Config" title="Game Config"><span className="lobby-nav-icon" aria-hidden="true">⚙️</span><span className="lobby-nav-label">Game Config</span></button>
+          <button className="lobby-nav-item" onClick={() => navigate("/profile")} aria-label="Profile" title="Profile"><span className="lobby-nav-icon" aria-hidden="true">👤</span><span className="lobby-nav-label">Profile</span></button>
+          <button className="lobby-nav-item" onClick={() => { logout(); navigate("/login"); }} aria-label="Log out" title="Log out"><span className="lobby-nav-icon" aria-hidden="true">🚪</span><span className="lobby-nav-label">Log out</span></button>
         </nav>
       </aside>
 

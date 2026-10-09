@@ -3,8 +3,8 @@ package com.tamaspinter.backend.rules;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.CardRule;
 
+import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Iterator;
 
 public class TransparentRuleStrategy implements RuleStrategy {
     @Override
@@ -12,13 +12,14 @@ public class TransparentRuleStrategy implements RuleStrategy {
         if (newCard.isAlwaysPlayable()) {
             return true;
         }
-        Iterator<Card> desc = pile.descendingIterator();
-        while (desc.hasNext()) {
-            Card top = desc.next();
+        Deque<Card> effectivePile = new ArrayDeque<>(pile);
+        while (!effectivePile.isEmpty()) {
+            Card top = effectivePile.peekLast();
             if (top.getRule() != CardRule.TRANSPARENT) {
                 return RuleEngine.getStrategy(top.getRule())
-                        .canPlay(newCard, pile);
+                        .canPlay(newCard, effectivePile);
             }
+            effectivePile.removeLast();
         }
         return true;
     }
