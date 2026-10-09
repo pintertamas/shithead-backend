@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, startGame, leaveGame, GameStateView, openGameSocket } from "../api/game";
+import { fetchState, startGame, leaveGame, ChatMessage, GameStateView, openGameSocket } from "../api/game";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
+import ChatPanel from "../components/ChatPanel";
+import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
 
 export default function Room() {
   const { sessionId } = useParams();
@@ -17,6 +19,8 @@ export default function Room() {
   const transitionStarted = useRef(false);
   const transitionTimer = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [socketOpen, setSocketOpen] = useState(false);
 
   const showStartingScreen = useCallback(() => {
     setLoading("starting");
@@ -31,9 +35,15 @@ export default function Room() {
     if (!sessionId || !token) return;
     const ws = openGameSocket(sessionId, token);
     wsRef.current = ws;
+    ws.onopen = () => setSocketOpen(true);
+    ws.onclose = () => setSocketOpen(false);
     ws.onmessage = (event) => {
       try {
         const next = JSON.parse(event.data) as GameStateView;
+        if ((next as unknown as { type?: string }).type === "chat") {
+          setChatMessages((prev) => appendChatMessage(prev, next as unknown as ChatMessage));
+          return;
+        }
         if ((next as unknown as { type?: string }).type === "error") return;
         setState(next);
         if (next.started) showStartingScreen();
@@ -175,6 +185,14 @@ export default function Room() {
             ))}
           </div>
         </div>
+      </div>
+      <div className="layout single">
+        <ChatPanel
+          messages={chatMessages}
+          currentUserId={state?.players.find((player) => player.isYou)?.playerId}
+          connected={socketOpen}
+          onSend={(text) => (sessionId ? sendChatMessage(wsRef.current, sessionId, text) : false)}
+        />
       </div>
       {loading === "starting" && (
         <div className="game-starting-overlay" role="status" aria-live="polite">
