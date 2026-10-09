@@ -1,0 +1,603 @@
+/*
+ * Compact table for phones (max-width: 700px, portrait and landscape). Only applies when GameTable renders the
+ * `phone-table` class. Selectors start with `.game-page.phone-table` so they win over table.css, table-fit.css,
+ * layout.css and player-panel.css whatever the import order.
+ *
+ * Portrait: header (title, opponent chips) / previous and next panels at the sides with the piles between them /
+ * own panel / play row / one-line log. Landscape: the same parts with the piles side by side and smaller cards.
+ */
+
+/* ---------- Page and header ---------- */
+
+@media (max-width: 700px) {
+  .game-page.phone-table {
+    margin: 0;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .game-page.phone-table .game-stage,
+  .game-page.phone-table .game-main {
+    gap: 6px;
+  }
+
+  /* The side column only holds the chat popup button on phones; the log is in the log line. */
+  .game-page.phone-table .game-companion {
+    display: none;
+  }
+
+  .game-page.phone-table .table-bar {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-height: 0;
+    padding: 4px 8px;
+    border-radius: 10px;
+  }
+
+  .game-page.phone-table .table-bar .table-bar-title {
+    flex: 1 1 auto;
+    font-size: 14px;
+  }
+
+  .game-page.phone-table .table-bar .nudge-button {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Portrait: the chips take a row of their own under the title. */
+  .game-page.phone-table .phone-chips {
+    order: 3;
+    flex: 1 0 100%;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  /* ---------- Table ---------- */
+
+  /* Rows in the board are real flex rows: none of them may shrink below its content (shrinking is what
+     let the own panel slide over the piles and the setup controls). Only the middle row takes spare height. */
+  .game-page.phone-table .game-board > * {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .game-page.phone-table .game-board > .game-middle {
+    flex: 1 0 auto;
+  }
+
+  .game-page.phone-table .game-board {
+    --card-w: 38px;
+    --card-h: calc(var(--card-w) * 7 / 5);
+    --card-stack-gap: 4px;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 14px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-own {
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 6px;
+  }
+
+  /* Own panel: the name is already in the header bar, so the header and the hand label go. */
+  .game-page.phone-table .game-board .game-seat-own .game-seat-header,
+  .game-page.phone-table .game-board .game-seat-own .hand-label {
+    display: none;
+  }
+
+  .game-page.phone-table .game-board .game-seat-own .game-seat-content {
+    gap: 6px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-own .playing-hand {
+    min-height: calc(var(--card-h) + 12px);
+    padding: 6px 4px;
+  }
+
+  .game-page.phone-table .game-board .player-card-stacks {
+    min-height: calc(var(--card-h) + 8px);
+    margin-top: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .game-page.phone-table .game-board .paired-card-stack {
+    width: var(--card-w);
+    height: calc(var(--card-h) + 6px);
+    flex: 0 0 var(--card-w);
+  }
+
+  /* ---------- Middle row: previous and next at the sides, piles between ---------- */
+
+  .game-page.phone-table .game-middle.phone-middle {
+    display: grid;
+    grid-template-columns: minmax(0, 104px) minmax(0, 1fr) minmax(0, 104px);
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .game-page.phone-table .phone-side {
+    min-width: 0;
+    grid-row: 1;
+  }
+
+  .game-page.phone-table .phone-side-left { grid-column: 1; }
+  .game-page.phone-table .phone-side-right { grid-column: 3; }
+
+  .game-page.phone-table .game-middle.phone-middle > .game-piles {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    min-width: 0;
+  }
+
+  .game-page.phone-table .game-middle.phone-middle > .game-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .game-page.phone-table .game-middle.phone-middle > .game-actions:empty {
+    display: none;
+  }
+
+  /* Setup: no piles yet, so the starter picker and swap/ready controls take the middle row on their own. */
+  .game-page.phone-table .game-middle.phone-middle.phone-setup {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .game-page.phone-table .game-middle.phone-setup > .phone-side,
+  .game-page.phone-table .game-middle.phone-setup > .game-piles {
+    display: none;
+  }
+
+  .game-page.phone-table .setup-controls {
+    max-width: none;
+    margin: 0;
+    gap: 6px;
+  }
+
+  .game-page.phone-table .setup-controls > .title {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .game-page.phone-table .setup-controls p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .game-page.phone-table .game-piles .pile {
+    min-width: 0;
+    width: 100%;
+    max-width: 104px;
+    padding: 4px;
+  }
+
+  .game-page.phone-table .game-piles .pile-count {
+    font-size: 15px;
+  }
+
+  /* Stacked piles: the draw pile's toggle only repeats the count shown on the pile, so it goes on phones. */
+  .game-page.phone-table .pile-peek-wrap:has(.pile-draw) > .peek-toggle {
+    display: none;
+  }
+
+  /* The chat button floats over the bottom-right corner; the play row and log line leave room for it. */
+  .game-page.phone-table .game-actions-play,
+  .game-page.phone-table .phone-log-wrap {
+    padding-right: 66px;
+  }
+
+  /* Compact opponent panels: a narrower card size and a short header. */
+  .game-page.phone-table .game-board .game-seat-compact {
+    --card-w: 28px;
+    --card-h: calc(var(--card-w) * 7 / 5);
+    --card-stack-gap: 3px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 5px 4px;
+    border-radius: 10px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-compact .game-seat-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+    min-height: 0;
+    margin-bottom: 3px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-compact .game-seat-name {
+    font-size: 12px;
+  }
+
+  /* Room for the name and the NEXT badge on a narrow panel; the peek dialog still shows Elo. */
+  .game-page.phone-table .game-board .game-seat-compact .elo-badge {
+    display: none;
+  }
+
+  .game-page.phone-table .game-board .game-seat-compact .seat-card-counts {
+    font-size: 10px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-compact .seat-turn {
+    justify-self: start;
+    font-size: 9px;
+    padding: 1px 6px;
+  }
+
+  /* The count line says how many cards are in hand; the fan of backs is for the chips. */
+  .game-page.phone-table .game-board .game-seat-compact .seat-fan-row {
+    display: none;
+  }
+
+  .game-page.phone-table .game-board .game-seat-compact .player-card-stacks {
+    min-height: 0;
+    gap: var(--card-stack-gap);
+  }
+
+  .game-page.phone-table .game-board .game-seat-compact .paired-card-stack {
+    height: calc(var(--card-h) + 6px);
+  }
+
+  .game-page.phone-table .game-seat-compact .game-seat-content {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .game-page.phone-table .game-seat-compact .stack-peek-wrap > .peek-toggle {
+    display: none;
+  }
+
+  /* ---------- Chips (every other opponent) ---------- */
+
+  .game-page.phone-table .seat-chip-wrap {
+    position: relative;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 118px;
+  }
+
+  .game-page.phone-table .seat-chip {
+    display: grid;
+    gap: 1px;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 3px 6px;
+    border: 1px solid rgba(236, 232, 205, 0.28);
+    border-radius: 10px;
+    background: rgba(8, 27, 22, 0.7);
+    color: #f5edda;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .game-page.phone-table .seat-chip:focus-visible {
+    outline: 2px solid #f0d99e;
+    outline-offset: 2px;
+  }
+
+  .game-page.phone-table .seat-chip-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .game-page.phone-table .seat-chip-line {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .game-page.phone-table .seat-chip-fan {
+    position: relative;
+    flex: 0 0 auto;
+    width: 19px;
+    height: 13px;
+  }
+
+  .game-page.phone-table .seat-chip-back {
+    position: absolute;
+    top: 0;
+    left: calc(var(--chip-i) * 5px);
+    width: 9px;
+    height: 13px;
+    border: 1px solid #2c4a3c;
+    border-radius: 2px;
+    background: repeating-linear-gradient(45deg, #7a2d28 0 2px, #5a1f1b 2px 4px);
+  }
+
+  .game-page.phone-table .seat-chip-counts {
+    font-size: 10px;
+    color: rgba(245, 237, 218, 0.8);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .game-page.phone-table .seat-chip-turn {
+    justify-self: start;
+    padding: 0 5px;
+    border-radius: 99px;
+    background: #f2c46f;
+    color: #243027;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+
+  .game-page.phone-table .seat-chip-wrap.seat-chip-playing .seat-chip {
+    border-color: rgba(255, 210, 120, 0.95);
+    box-shadow: 0 0 0 2px rgba(255, 210, 120, 0.2);
+  }
+
+  .game-page.phone-table .seat-chip-wrap.seat-next .seat-chip {
+    border-color: #5fd3e6;
+  }
+
+  .game-page.phone-table .seat-chip-wrap.seat-chip-playing.seat-next .seat-chip {
+    border-color: rgba(255, 210, 120, 0.95);
+  }
+
+  .game-page.phone-table .seat-chip-wrap.seat-chip-out .seat-chip {
+    opacity: 0.55;
+  }
+
+  /* ---------- Log line and play row ---------- */
+
+  .game-page.phone-table .game-actions-play {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .game-page.phone-table .game-actions-play .button {
+    min-width: 120px;
+    padding: 8px 14px;
+  }
+
+  .game-page.phone-table .game-actions-play .game-hint {
+    font-size: 11px;
+    max-width: none;
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .game-page.phone-table .phone-log-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .game-page.phone-table .phone-log-line {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 4px;
+    color: rgba(245, 237, 218, 0.85);
+    font-size: 12px;
+  }
+
+  .game-page.phone-table .phone-log-wrap > .peek-toggle {
+    flex: 0 0 auto;
+  }
+
+  .phone-log-popover {
+    min-width: min(80vw, 300px);
+  }
+
+  .phone-log-popover .game-feed-list {
+    max-height: 45dvh;
+  }
+
+  /* ---------- Phone-only peek dialog for a chip ---------- */
+
+  .peek-overlay.seat-peek {
+    width: min(88vw, 340px);
+    padding: 40px 12px 14px;
+  }
+
+  .seat-peek .seat-peek-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-right: 36px;
+  }
+
+  .seat-peek .seat-peek-name {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+  }
+
+  .seat-peek .seat-peek-counts {
+    margin: 4px 0 10px;
+    font-size: 13px;
+    color: rgba(245, 237, 218, 0.8);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .seat-peek .seat-peek-cards {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    max-height: 60dvh;
+    overflow: auto;
+  }
+
+  .seat-peek .seat-peek-empty {
+    margin: 8px 0;
+    color: rgba(245, 237, 218, 0.7);
+    font-size: 13px;
+  }
+
+  .seat-peek .seat-peek-card {
+    width: 66px;
+    height: 92px;
+    flex: 0 0 66px;
+    margin: 0;
+  }
+
+  .seat-peek .seat-peek-card .playing-card-corner,
+  .seat-peek .seat-peek-card .playing-card-corner-opposite {
+    font-size: 13px;
+  }
+
+  .seat-peek .seat-peek-card .playing-card-center {
+    font-size: 30px;
+  }
+}
+
+/* ---------- Landscape phones: columns, smaller cards, chips in the header row ---------- */
+
+@media (max-width: 700px) and (orientation: landscape) {
+  .game-page.phone-table {
+    padding: 4px 6px;
+  }
+
+  .game-page.phone-table .table-bar {
+    flex-wrap: nowrap;
+    padding: 3px 8px;
+  }
+
+  .game-page.phone-table .table-bar .table-bar-title {
+    flex: 0 1 auto;
+    max-width: 34%;
+  }
+
+  .game-page.phone-table .phone-chips {
+    order: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+
+  .game-page.phone-table .seat-chip-wrap {
+    max-width: 120px;
+  }
+
+  .game-page.phone-table .seat-chip-fan,
+  .game-page.phone-table .seat-chip-turn {
+    display: none;
+  }
+
+  .game-page.phone-table .game-board {
+    --card-w: 30px;
+    --card-h: calc(var(--card-w) * 7 / 5);
+    gap: 3px;
+    padding: 4px 6px;
+  }
+
+  .game-page.phone-table .game-middle.phone-middle {
+    grid-template-columns: minmax(0, 130px) minmax(0, 1fr) minmax(0, 130px);
+    gap: 8px;
+    /* Room for the discard pile's "View pile" toggle, which hangs below the pile. */
+    padding-bottom: 12px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-compact {
+    --card-w: 24px;
+    --card-h: calc(var(--card-w) * 7 / 5);
+    padding: 3px 4px;
+  }
+
+  .game-page.phone-table .game-middle.phone-middle > .game-piles {
+    flex-direction: row;
+    gap: 14px;
+  }
+
+  .game-page.phone-table .game-piles .pile {
+    max-width: 96px;
+    padding: 3px 4px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-own .playing-hand {
+    min-height: calc(var(--card-h) + 6px);
+    padding: 3px 4px;
+  }
+
+  .game-page.phone-table .game-board .game-seat-own .player-card-stacks {
+    min-height: calc(var(--card-h) + 2px);
+  }
+
+  .game-page.phone-table .game-board .paired-card-stack {
+    height: calc(var(--card-h) + 2px);
+  }
+
+  .game-page.phone-table .game-actions-play {
+    flex-wrap: nowrap;
+  }
+
+  /* Setup in landscape: the height is too small to stack the starter picker, swap/ready and the own panel,
+     so the setup controls sit on the left, the own panel on the right and the log runs along the bottom. */
+  .game-page.phone-table .game-board:has(> .phone-setup) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 6px 16px;
+    align-items: center;
+  }
+
+  .game-page.phone-table .game-board > .game-middle.phone-setup {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .game-page.phone-table .game-board:has(> .phone-setup) > .game-seat-own {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    max-width: none;
+    align-self: center;
+  }
+
+  .game-page.phone-table .game-board > .phone-log-wrap {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .game-page.phone-table .setup-controls > .title {
+    font-size: 14px;
+  }
+
+  .game-page.phone-table .game-actions-play .game-hint {
+    flex: 0 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-page.phone-table .seat-chip {
+    transition: none;
+  }
+}

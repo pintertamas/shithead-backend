@@ -11,6 +11,8 @@ type Props = {
   chatBubble?: { text: string; ts: number } | null;
   isCurrentTurn?: boolean;
   isNext?: boolean;
+  /** Phones: a smaller panel for the previous and next player. Face-up cards open on tap. */
+  compact?: boolean;
   canSelectFaceUp?: boolean;
   canSelectFaceDown?: boolean;
   selectedFaceUp?: number[];
@@ -158,7 +160,7 @@ function EnlargedFaceUp({ username, cards }: { username: string; cards: Card[] }
   );
 }
 
-export default function PlayerPanel({ player, isCurrentTurn = false, isNext = false, canSelectFaceUp = false, canSelectFaceDown = false,
+export default function PlayerPanel({ player, isCurrentTurn = false, isNext = false, compact = false, canSelectFaceUp = false, canSelectFaceDown = false,
   selectedFaceUp = [], selectedFaceDown = [], selectedHand = [], onToggleFaceUp, onToggleFaceDown, onToggleHand, chatBubble }: Props) {
   const ownHand = player.isYou ? player.hand || [] : [];
 
@@ -200,7 +202,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
   );
 
   return (
-    <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${isCurrentTurn ? " game-seat-active" : ""}${isNext ? " seat-next" : ""}`}
+    <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${compact ? " game-seat-compact" : ""}${isCurrentTurn ? " game-seat-active" : ""}${isNext ? " seat-next" : ""}`}
       data-seat-id={player.playerId}>
       {chatBubble && <ChatBubble key={chatBubble.ts} text={chatBubble.text} />}
       <header className="game-seat-header">
@@ -230,6 +232,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
             label={`Enlarge ${player.username}'s face-up cards`}
             toggleText="Enlarge"
             placement="below"
+            pressToOpen={compact}
             popover={<EnlargedFaceUp username={player.username} cards={player.faceUp} />}
           >
             {stacks}
