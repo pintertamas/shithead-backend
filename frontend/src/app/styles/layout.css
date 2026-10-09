@@ -639,12 +639,13 @@ button.playing-card { cursor: pointer; }
   .topbar { align-items: flex-start; flex-wrap: wrap; }
 }
 
-/* Light dashboard treatment for the game lobby */
+/* Card-table dashboard treatment for the game lobby */
 .lobby-page.page {
-  --lobby-ink: #111b19;
-  --lobby-muted: #69746f;
-  --lobby-green: #244331;
-  --lobby-soft-green: #e8efe5;
+  --lobby-ink: #f5edda;
+  --lobby-muted: rgba(245, 237, 218, .72);
+  --lobby-green: #244b35;
+  --lobby-panel: #1c3b2b;
+  --lobby-soft-green: #274b37;
   --lobby-yellow: #ffdf70;
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
@@ -675,10 +676,13 @@ button.playing-card { cursor: pointer; }
   width: 52px;
   height: 52px;
   margin: 0 0 2px 10px;
-  border-radius: 15px;
-  background: rgba(196, 224, 185, .12);
-  font-size: 28px;
+  overflow: hidden;
+  border: 1px solid rgba(231, 216, 164, .45);
+  border-radius: 12px;
+  background: #183527;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, .24);
 }
+.lobby-brand svg { display: block; width: 100%; height: 100%; }
 
 .lobby-nav { display: grid; gap: 8px; }
 .lobby-nav-item {
@@ -724,11 +728,11 @@ button.playing-card { cursor: pointer; }
   gap: 9px;
   overflow: hidden;
   padding: 30px clamp(18px, 4vw, 56px) 24px;
-  border: 1px solid #e8ebe4;
+  border: 1px solid rgba(178, 202, 173, .25);
   border-radius: 18px;
-  background: #fff;
+  background: #1d3e2d;
   text-align: center;
-  box-shadow: 0 8px 28px rgba(35, 54, 40, .045);
+  box-shadow: 0 12px 30px rgba(4, 18, 11, .18);
 }
 .lobby-action-card::before {
   position: absolute;
@@ -736,9 +740,9 @@ button.playing-card { cursor: pointer; }
   inset: 11px;
   border-radius: 13px;
   background:
-    radial-gradient(ellipse at 2% 40%, rgba(216, 231, 211, .62) 0 12%, transparent 12.2%),
-    radial-gradient(ellipse at 100% 0%, rgba(225, 237, 220, .68) 0 16%, transparent 16.2%),
-    linear-gradient(135deg, #f7faf5, #fbfcf9 55%, #f5f8f2);
+    radial-gradient(ellipse at 2% 40%, rgba(118, 153, 105, .18) 0 12%, transparent 12.2%),
+    radial-gradient(ellipse at 100% 0%, rgba(130, 163, 112, .15) 0 16%, transparent 16.2%),
+    linear-gradient(135deg, #264a35, #214430 55%, #1d402e);
   content: "";
 }
 .lobby-action-card > * { position: relative; z-index: 1; }
@@ -749,10 +753,12 @@ button.playing-card { cursor: pointer; }
   height: 76px;
   margin-bottom: 1px;
   border-radius: 50%;
-  background: #e5eee1;
-  color: var(--lobby-green);
+  border: 1px solid rgba(223, 208, 160, .32);
+  background: #183727;
+  color: #e2d4a5;
   font-size: 32px;
 }
+.lobby-action-icon svg { width: 42px; height: 42px; }
 .lobby-action-card h2 { margin: 0; font-size: clamp(22px, 2vw, 29px); letter-spacing: -.03em; }
 .lobby-action-card > p { max-width: 330px; margin: 0 0 3px; color: var(--lobby-muted); font-size: 16px; line-height: 1.4; }
 .lobby-page .button { border-radius: 12px; }
@@ -781,56 +787,61 @@ button.playing-card { cursor: pointer; }
   margin-top: 1px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #edf3e9;
-  color: #52615a;
+  border: 1px solid rgba(187, 207, 171, .14);
+  background: rgba(13, 39, 27, .52);
+  color: #d4ddce;
   font-size: 13px;
 }
 .lobby-info span { font-size: 16px; }
 .lobby-join-form { display: grid; width: 100%; max-width: 360px; gap: 10px; }
 .lobby-page .lobby-code-input {
   height: 54px;
-  border-color: #d9dfd9;
-  background: rgba(255,255,255,.88);
-  color: var(--lobby-ink);
+  border-color: rgba(196, 211, 183, .35);
+  background: #142f22;
+  color: #f5edda;
   text-align: center;
   font-size: 19px;
   font-weight: 600;
   letter-spacing: .32em;
 }
-.lobby-page .lobby-code-input::placeholder { color: #98a19c; font-size: 14px; font-weight: 400; letter-spacing: .02em; }
+.lobby-page .lobby-code-input::placeholder { color: #a9b8a8; font-size: 14px; font-weight: 400; letter-spacing: .02em; }
+.lobby-page .lobby-code-input:focus { border-color: #e2c96f; outline: 2px solid rgba(226, 201, 111, .22); }
 
 .lobby-rankings {
   margin-top: 14px;
   padding: 20px 22px 16px;
-  border: 1px solid #e8ebe4;
+  border: 1px solid rgba(178, 202, 173, .25);
   border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 8px 28px rgba(35, 54, 40, .045);
+  background: #1d3e2d;
+  box-shadow: 0 12px 30px rgba(4, 18, 11, .18);
 }
 .lobby-rankings-heading, .lobby-rankings-title-wrap { display: flex; align-items: center; }
 .lobby-rankings-heading { justify-content: space-between; gap: 14px; margin-bottom: 15px; }
 .lobby-rankings-title-wrap { gap: 13px; min-width: 0; }
-.lobby-trophy { color: #31543d; font-size: 34px; }
+.lobby-trophy { display: inline-flex; color: #e1d1a2; }
+.lobby-trophy svg { width: 36px; height: 36px; }
 .lobby-rankings-heading h2 { margin: 0; font-size: 24px; letter-spacing: -.03em; }
 .lobby-rankings-heading p { margin: 2px 0 0; color: var(--lobby-muted); font-size: 14px; }
-.lobby-page .lobby-rankings-link { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; background: #edf3e9; border: 0; color: #354c3d; }
-.lobby-page .lobby-rankings-link:hover { background: #e4eddf; }
-.lobby-table-wrap { overflow-x: auto; border: 1px solid #e7ebe6; border-radius: 11px; }
-.lobby-rankings-table { width: 100%; border-collapse: collapse; text-align: left; }
-.lobby-rankings-table th { height: 38px; background: #f0f3ef; color: #435149; font-size: 12px; font-weight: 600; }
+.lobby-page .lobby-rankings-link { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; background: #294b37; border: 1px solid rgba(201, 216, 189, .16); color: #eee5c9; }
+.lobby-page .lobby-rankings-link:hover { background: #315740; }
+.lobby-table-wrap { overflow-x: auto; border: 1px solid rgba(183, 204, 178, .2); border-radius: 11px; }
+.lobby-rankings-table { width: 100%; border-collapse: collapse; text-align: left; font-family: inherit; }
+.lobby-rankings-table th { height: 38px; background: #2a4b37; color: #e2dcc5; font-size: 12px; font-weight: 600; }
 .lobby-rankings-table th, .lobby-rankings-table td { padding: 6px 14px; }
 .lobby-rankings-table th:first-child, .lobby-rankings-table td:first-child { width: 10%; text-align: center; }
 .lobby-rankings-table th:last-child, .lobby-rankings-table td:last-child { width: 18%; text-align: right; font-variant-numeric: tabular-nums; }
-.lobby-rankings-table tbody tr + tr { border-top: 1px solid #edf0ed; }
-.lobby-rankings-table td { height: 36px; color: #354039; font-size: 14px; }
-.lobby-rankings-table td:last-child { color: #172019; font-weight: 600; }
-.lobby-rank { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #eaf0e7; color: #213328; font-weight: 600; }
-.lobby-rank.top-1 { background: #ffca22; color: #fff; }
-.lobby-rank.top-2 { background: #aeb6b8; color: #fff; }
-.lobby-rank.top-3 { background: #c8793b; color: #fff; }
+.lobby-rankings-table tbody tr { background: #1c3a2a; }
+.lobby-rankings-table tbody tr:nth-child(even) { background: #203f2e; }
+.lobby-rankings-table tbody tr + tr { border-top: 1px solid rgba(183, 204, 178, .12); }
+.lobby-rankings-table td { height: 36px; color: #e6e2d3; font-size: 14px; }
+.lobby-rankings-table td:last-child { color: #f4e8c2; font-weight: 600; }
+.lobby-rank { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #365540; color: #f0ead8; font-weight: 600; }
+.lobby-rank.top-1 { background: #d0a83e; color: #17271d; }
+.lobby-rank.top-2 { background: #82938a; color: #14221a; }
+.lobby-rank.top-3 { background: #9d633c; color: #fff0d0; }
 .lobby-rankings-message { display: flex; min-height: 100px; align-items: center; justify-content: center; gap: 10px; margin: 0; color: var(--lobby-muted); }
-.lobby-rankings-message .game-starting-spinner { border-color: #dce5dc; border-top-color: #31543d; }
-.lobby-page .error-alert { border-color: #f4c9c3; background: #fff1ef; color: #7c2922; }
+.lobby-rankings-message .game-starting-spinner { border-color: rgba(222, 230, 212, .2); border-top-color: #e1d1a2; }
+.lobby-page .error-alert { border-color: rgba(245, 145, 128, .45); background: rgba(82, 34, 29, .9); color: #ffe3dc; }
 
 @media (max-width: 900px) {
   .lobby-page.page { grid-template-columns: 205px minmax(0, 1fr); }
