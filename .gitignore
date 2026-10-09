@@ -20,3 +20,4 @@ node_modules/
 
 frontend/.env
 frontend/.env.local
+backend-go/build/
