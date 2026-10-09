@@ -1,17 +1,29 @@
 ﻿import { useAuth } from "../auth/useAuth";
-import { ACCOUNT_BLOCKED_MESSAGE, markAccountBlocked } from "../auth/accountBlocked";
+import { getFreshToken, notifyAuthCleared, refreshAfterUnauthorized } from "../auth/authStore";
+import { ACCOUNT_BLOCKED_MESSAGE, isAccountBlocked, markAccountBlocked } from "../auth/accountBlocked";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-export function apiFetch(path: string, token: string, options: RequestInit = {}) {
-  return fetch(`${API_BASE}${path}`, {
+/**
+ * Sends a request with a token that is not about to expire. On a 401 it forces one refresh and retries once.
+ * The `token` argument is kept for call-site compatibility; the shared auth store is the source of truth.
+ */
+export async function apiFetch(path: string, token: string, options: RequestInit = {}): Promise<Response> {
+  const send = (bearer: string) => fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${bearer}`
     }
   });
+
+  const response = await send(await getFreshToken());
+  if (response.status !== 401) return response;
+
+  const refreshedToken = await refreshAfterUnauthorized();
+  if (!refreshedToken) return response;
+  return send(refreshedToken);
 }
 
 export async function throwForError(response: Response, action: string): Promise<void> {
@@ -24,7 +36,11 @@ export async function throwForError(response: Response, action: string): Promise
   } catch {
     // Fall back to a status-based message when the response has no JSON body.
   }
-  if (response.status === 403 && serverMessage === ACCOUNT_BLOCKED_MESSAGE) markAccountBlocked();
+  if (response.status === 403 && serverMessage === ACCOUNT_BLOCKED_MESSAGE && !isAccountBlocked()) {
+    markAccountBlocked();
+    // The session stays so the blocked notice can offer sign-out, but cached user data should be dropped.
+    notifyAuthCleared();
+  }
   if (serverMessage) throw new ApiError(serverMessage, response.status);
   const explanation = response.status === 401 || response.status === 403
     ? "Please sign in again and check that you have access."

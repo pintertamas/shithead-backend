@@ -5,6 +5,7 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayV2WebSocketEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tamaspinter.backend.entity.EloChangeEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
 import com.tamaspinter.backend.game.GameSession;
@@ -300,10 +301,15 @@ public class GameFunctionConfig {
             }
 
             GameSessionEntity updated = session.toEntity();
+            SessionMapper.carryEloState(entity, updated);
             sessionRepo.save(updated);
-            if (session.isFinished() && !entity.isEloUpdated() && updateElo(session)) {
-                updated.setEloUpdated(true);
-                sessionRepo.save(updated);
+            if (session.isFinished() && !entity.isEloUpdated()) {
+                Map<String, EloChangeEntity> eloChanges = updateElo(session);
+                if (!eloChanges.isEmpty()) {
+                    updated.setEloUpdated(true);
+                    updated.setEloChanges(eloChanges);
+                    sessionRepo.save(updated);
+                }
             }
             String endpoint = websocketEndpoint(ev);
             broadcastState(msg.sessionId(), updated, endpoint,
@@ -381,7 +387,7 @@ public class GameFunctionConfig {
         }
         GameSessionEntity updated = session.toEntity();
         updated.setStarting(entity.isStarting());
-        updated.setEloUpdated(entity.isEloUpdated());
+        SessionMapper.carryEloState(entity, updated);
         sessionRepo.save(updated);
         broadcastState(message.sessionId(), updated, websocketEndpoint(event));
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
@@ -472,6 +478,7 @@ public class GameFunctionConfig {
             }
 
             GameSessionEntity updated = session.toEntity();
+            SessionMapper.carryEloState(entity, updated);
             sessionRepo.save(updated);
             String endpoint = "https://" + ev.getRequestContext().getDomainName()
                     + "/" + ev.getRequestContext().getStage();
@@ -496,18 +503,7 @@ public class GameFunctionConfig {
             Map<String, UserProfile> profiles = userRepo.batchGet(playerIds)
                     .stream()
                     .collect(Collectors.toMap(UserProfile::getUserId, profile -> profile));
-            List<LeaderboardEntry> entries = playerIds.stream()
-                    .map(playerId -> profiles.getOrDefault(playerId, UserProfile.builder()
-                            .userId(playerId)
-                            .username("Unknown")
-                            .eloScore(0)
-                            .build()))
-                    .map(profile -> LeaderboardEntry.builder()
-                            .userId(profile.getUserId())
-                            .username(profile.getUsername())
-                            .eloScore(profile.getEloScore())
-                            .build())
-                    .collect(Collectors.toList());
+            List<LeaderboardEntry> entries = sessionEntries(playerIds, profiles, entity.getEloChanges());
             try {
                 return corsResponse(200, mapper.writeValueAsString(entries));
             } catch (JsonProcessingException e) {
@@ -515,6 +511,31 @@ public class GameFunctionConfig {
                 return corsResponse(500);
             }
         };
+    }
+
+    /**
+     * Session leaderboard rows in seat order. {@code eloScore} is the current rating; {@code eloBefore} and
+     * {@code eloAfter} come from the game's recorded Elo change and stay null when none was recorded.
+     */
+    public static List<LeaderboardEntry> sessionEntries(
+            List<String> playerIds, Map<String, UserProfile> profiles, Map<String, EloChangeEntity> eloChanges) {
+        return playerIds.stream()
+                .map(playerId -> {
+                    UserProfile profile = profiles.getOrDefault(playerId, UserProfile.builder()
+                            .userId(playerId)
+                            .username("Unknown")
+                            .eloScore(0)
+                            .build());
+                    EloChangeEntity change = eloChanges == null ? null : eloChanges.get(playerId);
+                    return LeaderboardEntry.builder()
+                            .userId(profile.getUserId())
+                            .username(profile.getUsername())
+                            .eloScore(profile.getEloScore())
+                            .eloBefore(change == null ? null : change.getBefore())
+                            .eloAfter(change == null ? null : change.getAfter())
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     @Bean
@@ -547,7 +568,12 @@ public class GameFunctionConfig {
         };
     }
 
-    private boolean updateElo(GameSession session) {
+    /**
+     * Applies the Elo update for a finished game and returns each player's before/after rating. Returns an empty
+     * map when nothing was updated (fewer than two profiles, or a DynamoDB failure); the caller then leaves
+     * {@code eloUpdated} unset so the update can be retried.
+     */
+    private Map<String, EloChangeEntity> updateElo(GameSession session) {
         String shitheadId = session.getShitheadId();
         Map<String, Double> results = new HashMap<>();
         for (var player : session.getPlayers()) {
@@ -562,20 +588,25 @@ public class GameFunctionConfig {
                     .collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
             if (current.size() < 2) {
                 log.warn("Skipping Elo update for session {} because fewer than two profiles exist", session.getSessionId());
-                return false;
+                return Map.of();
             }
-            Map<String, Double> updated = EloService.updateRatings(current, results);
-            updated.forEach((id, elo) -> {
+            Map<String, EloService.EloChange> changes = EloService.calculateChanges(current, results);
+            changes.forEach((id, change) -> {
                 UserProfile userProfile = userRepo.get(id);
                 if (userProfile != null) {
-                    userProfile.setEloScore(elo);
+                    userProfile.setEloScore(change.after());
                     userRepo.save(userProfile);
                 }
             });
-            return true;
+            Map<String, EloChangeEntity> recorded = new HashMap<>();
+            changes.forEach((id, change) -> recorded.put(id, EloChangeEntity.builder()
+                    .before(change.before())
+                    .after(change.after())
+                    .build()));
+            return recorded;
         } catch (SdkException e) {
             log.error("Elo update failed for session {}", session.getSessionId(), e);
-            return false;
+            return Map.of();
         }
     }
 

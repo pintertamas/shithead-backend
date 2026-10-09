@@ -3,7 +3,12 @@
 export type LeaderboardEntry = {
   userId: string;
   username: string;
+  /** Current rating. */
   eloScore: number;
+  /** Rating before the session's game, present only on session rows with a recorded Elo change. */
+  eloBefore?: number | null;
+  /** Rating after the session's game, present together with eloBefore. */
+  eloAfter?: number | null;
 };
 
 export async function fetchSessionLeaderboard(token: string, sessionId: string) {

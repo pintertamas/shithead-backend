@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { subscribeAccountBlocked } from "../auth/accountBlocked";
+import { onAuthCleared } from "../auth/authStore";
 import { clearAppCache, persistOptions, queryClient, syncCacheOwner, writeCacheOwner } from "./queryClient";
 import { userKeyFromToken } from "./userKey";
 
@@ -21,6 +22,8 @@ export default function AppDataProvider({ token, children }: Props) {
   }, [sub]);
 
   useEffect(() => subscribeAccountBlocked(clearAppCache), []);
+  // Logout, a rejected refresh token or a block: never keep the previous user's cached data.
+  useEffect(() => onAuthCleared(clearAppCache), []);
 
   return (
     <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>

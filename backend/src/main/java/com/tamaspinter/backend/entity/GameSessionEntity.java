@@ -13,6 +13,7 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecon
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -34,6 +35,8 @@ public class GameSessionEntity {
     private boolean setupComplete = true;
     private boolean finished;
     private boolean eloUpdated;
+    /** Per-player rating change of the Elo update. Null for games finished before this was recorded. */
+    private Map<String, EloChangeEntity> eloChanges;
     private String shitheadId;
     @Getter(AccessLevel.NONE)
     private String ownerId;
