@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { ChatMessage } from "../api/game";
 import { CHAT_MAX_LENGTH } from "../lib/sessionChat";
+import Icon from "./Icon";
 import "../styles/feed.css";
 
 type Props = {
@@ -45,7 +46,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
       >
         <span>Chat</span>
         {unread > 0 && <span className="chat-unread" aria-label={`${unread} unread messages`}>{unread}</span>}
-        <span className="game-feed-chevron" aria-hidden="true">{open ? "▴" : "▾"}</span>
+        <Icon name={open ? "chevron-up" : "chevron-down"} className="game-feed-chevron" />
       </button>
       {open && (
         <>

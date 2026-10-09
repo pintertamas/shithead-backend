@@ -43,16 +43,18 @@ function GoogleLogo() {
 function CardFace({ rank, suit, className }: { rank: string; suit: string; className?: string }) {
   const isRed = suit === "♥" || suit === "♦";
   const classes = ["login-card", isRed ? "is-red" : "", className ?? ""].filter(Boolean).join(" ");
+  // U+FE0E forces the text presentation of the suit so iOS does not swap in an emoji glyph.
+  const glyph = `${suit}︎`;
   return (
     <span className={classes}>
       <span className="login-card-corner">
         {rank}
-        <span>{suit}</span>
+        <span>{glyph}</span>
       </span>
-      <span className="login-card-pip">{suit}</span>
+      <span className="login-card-pip">{glyph}</span>
       <span className="login-card-corner login-card-corner-end">
         {rank}
-        <span>{suit}</span>
+        <span>{glyph}</span>
       </span>
     </span>
   );

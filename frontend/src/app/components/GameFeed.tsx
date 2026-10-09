@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameEvent } from "../api/game";
 import { describeEvent } from "../lib/gameFeed";
+import Icon from "./Icon";
 import "../styles/feed.css";
 
 const BANNER_MS = 4000;
@@ -47,7 +48,7 @@ export default function GameFeed({ events }: Props) {
       >
         <span>Game log</span>
         <span className="game-feed-count">{list.length}</span>
-        <span className="game-feed-chevron" aria-hidden="true">{open ? "▴" : "▾"}</span>
+        <Icon name={open ? "chevron-up" : "chevron-down"} className="game-feed-chevron" />
       </button>
       {banner && (
         <div key={banner.seq} className="game-feed-banner" role="status" data-type={banner.type}>

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import "../styles/rules.css";
 import { CardRule } from "../config/gameConfig";
+import Icon from "./Icon";
 
 export type SpecialCardRule = {
   value: number;
@@ -97,7 +98,7 @@ export default function RulesModal({ specialRules, faceUpFailurePickup, onClose 
             <h2 className="title" id="howto-title">How to play Shithead</h2>
           </div>
           <button className="howto-close" type="button" onClick={onClose} aria-label="Close rules">
-            ×
+            <Icon name="close" size={18} />
           </button>
         </header>
 
