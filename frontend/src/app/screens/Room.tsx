@@ -180,8 +180,8 @@ export default function Room() {
         </div>
       </div>
 
-      <div className="layout single">
-        <div className="glass card">
+      <div className="room-columns">
+        <div className="glass card room-players">
           <h3 className="title">Players</h3>
           {!state && !error && <p style={{ color: "var(--ink-dim)" }}>Loading...</p>}
           <div className="player-list">
@@ -196,8 +196,6 @@ export default function Room() {
             ))}
           </div>
         </div>
-      </div>
-      <div className="layout single">
         <ChatPanel
           messages={chatMessages}
           currentUserId={state?.players.find((player) => player.isYou)?.playerId}
