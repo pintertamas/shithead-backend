@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { fetchGlobalLeaderboard, fetchSessionLeaderboard, LeaderboardEntry } from "../api/leaderboard";
 import Tabs from "../components/Tabs";
@@ -7,6 +7,7 @@ import ErrorAlert from "../components/ErrorAlert";
 
 export default function Leaderboard() {
   const { sessionId } = useParams();
+  const navigate = useNavigate();
   const { token } = useAuth();
   const [tab, setTab] = useState(sessionId ? "Session" : "Global");
   const [sessionData, setSessionData] = useState<LeaderboardEntry[]>([]);
@@ -43,6 +44,9 @@ export default function Leaderboard() {
           <div className="badge">Leaderboard</div>
           <h2 className="title">Elo Rankings</h2>
         </div>
+        <button className="button secondary" onClick={() => navigate("/lobby")}>
+          Go to Lobby
+        </button>
       </div>
 
       <div className="glass card">

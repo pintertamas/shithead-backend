@@ -290,11 +290,7 @@ public class GameFunctionConfig {
     private APIGatewayProxyResponseEvent handleSetupAction(
             APIGatewayV2WebSocketEvent event, PlayMessage message, GameSessionEntity entity, String userId) {
         if ("announce".equals(message.setupAction())) {
-            if (!userId.equals(entity.getOwnerId())) {
-                return websocketError(event, 403, "Only the game owner can start the game.");
-            }
-            broadcastState(message.sessionId(), entity, websocketEndpoint(event));
-            return new APIGatewayProxyResponseEvent().withStatusCode(200);
+            return handleStartAnnouncement(event, message, entity, userId);
         }
 
         GameSession session = SessionMapper.fromEntity(entity);
@@ -314,6 +310,22 @@ public class GameFunctionConfig {
         updated.setEloUpdated(entity.isEloUpdated());
         sessionRepo.save(updated);
         broadcastState(message.sessionId(), updated, websocketEndpoint(event));
+        return new APIGatewayProxyResponseEvent().withStatusCode(200);
+    }
+
+    private APIGatewayProxyResponseEvent handleStartAnnouncement(
+            APIGatewayV2WebSocketEvent event, PlayMessage message, GameSessionEntity entity, String userId) {
+        if (!userId.equals(entity.getOwnerId())) {
+            return websocketError(event, 403, "Only the game owner can start the game.");
+        }
+        if (entity.isStarted()) {
+            return websocketError(event, 409, "The game has already started.");
+        }
+        if (!entity.isStarting()) {
+            entity.setStarting(true);
+            sessionRepo.save(entity);
+        }
+        broadcastState(message.sessionId(), entity, websocketEndpoint(event));
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
 

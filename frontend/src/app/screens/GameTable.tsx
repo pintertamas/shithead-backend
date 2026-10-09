@@ -15,6 +15,7 @@ export default function GameTable() {
   const [state, setState] = useState<GameStateView | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState<CardSelection[]>([]);
+  const [pickupSelected, setPickupSelected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -61,6 +62,7 @@ export default function GameTable() {
     ]);
     if (previous && signature(previous) !== signature(next)) {
       setSelected([]);
+      setPickupSelected(false);
       setError(null);
       setPendingAction(false);
     }
@@ -69,6 +71,7 @@ export default function GameTable() {
   }, []);
 
   const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
+    setPickupSelected(false);
     setSelected((prev) => {
       const exists = prev.some((item) => item.source === source && item.index === index);
       if (exists) return prev.filter((item) => item.source !== source || item.index !== index);
@@ -91,6 +94,12 @@ export default function GameTable() {
 
   const playSelected = useCallback(() => {
     if (!sessionId || !you) return;
+    if (pickupSelected) {
+      if (!yourTurn || !pileHasCards) return;
+      setError(null);
+      if (sendWs({ action: "pickup", sessionId })) setPendingAction(true);
+      return;
+    }
     if (selected.length === 0 || !yourTurn) return;
     setError(null);
     const selections = selected.map(({ source, index }) => ({
@@ -98,13 +107,7 @@ export default function GameTable() {
       index
     }));
     if (sendWs({ action: "play", sessionId, selections })) setPendingAction(true);
-  }, [sessionId, selected, you, yourTurn, sendWs]);
-
-  const pickup = useCallback(() => {
-    if (!sessionId || !yourTurn || !pileHasCards) return;
-    setError(null);
-    if (sendWs({ action: "pickup", sessionId })) setPendingAction(true);
-  }, [sessionId, yourTurn, pileHasCards, sendWs]);
+  }, [sessionId, selected, you, yourTurn, pickupSelected, pileHasCards, sendWs]);
 
   const sendSetup = useCallback((setupAction: "ready" | "swap") => {
     if (!sessionId || pendingAction) return;
@@ -231,7 +234,15 @@ export default function GameTable() {
         <section className="game-middle" aria-label="Game table">
           <div className="game-piles">
             <Pile title="Draw pile" count={state.deckCount} />
-            <Pile title="Discard pile" count={state.discardCount} cards={state.discardPile} />
+            <Pile
+              title="Discard pile"
+              count={state.discardCount}
+              cards={state.discardPile}
+              selectable={!setupStage}
+              selected={pickupSelected}
+              disabled={!yourTurn || !pileHasCards || pendingAction}
+              onClick={() => { setSelected([]); setPickupSelected(true); }}
+            />
           </div>
           <div className="game-actions">
             {setupStage ? (
@@ -251,16 +262,15 @@ export default function GameTable() {
               </div>
             ) : (
             <>
-            <button className="button" disabled={selected.length === 0 || mixedSelectionIncomplete || pendingAction || !yourTurn} onClick={playSelected}>
-              {pendingAction ? "Sending..." : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
-            </button>
-            <button className="button secondary" disabled={!yourTurn || !pileHasCards || pendingAction} onClick={pickup}>
-              Pick Up Pile
+            <button className="button" disabled={(!pickupSelected && (selected.length === 0 || mixedSelectionIncomplete)) || pendingAction || !yourTurn || (pickupSelected && !pileHasCards)} onClick={playSelected}>
+              {pendingAction ? "Sending..." : pickupSelected ? "Pick Up" : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
             <p className="game-hint">
               {!yourTurn
                 ? `Waiting for ${currentName || "the current player"}'s turn.`
-                : selected.length === 0
+                : pickupSelected
+                  ? "Discard pile selected. Press Pick Up to collect it."
+                  : selected.length === 0
                   ? "Select cards, then press Play."
                   : "Selected cards are highlighted. Press Play to submit your move."}
             </p>
