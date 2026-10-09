@@ -20,6 +20,7 @@ import PeekWrap from "../components/PeekWrap";
 import { SeatChip, SeatPeek } from "../components/SeatChip";
 import { describeEvent } from "../lib/gameFeed";
 import "../styles/table-mobile.css";
+import "../styles/companion-width.css";
 
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
