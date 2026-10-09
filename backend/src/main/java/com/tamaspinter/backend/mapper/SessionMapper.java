@@ -87,6 +87,15 @@ public class SessionMapper {
         return session;
     }
 
+    /**
+     * Copies the Elo bookkeeping of a stored session onto a copy rebuilt from the domain object, because
+     * {@link GameSession} does not carry it. Call on every save that rebuilds the entity from a session.
+     */
+    public static void carryEloState(GameSessionEntity stored, GameSessionEntity rebuilt) {
+        rebuilt.setEloUpdated(stored.isEloUpdated());
+        rebuilt.setEloChanges(stored.getEloChanges());
+    }
+
     /** Maps persisted events back to domain events; items written before the feed existed have no list. */
     public static List<GameEvent> entitiesToEvents(List<GameEventEntity> entities) {
         if (entities == null) {
