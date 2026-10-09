@@ -61,7 +61,7 @@ export default function Leaderboard() {
             <p>See how every player ranks by ELO.</p>
           </div>
           <button className="button secondary lobby-rankings-link" onClick={() => navigate("/lobby")}>
-            <span aria-hidden="true">⌂</span> Go to Home
+            Go to Home
           </button>
         </header>
 

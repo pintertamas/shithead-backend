@@ -90,10 +90,10 @@ export default function Lobby() {
           </svg>
         </div>
         <nav className="lobby-nav">
-          <button className="lobby-nav-item active" aria-current="page" aria-label="Home" title="Home"><span className="lobby-nav-icon" aria-hidden="true">🏠</span><span className="lobby-nav-label">Home</span></button>
-          <button className="lobby-nav-item" onClick={() => navigate("/config")} aria-label="Game Config" title="Game Config"><span className="lobby-nav-icon" aria-hidden="true">⚙️</span><span className="lobby-nav-label">Game Config</span></button>
-          <button className="lobby-nav-item" onClick={() => navigate("/profile")} aria-label="Profile" title="Profile"><span className="lobby-nav-icon" aria-hidden="true">👤</span><span className="lobby-nav-label">Profile</span></button>
-          <button className="lobby-nav-item" onClick={() => { logout(); navigate("/login"); }} aria-label="Log out" title="Log out"><span className="lobby-nav-icon" aria-hidden="true">🚪</span><span className="lobby-nav-label">Log out</span></button>
+          <button className="lobby-nav-item active" aria-current="page" aria-label="Home" title="Home"><span className="lobby-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4.5 11 7.5-6.5 7.5 6.5v8h-5v-5h-5v5h-5z" /></svg></span><span className="lobby-nav-label">Home</span></button>
+          <button className="lobby-nav-item" onClick={() => navigate("/config")} aria-label="Game Config" title="Game Config"><span className="lobby-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3.7h4l.6 2.1c.6.2 1.1.5 1.6.9l2.1-.7 2 3.5-1.5 1.7v1.7l1.5 1.7-2 3.5-2.1-.7c-.5.4-1 .7-1.6.9l-.6 2.1h-4l-.6-2.1c-.6-.2-1.1-.5-1.6-.9l-2.1.7-2-3.5 1.5-1.7v-1.7L3.7 9.5l2-3.5 2.1.7c.5-.4 1-.7 1.6-.9z" /><circle cx="12" cy="12" r="2.7" /></svg></span><span className="lobby-nav-label">Game Config</span></button>
+          <button className="lobby-nav-item" onClick={() => navigate("/profile")} aria-label="Profile" title="Profile"><span className="lobby-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="6.5" r="2.2" /><path d="M10 9h4l.8 4.8 3.2 2v2H6v-2l3.2-2z" /></svg></span><span className="lobby-nav-label">Profile</span></button>
+          <button className="lobby-nav-item" onClick={() => { logout(); navigate("/login"); }} aria-label="Log out" title="Log out"><span className="lobby-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 5H6.5A2.5 2.5 0 0 0 4 7.5v9A2.5 2.5 0 0 0 6.5 19H10m3-11 4 4-4 4m4-4H9" /></svg></span><span className="lobby-nav-label">Log out</span></button>
         </nav>
       </aside>
 
@@ -174,7 +174,7 @@ export default function Lobby() {
               </div>
             </div>
             <button className="button secondary lobby-rankings-link" onClick={() => navigate("/leaderboard")}>
-              <span aria-hidden="true">▮</span> Full leaderboard
+              Full leaderboard
             </button>
           </div>
 
