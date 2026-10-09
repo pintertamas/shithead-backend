@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket } from "../api/game";
+import { CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
 import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
 import { sendNudge } from "../lib/fartSound";
 import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
@@ -43,7 +43,21 @@ export default function GameTable() {
   const animatedStateRef = useRef<GameStateView | null>(null);
 
   const you = useMemo(() => state?.players.find((p) => p.isYou), [state]);
-  const others = useMemo(() => state?.players.filter((p) => !p.isYou) || [], [state]);
+  // Seats keep the order in which player ids were first seen, so a REVERSE (which reverses state.players) does not reshuffle them.
+  const seatOrderRef = useRef<string[]>([]);
+  const seatOrder = useMemo(() => {
+    if (!state) return seatOrderRef.current;
+    const known = seatOrderRef.current;
+    const fresh = state.players.map((player) => player.playerId).filter((id) => !known.includes(id));
+    if (fresh.length > 0) seatOrderRef.current = [...known, ...fresh];
+    return seatOrderRef.current;
+  }, [state]);
+  const others = useMemo(() => {
+    const rank = new Map(seatOrder.map((id, index) => [id, index] as const));
+    return (state?.players.filter((p) => !p.isYou) || [])
+      .slice()
+      .sort((a, b) => (rank.get(a.playerId) ?? 0) - (rank.get(b.playerId) ?? 0));
+  }, [state, seatOrder]);
   const currentName = useMemo(() => {
     if (!state?.currentPlayerId) return "";
     return state.players.find((p) => p.playerId === state.currentPlayerId)?.username || "";
@@ -61,6 +75,20 @@ export default function GameTable() {
   const selectedStartingUp = selected.filter((item) => item.source === "faceUp");
   const canSwapStartingCards = selectedStartingHand.length > 0 && selectedStartingHand.length === selectedStartingUp.length;
   const notReady = state?.players.filter((player) => !player.ready) || [];
+  // The next player is found in the server's state.players order (cyclic after the current player), skipping players who are out.
+  const nextPlayerId = useMemo(() => {
+    if (!state || setupStage || state.finished) return null;
+    const players = state.players;
+    const start = players.findIndex((player) => player.playerId === state.currentPlayerId);
+    if (start < 0) return null;
+    const isOut = (player: PlayerState) => player.handCount === 0 && player.faceDownCount === 0 && player.faceUp.length === 0
+      && !(player.isYou && (player.hand?.length ?? 0) > 0);
+    for (let step = 1; step < players.length; step++) {
+      const candidate = players[(start + step) % players.length];
+      if (!isOut(candidate)) return candidate.playerId;
+    }
+    return null;
+  }, [state, setupStage]);
 
   const redirectIfGameMissing = useCallback((cause: unknown) => {
     if (cause instanceof ApiError && cause.status === 404) {
@@ -271,15 +299,15 @@ export default function GameTable() {
   return (
     <div className="page fade-in game-page">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      <div className="topbar">
-        <div>
-          <div className="badge">SHITHEAD</div>
-          <h2 className="title">{state.sessionId} <span className="header-player-name">· {you.username}</span><NudgeButton onNudge={sendNudgeToTable} /></h2>
-        </div>
-      </div>
       <NudgeBanner username={nudgeFrom} />
 
       <div className="game-stage">
+      <div className="game-main">
+      <header className="table-bar">
+        <span className="badge">SHITHEAD</span>
+        <h2 className="title table-bar-title">{state.sessionId} <span className="header-player-name">· {you.username}</span></h2>
+        <NudgeButton onNudge={sendNudgeToTable} />
+      </header>
       <main className="game-board" ref={boardRef}>
         {state.revealedCard && (
           <div className="failed-blind-reveal" role="status">
@@ -296,7 +324,7 @@ export default function GameTable() {
         )}
         <div className="game-opponents" aria-label="Other players">
           {others.map((player) => (
-            <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId} />
+            <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId} isNext={nextPlayerId === player.playerId} />
           ))}
         </div>
 
@@ -337,8 +365,25 @@ export default function GameTable() {
                 ) : <p className="ready-confirmation">You’re ready. Waiting for the other players.</p>}
                 <p className="setup-waiting"><strong>Not everybody is ready</strong>{notReady.length > 0 && <>: {notReady.map((player) => player.username).join(", ")}</>}</p>
               </div>
-            ) : (
-            <>
+            ) : null}
+          </div>
+        </section>
+
+        <PlayerPanel
+          player={you}
+          isCurrentTurn={yourTurn}
+          isNext={nextPlayerId === you.playerId}
+          canSelectFaceUp={canSelectFaceUp || (canMixHandAndFaceUp && !setupStage)}
+          canSelectFaceDown={!setupStage && hand.length === 0 && you.faceUp.length === 0}
+          selectedFaceUp={selected.filter((item) => item.source === "faceUp").map((item) => item.index)}
+          selectedFaceDown={selected.filter((item) => item.source === "faceDown").map((item) => item.index)}
+          selectedHand={selected.filter((item) => item.source === "hand").map((item) => item.index)}
+          onToggleFaceUp={(idx) => toggleCard("faceUp", idx)}
+          onToggleFaceDown={(idx) => toggleCard("faceDown", idx)}
+          onToggleHand={setupStage && you.ready ? undefined : (idx) => toggleCard("hand", idx)}
+        />
+        {!setupStage && (
+          <div className="game-actions game-actions-play">
             <button className="button" disabled={(!pickupSelected && (selected.length === 0 || mixedSelectionIncomplete)) || pendingAction || !yourTurn || (pickupSelected && !pileHasCards)} onClick={playSelected}>
               {pendingAction ? "Sending..." : pickupSelected ? "Pick Up" : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
@@ -351,25 +396,11 @@ export default function GameTable() {
                   ? "Select cards, then press Play."
                   : "Selected cards are highlighted. Press Play to submit your move."}
             </p>
-            </>
-            )}
           </div>
-        </section>
-
-        <PlayerPanel
-          player={you}
-          isCurrentTurn={yourTurn}
-          canSelectFaceUp={canSelectFaceUp || (canMixHandAndFaceUp && !setupStage)}
-          canSelectFaceDown={!setupStage && hand.length === 0 && you.faceUp.length === 0}
-          selectedFaceUp={selected.filter((item) => item.source === "faceUp").map((item) => item.index)}
-          selectedFaceDown={selected.filter((item) => item.source === "faceDown").map((item) => item.index)}
-          selectedHand={selected.filter((item) => item.source === "hand").map((item) => item.index)}
-          onToggleFaceUp={(idx) => toggleCard("faceUp", idx)}
-          onToggleFaceDown={(idx) => toggleCard("faceDown", idx)}
-          onToggleHand={setupStage && you.ready ? undefined : (idx) => toggleCard("hand", idx)}
-        />
+        )}
         <div className="table-fx" ref={fxLayerRef} aria-hidden="true" />
       </main>
+      </div>
 
       <div className="game-companion">
         <GameFeed events={state.events} />
