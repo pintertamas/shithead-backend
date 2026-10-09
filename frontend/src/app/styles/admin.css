@@ -55,6 +55,10 @@
 
 .admin-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
+.admin-maintenance { margin-top: 24px; }
+
+.admin-maintenance .button { margin-top: 8px; }
+
 .visually-hidden {
   position: absolute;
   width: 1px;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminUser, fetchAdminUsers, setUserBlocked } from "../api/admin";
+import { clearAllGames } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
 import "../styles/admin.css";
@@ -15,6 +16,10 @@ export default function Admin() {
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [showDoomsdayConfirmation, setShowDoomsdayConfirmation] = useState(false);
+  const [confirmationText, setConfirmationText] = useState("");
+  const [clearing, setClearing] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -64,9 +69,29 @@ export default function Admin() {
     }
   };
 
+  const handleClearGames = async () => {
+    if (confirmationText !== "DELETE") return;
+    setError(null);
+    setNotice(null);
+    setClearing(true);
+    try {
+      const result = await clearAllGames(token);
+      setShowDoomsdayConfirmation(false);
+      setConfirmationText("");
+      setNotice(result.failedConnections === 0
+        ? `Removed ${result.deletedGames} games and closed ${result.closedConnections} live connections. Your profiles and ratings are unchanged.`
+        : `Removed ${result.deletedGames} games. Closed ${result.closedConnections} connections; ${result.failedConnections} could not be closed. Please try again.`);
+    } catch (cause) {
+      setError(messageOf(cause, "Couldn't clear the active games."));
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <div className="admin-page fade-in">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
+      {notice && <div className="success-alert" role="status">{notice}</div>}
       <header className="lobby-welcome">
         <div>
           <h1>Admin</h1>
@@ -147,6 +172,42 @@ export default function Admin() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      <section className="glass card admin-maintenance" aria-labelledby="admin-maintenance-title">
+        <h3 className="title" id="admin-maintenance-title">Game Maintenance</h3>
+        <p className="admin-dialog-text">
+          Clear all active game sessions and disconnect their players. Player profiles and ratings stay saved.
+        </p>
+        <button className="button danger" type="button" onClick={() => setShowDoomsdayConfirmation(true)}>
+          Clear All Active Games
+        </button>
+      </section>
+
+      {showDoomsdayConfirmation && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="glass card admin-dialog" role="dialog" aria-modal="true" aria-labelledby="doomsday-title">
+            <h3 className="title" id="doomsday-title">Clear every active game?</h3>
+            <p className="admin-dialog-text">
+              This permanently deletes every active game and closes every live game connection. User profiles and ratings are kept. Type DELETE to confirm.
+            </p>
+            <input
+              className="input"
+              aria-label="Type DELETE to confirm"
+              value={confirmationText}
+              onChange={(event) => setConfirmationText(event.target.value)}
+              disabled={clearing}
+            />
+            <div className="admin-dialog-actions">
+              <button className="button danger" type="button" onClick={handleClearGames} disabled={confirmationText !== "DELETE" || clearing}>
+                {clearing ? "Clearing..." : "Confirm and Clear Games"}
+              </button>
+              <button className="button secondary" type="button" onClick={() => setShowDoomsdayConfirmation(false)} disabled={clearing}>
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

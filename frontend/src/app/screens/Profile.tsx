@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import ErrorAlert from "../components/ErrorAlert";
-import { clearAllGames, fetchProfile, updateProfile, UserProfile } from "../api/profile";
+import { fetchProfile, updateProfile, UserProfile } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
 
 export default function Profile() {
@@ -10,9 +10,6 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showDoomsdayConfirmation, setShowDoomsdayConfirmation] = useState(false);
-  const [confirmationText, setConfirmationText] = useState("");
-  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     fetchProfile(token).then((result) => {
@@ -37,25 +34,6 @@ export default function Profile() {
       setError(cause instanceof Error ? cause.message : "Couldn't save your profile.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleClearGames = async () => {
-    if (confirmationText !== "DELETE") return;
-    setError(null);
-    setNotice(null);
-    setClearing(true);
-    try {
-      const result = await clearAllGames(token);
-      setShowDoomsdayConfirmation(false);
-      setConfirmationText("");
-      setNotice(result.failedConnections === 0
-        ? `Removed ${result.deletedGames} games and closed ${result.closedConnections} live connections. Your profiles and ratings are unchanged.`
-        : `Removed ${result.deletedGames} games. Closed ${result.closedConnections} connections; ${result.failedConnections} could not be closed. Please try again.`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't clear the active games.");
-    } finally {
-      setClearing(false);
     }
   };
 
@@ -92,45 +70,7 @@ export default function Profile() {
             {saving ? "Saving..." : "Save Nickname"}
           </button>
         </form>
-
-        {profile?.canClearGames && (
-          <div className="glass card">
-            <h3 className="title">Game Maintenance</h3>
-            <p style={{ color: "var(--ink-dim)" }}>
-              Clear all active game sessions and disconnect their players. Player profiles and ratings stay saved.
-            </p>
-            <button className="button danger" type="button" onClick={() => setShowDoomsdayConfirmation(true)}>
-              Clear All Active Games
-            </button>
-          </div>
-        )}
       </div>
-
-      {showDoomsdayConfirmation && (
-        <div className="modal-backdrop" role="presentation">
-          <div className="glass card" role="dialog" aria-modal="true" aria-labelledby="doomsday-title">
-            <h3 className="title" id="doomsday-title">Clear every active game?</h3>
-            <p style={{ color: "var(--ink-dim)" }}>
-              This permanently deletes every active game and closes every live game connection. User profiles and ratings are kept. Type DELETE to confirm.
-            </p>
-            <input
-              className="input"
-              aria-label="Type DELETE to confirm"
-              value={confirmationText}
-              onChange={(event) => setConfirmationText(event.target.value)}
-              disabled={clearing}
-            />
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button className="button danger" type="button" onClick={handleClearGames} disabled={confirmationText !== "DELETE" || clearing}>
-                {clearing ? "Clearing..." : "Confirm and Clear Games"}
-              </button>
-              <button className="button secondary" type="button" onClick={() => setShowDoomsdayConfirmation(false)} disabled={clearing}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
