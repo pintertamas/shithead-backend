@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -886,6 +887,133 @@ class GameSessionTest {
 
         // When/Then
         assertNull(empty.getCurrentPlayerId());
+    }
+
+    // =========================================================================
+    // Starting player and setup-time starter override
+    // =========================================================================
+
+    @Test
+    void start_withoutRatings_firstPlayerStarts() {
+        // Given — no ratings supplied
+        // When
+        session.start();
+
+        // Then
+        assertEquals("p1", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void start_lowestRatedPlayerStarts() {
+        // Given
+        session.addPlayer("p3", "carol");
+        Map<String, Double> ratings = Map.of("p1", 1200.0, "p2", 950.0, "p3", 1100.0);
+
+        // When
+        session.start(ratings);
+
+        // Then
+        assertEquals("p2", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void start_missingRatingIsTreatedAsDefault1000() {
+        // Given — p1 has no rating (1000), p2 is rated 1050, so p1 is the lowest
+        Map<String, Double> ratings = Map.of("p2", 1050.0);
+
+        // When
+        session.start(ratings);
+
+        // Then
+        assertEquals("p1", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void start_missingRatingLosesToLowerKnownRating() {
+        // Given — p1 has no rating (1000), p2 is rated 990
+        Map<String, Double> ratings = Map.of("p2", 990.0);
+
+        // When
+        session.start(ratings);
+
+        // Then
+        assertEquals("p2", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void start_tiedRatings_firstInListStarts() {
+        // Given
+        session.addPlayer("p3", "carol");
+        Map<String, Double> ratings = Map.of("p1", 1000.0, "p2", 900.0, "p3", 900.0);
+
+        // When
+        session.start(ratings);
+
+        // Then
+        assertEquals("p2", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void setStarter_ownerCanChangeStarterDuringSetup() {
+        // Given
+        session.setOwnerId("p1");
+        session.start();
+        assertTrue(session.markReady("p1"));
+
+        // When
+        boolean changed = session.setStarter("p1", "p2");
+
+        // Then — starter changed, readiness and setup state are untouched
+        assertTrue(changed);
+        assertEquals("p2", session.getCurrentPlayerId());
+        assertTrue(session.getPlayers().get(0).isReady());
+        assertFalse(session.isSetupComplete());
+        assertTrue(session.isStarted());
+    }
+
+    @Test
+    void setStarter_nonOwnerIsRejected() {
+        // Given
+        session.setOwnerId("p1");
+        session.start();
+
+        // When
+        boolean changed = session.setStarter("p2", "p2");
+
+        // Then
+        assertFalse(changed);
+        assertEquals("p1", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void setStarter_afterSetupComplete_isRejected() {
+        // Given
+        session.setOwnerId("p1");
+        session.start();
+        assertTrue(session.markReady("p1"));
+        assertTrue(session.markReady("p2"));
+        assertTrue(session.isSetupComplete());
+
+        // When
+        boolean changed = session.setStarter("p1", "p2");
+
+        // Then
+        assertFalse(changed);
+        assertEquals("p1", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void setStarter_unknownPlayerIsRejected() {
+        // Given
+        session.setOwnerId("p1");
+        session.start();
+
+        // When
+        boolean changed = session.setStarter("p1", "ghost");
+
+        // Then
+        assertFalse(changed);
+        assertEquals("p1", session.getCurrentPlayerId());
     }
 }
 
