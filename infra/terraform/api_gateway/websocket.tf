@@ -76,6 +76,13 @@ resource "aws_apigatewayv2_route" "chat" {
   target    = "integrations/${aws_apigatewayv2_integration.play_card.id}"
 }
 
+# Nudges (the fart sound) are relayed by the play_card Lambda too and are not stored or logged.
+resource "aws_apigatewayv2_route" "nudge" {
+  api_id    = aws_apigatewayv2_api.game_ws.id
+  route_key = "nudge"
+  target    = "integrations/${aws_apigatewayv2_integration.play_card.id}"
+}
+
 resource "aws_apigatewayv2_integration" "pickup_pile" {
   api_id                 = aws_apigatewayv2_api.game_ws.id
   integration_type       = "AWS_PROXY"
