@@ -8,6 +8,7 @@ import {
 } from "../config/gameConfig";
 import RulesModal, { rankName, SpecialCardRule } from "../components/RulesModal";
 import "../styles/config-layout.css";
+import "../styles/select-fix.css";
 
 export default function GameConfig() {
   const [config, setConfig] = useState<GameConfigType>(() => loadGameConfig());
