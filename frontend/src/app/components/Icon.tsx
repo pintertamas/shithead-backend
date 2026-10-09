@@ -66,6 +66,12 @@ const ICON_PATHS = {
   "chevron-down": <path d="m6 9 6 6 6-6" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
   chat: <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof ICON_PATHS;
