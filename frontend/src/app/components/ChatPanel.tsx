@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ChatMessage } from "../api/game";
@@ -6,9 +6,12 @@ import { CHAT_MAX_LENGTH } from "../lib/sessionChat";
 import Icon from "./Icon";
 import "../styles/feed.css";
 import "../styles/chat-layout.css";
+import "../styles/scrollbars.css";
 
-/** Phones get a floating button that opens the chat as a bottom sheet. Wider screens keep the inline panel. */
+/** Phones get a floating button that opens the chat as a bottom sheet. Wider screens keep the chat always open. */
 const PHONE_QUERY = "(max-width: 700px)";
+/** Within this many pixels of the bottom, the list counts as scrolled to the bottom. */
+const BOTTOM_THRESHOLD_PX = 24;
 
 function matchesPhone(): boolean {
   try {
@@ -91,32 +94,40 @@ type Props = {
 /** Session chat. Messages live in React state only, so a refresh clears them by design. */
 export default function ChatPanel({ messages, currentUserId, connected, onSend }: Props) {
   const phone = useIsPhone();
-  // Inline panel starts expanded; the popup starts closed. Switching layouts resets to that default.
-  const [open, setOpen] = useState(!phone);
+  // Only the phone popup has an open state. The inline panel on wider screens is always shown.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
   const sheetRef = useRef<HTMLElement>(null);
-  const previousPhone = useRef(phone);
-  const unread = useUnreadCount(messages, open, currentUserId);
-  const keyboardInset = useKeyboardInset(phone && open);
+  const stickToBottom = useRef(true);
+  const unread = useUnreadCount(messages, !phone || sheetOpen, currentUserId);
+  const keyboardInset = useKeyboardInset(phone && sheetOpen);
 
   useEffect(() => {
-    if (previousPhone.current === phone) return;
-    previousPhone.current = phone;
-    setOpen(!phone);
+    setSheetOpen(false);
   }, [phone]);
 
-  useEffect(() => {
+  // The newest message keeps the list at the bottom, unless the reader has scrolled up. Own messages always jump down.
+  useLayoutEffect(() => {
     const list = listRef.current;
-    if (open && list) list.scrollTop = list.scrollHeight;
-  }, [open, messages.length, phone]);
+    if (!list) return;
+    const latest = messages[messages.length - 1];
+    if (latest && latest.userId === currentUserId) stickToBottom.current = true;
+    if (stickToBottom.current) list.scrollTop = list.scrollHeight;
+  }, [messages, currentUserId, phone, sheetOpen]);
+
+  const onListScroll = () => {
+    const list = listRef.current;
+    if (!list) return;
+    stickToBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < BOTTOM_THRESHOLD_PX;
+  };
 
   useEffect(() => {
-    if (!phone || !open) return undefined;
+    if (!phone || !sheetOpen) return undefined;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      setOpen(false);
+      setSheetOpen(false);
       fabRef.current?.focus();
     };
     const previousOverflow = document.body.style.overflow;
@@ -127,10 +138,10 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
       document.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
     };
-  }, [phone, open]);
+  }, [phone, sheetOpen]);
 
   const closeSheet = () => {
-    setOpen(false);
+    setSheetOpen(false);
     fabRef.current?.focus();
   };
 
@@ -143,7 +154,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
 
   const body = (
     <>
-      <div className="chat-list" role="log" ref={listRef}>
+      <div className="chat-list themed-scroll" role="log" ref={listRef} onScroll={onListScroll}>
         {messages.length === 0 && <p className="chat-empty">No messages yet. Say hello.</p>}
         {messages.map((message, index) => (
           <div
@@ -155,7 +166,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
           </div>
         ))}
       </div>
-      {!connected && <p className="chat-hint">Chat is offline while the live connection is closed.</p>}
+      <p className="chat-hint">{connected ? "" : "Chat is offline while the live connection is closed."}</p>
       <form className="chat-form" onSubmit={submit}>
         <input
           className="chat-input"
@@ -177,17 +188,8 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
   if (!phone) {
     return (
       <section className="chat-panel glass" aria-label="Session chat">
-        <button
-          type="button"
-          className="chat-toggle"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <span>Chat</span>
-          {unread > 0 && <span className="chat-unread" aria-label={`${unread} unread messages`}>{unread}</span>}
-          <Icon name={open ? "chevron-up" : "chevron-down"} className="game-feed-chevron" />
-        </button>
-        {open && body}
+        <div className="chat-heading">Chat</div>
+        {body}
       </section>
     );
   }
@@ -200,16 +202,16 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend }
           type="button"
           className="chat-fab"
           aria-haspopup="dialog"
-          aria-expanded={open}
+          aria-expanded={sheetOpen}
           aria-label={unread > 0 ? `Open chat, ${unread} unread messages` : "Open chat"}
-          onClick={() => setOpen(true)}
+          onClick={() => setSheetOpen(true)}
         >
           <Icon name="chat" size={22} />
           {unread > 0 && <span className="chat-fab-badge" aria-hidden="true">{unread > 99 ? "99+" : unread}</span>}
         </button>,
         document.body
       )}
-      {open && createPortal(
+      {sheetOpen && createPortal(
         <div
           className="chat-sheet-backdrop"
           style={{ paddingBottom: keyboardInset }}

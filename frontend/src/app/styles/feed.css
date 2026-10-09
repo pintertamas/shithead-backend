@@ -32,9 +32,19 @@
   cursor: pointer;
 }
 
+.game-feed-toggle.is-static {
+  cursor: default;
+}
+
 .game-feed-toggle span:first-child,
 .chat-toggle span:first-child {
   flex: 1;
+}
+
+.chat-heading {
+  padding: 4px 2px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .game-feed-count {
@@ -53,11 +63,21 @@
   height: 12px;
 }
 
+.game-feed-body {
+  position: relative;
+}
+
+/* Overlays the top of the list, so the log keeps the same height with or without a banner. */
 .game-feed-banner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
   padding: 8px 10px;
   border-radius: 12px;
   border-left: 3px solid var(--accent);
-  background: rgba(229, 189, 112, 0.12);
+  background: linear-gradient(rgba(229, 189, 112, 0.12), rgba(229, 189, 112, 0.12)), #1d3f31;
   font-size: 14px;
   animation: feed-banner-in 0.25s ease-out;
 }
@@ -66,7 +86,7 @@
 .game-feed-banner[data-type="FAILED_PLAY"],
 .game-feed-banner[data-type="PICKED_UP"] {
   border-left-color: var(--danger);
-  background: rgba(255, 107, 107, 0.1);
+  background: linear-gradient(rgba(255, 107, 107, 0.1), rgba(255, 107, 107, 0.1)), #1d3f31;
 }
 
 .game-feed-banner[data-type="FINISHED"] {
@@ -75,19 +95,24 @@
 
 .game-feed-empty,
 .chat-empty,
+/* The hint row always takes its space, so going offline does not resize the chat. */
 .chat-hint {
+  min-height: 18px;
   margin: 0;
   color: var(--ink-dim);
   font-size: 13px;
 }
 
+/* Fixed height (same on every screen size). The list scrolls inside it, so events never resize the log. */
 .game-feed-list {
   display: grid;
+  align-content: start;
   gap: 4px;
+  box-sizing: border-box;
+  height: var(--feed-list-h);
   margin: 0;
-  padding: 0;
+  padding: 0 6px 0 0;
   list-style: none;
-  max-height: 180px;
   overflow-y: auto;
   font-size: 13px;
   line-height: 1.4;
@@ -192,10 +217,6 @@
   .game-companion {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
-  }
-
-  .game-feed-list {
-    max-height: 260px;
   }
 }
 

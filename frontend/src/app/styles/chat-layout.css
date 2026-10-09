@@ -1,5 +1,11 @@
 /* Where the session chat and game log sit on each screen size. Phones use the chat popup instead of the inline panel. */
 
+/* Fixed sizes shared by the room and the game table. Content scrolls inside; nothing grows or shrinks with messages. */
+:root {
+  --chat-box-h: 380px;
+  --feed-list-h: 200px;
+}
+
 /* Room: Players card and chat side by side on wide screens. */
 .room-columns {
   display: grid;
@@ -13,18 +19,21 @@
     gap: 32px;
     align-items: stretch;
   }
+}
 
-  /* The chat sets the row height; the Players card stretches to match it. */
-  .room-columns .chat-panel {
+/* Wide screens (above the phone breakpoint): the chat is always open at a fixed height on the room and the table.
+   On the room, the Players card stretches to match. */
+@media (min-width: 701px) {
+  .chat-panel {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    height: clamp(380px, 66dvh, 640px);
-    box-sizing: border-box;
+    height: var(--chat-box-h);
+    min-height: 0;
   }
 
-  .room-columns .chat-panel .chat-list {
-    flex: 1 1 auto;
+  .chat-panel .chat-list {
+    flex: 1 1 0;
     min-height: 0;
     max-height: none;
   }
@@ -42,10 +51,6 @@
   .game-stage > .game-companion {
     grid-template-columns: minmax(0, 1fr);
     margin-top: 0;
-  }
-
-  .game-stage .chat-list {
-    max-height: 300px;
   }
 }
 
@@ -110,8 +115,8 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 640px;
-  /* Fits the space left above the keyboard (the backdrop pads for it). */
-  max-height: min(80dvh, 100%);
+  /* Fixed height that fits the space left above the keyboard (the backdrop pads for it). */
+  height: min(80dvh, 100%);
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
   border-radius: 18px 18px 0 0;
   outline: none;

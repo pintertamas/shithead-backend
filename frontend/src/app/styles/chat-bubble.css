@@ -1,0 +1,75 @@
+/*
+ * Speech bubble above a player's seat name on the game table. Absolutely positioned inside the seat,
+ * so it never changes the layout and ignores the pointer.
+ */
+
+.game-seat {
+  position: relative;
+}
+
+.chat-bubble {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  z-index: 20;
+  width: max-content;
+  max-width: min(170px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: chat-bubble-life 6s ease-out forwards;
+}
+
+.chat-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #f5edda;
+  border-bottom: 0;
+}
+
+.chat-bubble-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: #f5edda;
+  color: #1b2a22;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+  box-shadow: var(--shadow);
+}
+
+@keyframes chat-bubble-life {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+
+  5% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  88% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble {
+    animation: none;
+  }
+}
