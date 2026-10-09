@@ -119,6 +119,10 @@ export default function RulesModal({ specialRules, faceUpFailurePickup, onClose 
             then press Swap selected cards. The cards are swapped in pairs. When you are happy, mark yourself
             ready. Cards are locked after that, and play begins once every player is ready.
           </p>
+          <p>
+            The player with the lowest rating starts. During setup the game owner may pick a different starting
+            player instead.
+          </p>
 
           <h3>Playing cards</h3>
           <ul>

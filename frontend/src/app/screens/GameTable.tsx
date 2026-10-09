@@ -14,6 +14,7 @@ import ShitheadModal from "../components/ShitheadModal";
 import ErrorAlert from "../components/ErrorAlert";
 import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
+import StarterPicker from "../components/StarterPicker";
 
 export default function GameTable() {
   const { sessionId } = useParams();
@@ -309,6 +310,8 @@ export default function GameTable() {
             {setupStage ? (
               <div className="setup-controls">
                 <h3 className="title">Choose your starting cards</h3>
+                <StarterPicker players={state.players} currentPlayerId={state.currentPlayerId} isOwner={state.isOwner}
+                  disabled={pendingAction} onPick={(starterId) => sendWs({ action: "setup", sessionId, setupAction: "starter", starterId })} />
                 <p>Select cards from your hand and the same number of face-up cards to swap them in pairs. You can change your choice until you’re ready.</p>
                 {!you.ready ? (
                   <>

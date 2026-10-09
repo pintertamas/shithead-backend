@@ -9,5 +9,5 @@ import java.util.List;
 @Builder
 public record PlayMessage(String action, String sessionId, List<Card> cards, List<CardSelection> selections,
         String setupAction, Integer handIndex, Integer faceUpIndex, List<Integer> handIndices,
-        List<Integer> faceUpIndices, String text) {
+        List<Integer> faceUpIndices, String starterId, String text) {
 }
