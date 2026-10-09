@@ -8,6 +8,7 @@ const redirectUri = import.meta.env.VITE_COGNITO_REDIRECT_URI;
 const PKCE_VERIFIER_KEY = "cognito_pkce_verifier";
 // Sends the browser straight to Google instead of the hosted sign-in page.
 const IDENTITY_PROVIDER = "Google";
+const CHOOSE_ACCOUNT_KEY = "shithead_choose_account";
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -84,6 +85,12 @@ export default function Login() {
         code_challenge_method: "S256",
         code_challenge: challenge
       });
+
+      // After an explicit log out, ask Google to show its account chooser so another account can be used.
+      if (localStorage.getItem(CHOOSE_ACCOUNT_KEY)) {
+        loginParams.set("prompt", "select_account");
+        localStorage.removeItem(CHOOSE_ACCOUNT_KEY);
+      }
 
       window.location.assign(`${domain}/oauth2/authorize?${loginParams.toString()}`);
     } catch (error) {

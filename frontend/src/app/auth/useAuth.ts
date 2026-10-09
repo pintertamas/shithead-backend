@@ -84,6 +84,18 @@ export function useAuth() {
     };
   }, [auth]);
 
+  // Also end the Cognito session; otherwise /oauth2/authorize silently reuses it and the same account signs in again.
+  const logout = () => {
+    clearAuth();
+    try { localStorage.setItem("shithead_choose_account", "1"); } catch { /* storage unavailable */ }
+    const logoutUri = import.meta.env.VITE_COGNITO_LOGOUT_URI;
+    if (COGNITO_DOMAIN && COGNITO_CLIENT_ID && logoutUri) {
+      window.location.assign(`${COGNITO_DOMAIN}/logout?${new URLSearchParams({ client_id: COGNITO_CLIENT_ID, logout_uri: logoutUri }).toString()}`);
+    } else {
+      window.location.assign(`${import.meta.env.BASE_URL}login`);
+    }
+  };
+
   const token = auth?.idToken || "";
   const username = auth?.idToken ? decodeUsername(auth.idToken) : "";
 
@@ -91,7 +103,7 @@ export function useAuth() {
     token,
     accessToken: auth?.accessToken || "",
     username,
-    logout: clearAuth
+    logout
   };
 }
 

@@ -31,7 +31,7 @@ export default function MenuLayout() {
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/lobby" aria-label="Home" title="Home"><span className="lobby-nav-icon" aria-hidden="true">⌂</span><span className="lobby-nav-label">Home</span></NavLink>
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/config" aria-label="Game Config" title="Game Config"><span className="lobby-nav-icon" aria-hidden="true">⚙</span><span className="lobby-nav-label">Game Config</span></NavLink>
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/profile" aria-label="Profile" title="Profile"><span className="lobby-nav-icon" aria-hidden="true">♟</span><span className="lobby-nav-label">Profile</span></NavLink>
-          <button className="lobby-nav-item" onClick={() => { logout(); navigate("/login"); }} aria-label="Log out" title="Log out"><span className="lobby-nav-icon" aria-hidden="true">↪</span><span className="lobby-nav-label">Log out</span></button>
+          <button className="lobby-nav-item" onClick={logout} aria-label="Log out" title="Log out"><span className="lobby-nav-icon" aria-hidden="true">↪</span><span className="lobby-nav-label">Log out</span></button>
         </nav>
       </aside>
       <main className="lobby-main"><Outlet /></main>
