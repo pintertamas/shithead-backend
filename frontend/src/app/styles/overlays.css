@@ -1,0 +1,100 @@
+/*
+ * Peek overlays (pile contents, opponent face-up cards, draw pile count). They are portalled to
+ * document.body and use position: fixed, so opening or closing one never changes document flow,
+ * the size of the table or its cards, or the page scroll height. Nothing here uses normal flow.
+ */
+
+.peek-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(3, 10, 7, 0.55);
+  animation: peek-overlay-fade 0.15s ease-out;
+}
+
+.peek-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1001;
+  box-sizing: border-box;
+  display: block;
+  width: max-content;
+  max-width: min(92vw, 440px);
+  max-height: calc(100vh - 16px);
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(229, 213, 164, 0.4);
+  border-radius: 14px;
+  background: rgba(9, 29, 22, 0.97);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  color: #f5edda;
+  text-align: left;
+  animation: peek-overlay-in 0.14s ease-out;
+}
+
+.peek-overlay:focus {
+  outline: none;
+}
+
+/* Phones and touch screens: a centred dialog over a backdrop. Sized with dvh where supported. */
+.peek-overlay-mobile {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 90vw;
+  max-height: 80vh;
+  max-height: 80dvh;
+  padding: 40px 12px 14px;
+  overscroll-behavior: contain;
+}
+
+.peek-overlay .peek-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(229, 213, 164, 0.45);
+  border-radius: 50%;
+  background: rgba(9, 29, 22, 0.9);
+  color: #f0d99e;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.peek-overlay .peek-close:focus-visible {
+  outline: 2px solid #f0d99e;
+  outline-offset: 2px;
+}
+
+.peek-overlay .peek-note {
+  padding: 4px 6px;
+  color: #f5edda;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@keyframes peek-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes peek-overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peek-overlay,
+  .peek-overlay-backdrop {
+    animation: none;
+  }
+}
