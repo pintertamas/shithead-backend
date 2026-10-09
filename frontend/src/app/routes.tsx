@@ -12,11 +12,13 @@ import Admin from "./screens/Admin";
 import AccountBlockedGate from "./components/AccountBlockedGate";
 import AuthCallback from "./auth/authCallback";
 import { useAuth } from "./auth/useAuth";
+import AppDataProvider from "./data/AppDataProvider";
 
 export default function AppRoutes() {
   const { token } = useAuth();
 
   return (
+    <AppDataProvider token={token}>
     <div className="app-shell">
       <AccountBlockedGate />
       <Routes>
@@ -43,6 +45,7 @@ export default function AppRoutes() {
         />
       </Routes>
     </div>
+    </AppDataProvider>
   );
 }
 

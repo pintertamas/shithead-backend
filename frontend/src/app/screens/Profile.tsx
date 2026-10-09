@@ -1,39 +1,33 @@
 import { FormEvent, useEffect, useState } from "react";
 import ErrorAlert, { SuccessAlert } from "../components/ErrorAlert";
-import { fetchProfile, updateProfile, UserProfile } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
+import { useProfileQuery, useUpdateProfileMutation } from "../data/queries";
 
 export default function Profile() {
   const { token } = useAuth();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [username, setUsername] = useState("");
+  const { data: profile = null, error: profileError } = useProfileQuery(token);
+  const updateMutation = useUpdateProfileMutation(token);
+  // Null until the user edits the field, so a background refresh never overwrites what they are typing.
+  const [draft, setDraft] = useState<string | null>(null);
+  const username = draft ?? profile?.username ?? "";
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const saving = updateMutation.isPending;
 
   useEffect(() => {
-    fetchProfile(token).then((result) => {
-      setProfile(result);
-      setUsername(result.username);
-    }).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : "Couldn't load your profile.");
-    });
-  }, [token]);
+    if (profileError) setError(profileError instanceof Error ? profileError.message : "Couldn't load your profile.");
+  }, [profileError]);
 
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setNotice(null);
-    setSaving(true);
     try {
-      const updated = await updateProfile(token, username.trim());
-      setProfile(updated);
-      setUsername(updated.username);
+      await updateMutation.mutateAsync(username.trim());
+      setDraft(null);
       setNotice("Your nickname has been saved.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn't save your profile.");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -61,7 +55,7 @@ export default function Profile() {
             maxLength={24}
             title="Use 2–24 letters, numbers, spaces, hyphens, or underscores."
             value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            onChange={(event) => setDraft(event.target.value)}
             disabled={!profile || saving}
             required
           />

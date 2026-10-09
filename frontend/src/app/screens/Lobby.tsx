@@ -3,9 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { createGame, joinGame } from "../api/game";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
-import { fetchProfile } from "../api/profile";
+import { RankingRowsSkeleton } from "../components/Skeleton";
 import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
-import { fetchGlobalLeaderboard, LeaderboardEntry } from "../api/leaderboard";
+import { invalidateGames, useLobbyTopQuery, useProfileQuery } from "../data/queries";
 import { consumeLoginSound, playFart, unlockAudio } from "../lib/fartSound";
 import Icon from "../components/Icon";
 
@@ -16,9 +16,11 @@ export default function Lobby() {
   const [joinCode, setJoinCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
-  const [displayName, setDisplayName] = useState("");
-  const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const { data: profile } = useProfileQuery(token);
+  const displayName = profile?.username ?? "";
+  const leaderboardQuery = useLobbyTopQuery(token);
+  const leaders = leaderboardQuery.data ?? [];
+  const leaderboardLoading = leaderboardQuery.isPending;
 
   useEffect(() => {
     const navigationError = (location.state as { error?: unknown } | null)?.error;
@@ -34,24 +36,12 @@ export default function Lobby() {
     void playFart().then((played) => { if (!played) unlockAudio(); });
   }, []);
 
-  useEffect(() => {
-    fetchProfile(token).then((profile) => setDisplayName(profile.username)).catch(() => undefined);
-  }, [token]);
-
-  useEffect(() => {
-    let active = true;
-    fetchGlobalLeaderboard(token, 3)
-      .then((entries) => { if (active) setLeaders(entries.slice(0, 3)); })
-      .catch(() => { if (active) setLeaders([]); })
-      .finally(() => { if (active) setLeaderboardLoading(false); });
-    return () => { active = false; };
-  }, [token]);
-
   const handleCreate = async () => {
     setStatus(null);
     setLoading("creating");
     try {
       const res = await createGame(token, getCreateGameConfig(loadGameConfig()));
+      void invalidateGames(token);
       navigate(`/room/${res.sessionId}`);
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : "Failed to create game.");
@@ -67,6 +57,7 @@ export default function Lobby() {
     setLoading("joining");
     try {
       await joinGame(token, trimmed);
+      void invalidateGames(token);
       navigate(`/room/${trimmed}`);
     } catch (cause) {
       setStatus(cause instanceof Error ? cause.message : "Failed to join game.");
@@ -157,7 +148,7 @@ export default function Lobby() {
             </button>
           </div>
 
-          {leaderboardLoading ? <div className="lobby-rankings-message" role="status"><span className="game-starting-spinner" />Loading rankings…</div>
+          {leaderboardLoading ? <RankingRowsSkeleton rows={3} />
             : leaders.length === 0 ? <p className="lobby-rankings-message">Leaderboard is unavailable right now.</p>
               : (
                 <div className="lobby-table-wrap">

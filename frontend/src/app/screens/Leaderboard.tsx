@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
-import { fetchGlobalLeaderboard, fetchSessionLeaderboard, LeaderboardEntry } from "../api/leaderboard";
+import { LeaderboardEntry } from "../api/leaderboard";
 import Tabs from "../components/Tabs";
 import ErrorAlert from "../components/ErrorAlert";
 import Icon from "../components/Icon";
+import { RankingRowsSkeleton } from "../components/Skeleton";
+import { useGlobalLeaderboardQuery, useSessionLeaderboardQuery } from "../data/queries";
 import "../styles/leaderboard.css";
 import "../styles/rankings.css";
-
-// The API accepts 1..100 for the global list.
-const GLOBAL_LIMIT = 100;
 
 function TrophyIcon() {
   return (
@@ -23,35 +22,30 @@ function TrophyIcon() {
   );
 }
 
+function messageOf(cause: unknown, fallback: string): string {
+  return cause instanceof Error ? cause.message : fallback;
+}
+
 export default function Leaderboard() {
   const { sessionId } = useParams();
   const { token } = useAuth();
   const [tab, setTab] = useState(sessionId ? "Session" : "Global");
-  const [sessionData, setSessionData] = useState<LeaderboardEntry[]>([]);
-  const [globalData, setGlobalData] = useState<LeaderboardEntry[]>([]);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(Boolean(sessionId));
-  const [globalLoading, setGlobalLoading] = useState(true);
+  const sessionQuery = useSessionLeaderboardQuery(token, sessionId);
+  const globalQuery = useGlobalLeaderboardQuery(token);
+  const sessionData: LeaderboardEntry[] = sessionQuery.data ?? [];
+  const globalData: LeaderboardEntry[] = globalQuery.data ?? [];
+  const sessionLoading = Boolean(sessionId) && sessionQuery.isPending;
+  const globalLoading = globalQuery.isPending;
 
   useEffect(() => {
-    if (!sessionId) return;
-    let active = true;
-    setSessionLoading(true);
-    fetchSessionLeaderboard(token, sessionId).then((rows) => { if (active) setSessionData(rows); }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : "Couldn't load the session leaderboard.");
-    }).finally(() => { if (active) setSessionLoading(false); });
-    return () => { active = false; };
-  }, [sessionId, token]);
+    if (sessionQuery.error) setError(messageOf(sessionQuery.error, "Couldn't load the session leaderboard."));
+  }, [sessionQuery.error]);
 
   useEffect(() => {
-    let active = true;
-    setGlobalLoading(true);
-    fetchGlobalLeaderboard(token, GLOBAL_LIMIT).then((rows) => { if (active) setGlobalData(rows); }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : "Couldn't load the global leaderboard.");
-    }).finally(() => { if (active) setGlobalLoading(false); });
-    return () => { active = false; };
-  }, [token]);
+    if (globalQuery.error) setError(messageOf(globalQuery.error, "Couldn't load the global leaderboard."));
+  }, [globalQuery.error]);
 
   const rows = tab === "Session" ? sessionData : globalData;
   const loading = tab === "Session" ? sessionLoading : globalLoading;
@@ -87,7 +81,7 @@ export default function Leaderboard() {
 
           {sessionId && <Tabs tabs={["Session", "Global"]} active={tab} onChange={setTab} />}
 
-          {loading ? <div className="lobby-rankings-message" role="status"><span className="game-starting-spinner" />Loading rankings…</div>
+          {loading ? <RankingRowsSkeleton rows={8} />
             : rows.length === 0 ? <p className="lobby-rankings-message">{error ? "Rankings couldn't be loaded." : "No rankings are available yet."}</p>
               : (
                 <>
