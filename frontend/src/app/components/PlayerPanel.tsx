@@ -6,6 +6,7 @@ import PeekWrap from "./PeekWrap";
 type Props = {
   player: PlayerState;
   isCurrentTurn?: boolean;
+  isNext?: boolean;
   canSelectFaceUp?: boolean;
   canSelectFaceDown?: boolean;
   selectedFaceUp?: number[];
@@ -73,7 +74,7 @@ function EnlargedFaceUp({ username, cards }: { username: string; cards: Card[] }
   );
 }
 
-export default function PlayerPanel({ player, isCurrentTurn = false, canSelectFaceUp = false, canSelectFaceDown = false,
+export default function PlayerPanel({ player, isCurrentTurn = false, isNext = false, canSelectFaceUp = false, canSelectFaceDown = false,
   selectedFaceUp = [], selectedFaceDown = [], selectedHand = [], onToggleFaceUp, onToggleFaceDown, onToggleHand }: Props) {
   const ownHand = player.isYou ? player.hand || [] : [];
   const stackCount = Math.max(player.faceUp.length, player.faceDownCount);
@@ -98,7 +99,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, canSelectFa
   );
 
   return (
-    <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${isCurrentTurn ? " game-seat-active" : ""}`}
+    <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${isCurrentTurn ? " game-seat-active" : ""}${isNext ? " seat-next" : ""}`}
       data-seat-id={player.playerId}>
       <header className="game-seat-header">
         <div className="game-seat-name" title={player.username}>{player.username}{player.isYou ? <span className="you-tag">You</span> : null}<span className="elo-badge">{Math.round(player.eloScore)}</span></div>
