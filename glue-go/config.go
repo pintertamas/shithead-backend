@@ -20,6 +20,7 @@ type GameConfig struct {
 	CardRules                            map[string]string `dynamodbav:"cardRules"`
 	AlwaysPlayable                       []int             `dynamodbav:"alwaysPlayable"`
 	CanPlayAgain                         []int             `dynamodbav:"canPlayAgain"`
+	VoiceEnabled                         bool              `dynamodbav:"voiceEnabled"`
 }
 
 const (
@@ -87,6 +88,10 @@ func buildGameConfig(requested map[string]any) (GameConfig, error) {
 	if err != nil {
 		return GameConfig{}, err
 	}
+	voice, err := boolField(requested, "voiceEnabled")
+	if err != nil {
+		return GameConfig{}, err
+	}
 
 	cfg := GameConfig{
 		DecksCount:                           decks,
@@ -96,6 +101,7 @@ func buildGameConfig(requested map[string]any) (GameConfig, error) {
 		HandCount:                            hand,
 		AllowMixedHandAndFaceUpWhenDeckEmpty: mixed,
 		AllowFailedFaceUpPlay:                failed,
+		VoiceEnabled:                         voice,
 		CardRules:                            defaultCardRules(),
 		AlwaysPlayable:                       []int{2, 8},
 		CanPlayAgain:                         []int{10},

@@ -19,6 +19,7 @@ public record GameStateView(
         int deckCount,
         boolean allowMixedHandAndFaceUpWhenDeckEmpty,
         boolean allowFailedFaceUpPlay,
+        boolean voiceEnabled,
         Card revealedCard,
         int discardCount,
         List<Card> discardPile,

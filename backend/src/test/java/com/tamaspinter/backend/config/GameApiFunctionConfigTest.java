@@ -25,6 +25,7 @@ class GameApiFunctionConfigTest {
 
     private GameFunctionConfig game;
     private AccountManagementFunctionConfig account;
+    private VoiceFunctionConfig voice;
     private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> joinGame;
     private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> getState;
     private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> accountManagement;
@@ -36,6 +37,7 @@ class GameApiFunctionConfigTest {
     void setUp() {
         game = mock(GameFunctionConfig.class);
         account = mock(AccountManagementFunctionConfig.class);
+        voice = mock(VoiceFunctionConfig.class);
         joinGame = restHandler("joinGame");
         getState = restHandler("getState");
         accountManagement = restHandler("accountManagement");
@@ -56,8 +58,10 @@ class GameApiFunctionConfigTest {
         when(game.playCardWS()).thenReturn(playCardWS);
         when(game.pickupPileWS()).thenReturn(pickupPileWS);
         when(account.accountManagement()).thenReturn(accountManagement);
+        Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> voiceToken = restHandler("voiceToken");
+        when(voice.voiceToken()).thenReturn(voiceToken);
 
-        gameApi = new GameApiFunctionConfig(new ObjectMapper(), new ApiRoutes(game, account)).gameApi();
+        gameApi = new GameApiFunctionConfig(new ObjectMapper(), new ApiRoutes(game, account, voice)).gameApi();
     }
 
     @Test
@@ -143,7 +147,7 @@ class GameApiFunctionConfigTest {
 
     @Test
     void routeTableMatchesPathTemplatesOnlyForTheirMethod() {
-        ApiRoutes routes = new ApiRoutes(game, account);
+        ApiRoutes routes = new ApiRoutes(game, account, voice);
 
         assertTrue(routes.findRest("GET", "/leaderboard/session/XYZ").isPresent());
         assertEquals(false, routes.findRest("GET", "/leaderboard/session").isPresent());
@@ -151,6 +155,8 @@ class GameApiFunctionConfigTest {
         assertTrue(routes.findRest("POST", "/admin/users/abc/block").isPresent());
         assertTrue(routes.findRest("POST", "/admin/users/abc/unblock").isPresent());
         assertTrue(routes.findRest("GET", "/games").isPresent());
+        assertTrue(routes.findRest("POST", "/games/ABC123/voice-token").isPresent());
+        assertEquals(false, routes.findRest("GET", "/games/ABC123/voice-token").isPresent());
         assertEquals(false, routes.findRest("GET", "/admin/users/abc/block").isPresent());
         assertEquals(false, routes.findWebSocket("unknown").isPresent());
     }

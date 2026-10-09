@@ -49,6 +49,26 @@ variable "cognito_user_pool_id" {
   type        = string
 }
 
+variable "livekit_url" {
+  description = "LiveKit server WebSocket URL (empty disables voice chat)"
+  type        = string
+  default     = ""
+}
+
+variable "livekit_api_key" {
+  description = "LiveKit API key (empty disables voice chat)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "livekit_api_secret" {
+  description = "LiveKit API secret (empty disables voice chat)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "cognito_user_pool_client_id" {
   description = "Client ID of the Cognito User Pool"
   type        = string

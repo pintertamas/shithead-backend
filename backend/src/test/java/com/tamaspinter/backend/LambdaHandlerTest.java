@@ -7,6 +7,7 @@ import com.tamaspinter.backend.config.AccountManagementFunctionConfig;
 import com.tamaspinter.backend.config.ApiRoutes;
 import com.tamaspinter.backend.config.GameApiFunctionConfig;
 import com.tamaspinter.backend.config.GameFunctionConfig;
+import com.tamaspinter.backend.config.VoiceFunctionConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -30,6 +31,7 @@ class LambdaHandlerTest {
         ObjectMapper mapper = new ObjectMapper();
         GameFunctionConfig game = Mockito.mock(GameFunctionConfig.class);
         AccountManagementFunctionConfig account = Mockito.mock(AccountManagementFunctionConfig.class);
+        VoiceFunctionConfig voice = Mockito.mock(VoiceFunctionConfig.class);
         @SuppressWarnings("unchecked")
         Function<com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent,
                 APIGatewayProxyResponseEvent> leaderboard = Mockito.mock(Function.class);
@@ -38,7 +40,7 @@ class LambdaHandlerTest {
                 .withHeaders(Map.of("Access-Control-Allow-Origin", "*"))
                 .withBody("[]"));
         when(game.leaderboardTop()).thenReturn(leaderboard);
-        LambdaHandler handler = new LambdaHandler(new GameApiFunctionConfig(mapper, new ApiRoutes(game, account)), mapper);
+        LambdaHandler handler = new LambdaHandler(new GameApiFunctionConfig(mapper, new ApiRoutes(game, account, voice)), mapper);
         String event = "{\"httpMethod\":\"GET\",\"path\":\"/leaderboard/top\",\"requestContext\":{}}";
 
         // When
