@@ -1,0 +1,28 @@
+/*
+ * Rule selectors on the game configuration screen (/config).
+ *
+ * The native arrow sat almost on the right border. The native control is
+ * replaced with appearance: none and a single inline-SVG chevron, so the arrow
+ * looks the same in every browser (Chrome, Edge, Firefox, iOS Safari). The
+ * chevron sits 14px from the right edge and the right padding leaves room for
+ * it, so option text never runs under the arrow.
+ *
+ * Focus ring, disabled state, size and colours come from theme.css and
+ * layout.css and are not changed here.
+ */
+
+select.rules-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23f5f5f5' stroke-opacity='0.85' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+  cursor: pointer;
+}
+
+select.rules-select:disabled {
+  cursor: not-allowed;
+}
