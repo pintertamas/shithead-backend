@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CardSelection, fetchState, GameStateView, openGameSocket } from "../api/game";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { playTableTransitions } from "../lib/tableAnimations";
+import { CardFaceContent, isRedSuit } from "../components/CardFace";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
 import ShitheadModal from "../components/ShitheadModal";
@@ -20,6 +22,9 @@ export default function GameTable() {
   const [pendingAction, setPendingAction] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
+  const boardRef = useRef<HTMLElement>(null);
+  const fxLayerRef = useRef<HTMLDivElement>(null);
+  const animatedStateRef = useRef<GameStateView | null>(null);
 
   const you = useMemo(() => state?.players.find((p) => p.isYou), [state]);
   const others = useMemo(() => state?.players.filter((p) => !p.isYou) || [], [state]);
@@ -197,6 +202,17 @@ export default function GameTable() {
     }
   }, [state?.finished, state?.shitheadId]);
 
+  useLayoutEffect(() => {
+    const previous = animatedStateRef.current;
+    animatedStateRef.current = state;
+    if (!state || !previous || previous === state || !fxLayerRef.current) return;
+    try {
+      playTableTransitions(previous, state, fxLayerRef.current);
+    } catch {
+      // Animations are decorative; a failure here must never break the table.
+    }
+  }, [state]);
+
   useEffect(() => {
     if (!state?.revealedCard) return;
     const timeout = window.setTimeout(() => {
@@ -223,8 +239,20 @@ export default function GameTable() {
         </div>
       </div>
 
-      <main className="game-board">
-        {state.revealedCard && <div className="failed-blind-reveal" role="status">Blind flip revealed {state.revealedCard.value} of {state.revealedCard.suit.toLowerCase()}.</div>}
+      <main className="game-board" ref={boardRef}>
+        {state.revealedCard && (
+          <div className="failed-blind-reveal" role="status">
+            <span className="blind-flip" aria-hidden="true">
+              <span className="blind-flip-inner">
+                <span className="blind-flip-face blind-flip-back" />
+                <span className={`blind-flip-face blind-flip-front playing-card face-up-card${isRedSuit(state.revealedCard.suit) ? " red-card" : ""}`}>
+                  <CardFaceContent card={state.revealedCard} />
+                </span>
+              </span>
+            </span>
+            Blind flip revealed {state.revealedCard.value} of {state.revealedCard.suit.toLowerCase()}.
+          </div>
+        )}
         <div className="game-opponents" aria-label="Other players">
           {others.map((player) => (
             <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId} />
@@ -233,7 +261,7 @@ export default function GameTable() {
 
         <section className="game-middle" aria-label="Game table">
           <div className="game-piles">
-            <Pile title="Draw pile" count={state.deckCount} />
+            <Pile title="Draw pile" count={state.deckCount} variant="draw" fxAnchor="draw" />
             <Pile
               title="Discard pile"
               count={state.discardCount}
@@ -242,6 +270,7 @@ export default function GameTable() {
               selected={pickupSelected}
               disabled={!yourTurn || !pileHasCards || pendingAction}
               onClick={() => { setSelected([]); setPickupSelected(true); }}
+              fxAnchor="discard"
             />
           </div>
           <div className="game-actions">
@@ -291,6 +320,7 @@ export default function GameTable() {
           onToggleFaceDown={(idx) => toggleCard("faceDown", idx)}
           onToggleHand={setupStage && you.ready ? undefined : (idx) => toggleCard("hand", idx)}
         />
+        <div className="table-fx" ref={fxLayerRef} aria-hidden="true" />
       </main>
 
       {showModal && state.shitheadId && (
