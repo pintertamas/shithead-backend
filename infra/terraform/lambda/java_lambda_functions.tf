@@ -1,209 +1,119 @@
 locals {
   jar_path = "${path.module}/../../../backend/target/backend-0.0.1-SNAPSHOT.jar"
-
-  java_common_env = {
-    GAME_SESSIONS_TABLE  = var.aws_dynamodb_table_games_name
-    USERS_TABLE          = var.aws_dynamodb_table_users_name
-    WS_CONNECTIONS_TABLE = var.aws_dynamodb_table_ws_connection_name
-  }
 }
 
-resource "aws_lambda_function" "pickup_pile_ws" {
+# One Java Lambda serves every REST and WebSocket route that needs the game
+# logic or the profile/admin code. The route table lives in
+# backend/src/main/java/com/tamaspinter/backend/config/ApiRoutes.java.
+resource "aws_lambda_function" "game_api" {
   tags             = { project = var.project_name }
-  role             = aws_iam_role.lambda_exec.arn
-  function_name    = "${var.project_name}-pickup-pile-ws"
+  role             = aws_iam_role.game_api_exec.arn
+  function_name    = "${var.project_name}-game-api"
   handler          = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
   runtime          = "java17"
   filename         = local.jar_path
   source_code_hash = filebase64sha256(local.jar_path)
-  timeout          = 30
-  memory_size      = 512
+  timeout          = 60
+  memory_size      = 1024
   publish          = true
 
+  snap_start { apply_on = "PublishedVersions" }
+
   environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "pickupPileWS"
-    })
+    variables = {
+      GAME_SESSIONS_TABLE              = var.aws_dynamodb_table_games_name
+      USERS_TABLE                      = var.aws_dynamodb_table_users_name
+      WS_CONNECTIONS_TABLE             = var.aws_dynamodb_table_ws_connection_name
+      WS_MANAGEMENT_ENDPOINT           = format("%s/$default", replace(var.websocket_api_endpoint, "wss://", "https://"))
+      SPRING_CLOUD_FUNCTION_DEFINITION = "gameApi"
+    }
   }
 }
 
-resource "aws_lambda_alias" "pickup_pile_ws_live" {
+resource "aws_lambda_alias" "game_api_live" {
   name             = "LIVE"
-  function_name    = aws_lambda_function.pickup_pile_ws.function_name
-  function_version = aws_lambda_function.pickup_pile_ws.version
+  function_name    = aws_lambda_function.game_api.function_name
+  function_version = aws_lambda_function.game_api.version
 }
 
-resource "aws_lambda_function" "join_game" {
-  tags          = { project = var.project_name }
-  role          = aws_iam_role.lambda_exec.arn
-  function_name = "${var.project_name}-join-game"
-  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
-  runtime       = "java17"
-  filename      = local.jar_path
-  source_code_hash = filebase64sha256(local.jar_path)
-  timeout       = 30
-  memory_size   = 512
-  publish       = true
+resource "aws_iam_role" "game_api_exec" {
+  name = "${var.project_name}-game-api-role"
 
-  environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "joinGame"
-    })
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
 }
 
-resource "aws_lambda_alias" "join_game_live" {
-  name             = "LIVE"
-  function_name    = aws_lambda_function.join_game.function_name
-  function_version = aws_lambda_function.join_game.version
-}
+# Union of the permissions the former per-handler roles and the account
+# management role granted.
+resource "aws_iam_role_policy" "game_api" {
+  name = "${var.project_name}-game-api-policy"
+  role = aws_iam_role.game_api_exec.id
 
-resource "aws_lambda_function" "leave_game" {
-  tags          = { project = var.project_name }
-  role          = aws_iam_role.lambda_exec.arn
-  function_name = "${var.project_name}-leave-game"
-  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
-  runtime       = "java17"
-  filename      = local.jar_path
-  source_code_hash = filebase64sha256(local.jar_path)
-  timeout       = 30
-  memory_size   = 512
-  publish       = true
-
-  environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "leaveGame"
-    })
-  }
-}
-
-resource "aws_lambda_alias" "leave_game_live" {
-  name             = "LIVE"
-  function_name    = aws_lambda_function.leave_game.function_name
-  function_version = aws_lambda_function.leave_game.version
-}
-
-resource "aws_lambda_function" "start_game" {
-  tags          = { project = var.project_name }
-  role          = aws_iam_role.lambda_exec.arn
-  function_name = "${var.project_name}-start-game"
-  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
-  runtime       = "java17"
-  filename      = local.jar_path
-  source_code_hash = filebase64sha256(local.jar_path)
-  timeout       = 30
-  memory_size   = 512
-  publish       = true
-
-  environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "startGame"
-    })
-  }
-}
-
-resource "aws_lambda_alias" "start_game_live" {
-  name             = "LIVE"
-  function_name    = aws_lambda_function.start_game.function_name
-  function_version = aws_lambda_function.start_game.version
-}
-
-resource "aws_lambda_function" "get_state" {
-  tags          = { project = var.project_name }
-  role          = aws_iam_role.lambda_exec.arn
-  function_name = "${var.project_name}-get-state"
-  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
-  runtime       = "java17"
-  filename      = local.jar_path
-  source_code_hash = filebase64sha256(local.jar_path)
-  timeout       = 30
-  memory_size   = 512
-  publish       = true
-
-  environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "getState"
-    })
-  }
-}
-
-resource "aws_lambda_alias" "get_state_live" {
-  name             = "LIVE"
-  function_name    = aws_lambda_function.get_state.function_name
-  function_version = aws_lambda_function.get_state.version
-}
-
-resource "aws_lambda_function" "leaderboard_session" {
-  tags          = { project = var.project_name }
-  role          = aws_iam_role.lambda_exec.arn
-  function_name = "${var.project_name}-leaderboard-session"
-  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
-  runtime       = "java17"
-  filename      = local.jar_path
-  source_code_hash = filebase64sha256(local.jar_path)
-  timeout       = 30
-  memory_size   = 512
-  publish       = true
-
-  environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "leaderboardSession"
-    })
-  }
-}
-
-resource "aws_lambda_alias" "leaderboard_session_live" {
-  name             = "LIVE"
-  function_name    = aws_lambda_function.leaderboard_session.function_name
-  function_version = aws_lambda_function.leaderboard_session.version
-}
-
-resource "aws_lambda_function" "leaderboard_top" {
-  tags          = { project = var.project_name }
-  role          = aws_iam_role.lambda_exec.arn
-  function_name = "${var.project_name}-leaderboard-top"
-  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
-  runtime       = "java17"
-  filename      = local.jar_path
-  source_code_hash = filebase64sha256(local.jar_path)
-  timeout       = 30
-  memory_size   = 512
-  publish       = true
-
-  environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "leaderboardTop"
-    })
-  }
-}
-
-resource "aws_lambda_alias" "leaderboard_top_live" {
-  name             = "LIVE"
-  function_name    = aws_lambda_function.leaderboard_top.function_name
-  function_version = aws_lambda_function.leaderboard_top.version
-}
-
-resource "aws_lambda_function" "play_card_ws" {
-  tags          = { project = var.project_name }
-  role          = aws_iam_role.lambda_exec.arn
-  function_name = "${var.project_name}-play-card-ws"
-  handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest"
-  runtime       = "java17"
-  filename      = local.jar_path
-  source_code_hash = filebase64sha256(local.jar_path)
-  timeout       = 30
-  memory_size   = 512
-  publish       = true
-
-  environment {
-    variables = merge(local.java_common_env, {
-      SPRING_CLOUD_FUNCTION_DEFINITION = "playCardWS"
-    })
-  }
-}
-
-resource "aws_lambda_alias" "play_card_ws_live" {
-  name             = "LIVE"
-  function_name    = aws_lambda_function.play_card_ws.function_name
-  function_version = aws_lambda_function.play_card_ws.version
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:BatchGetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:TransactWriteItems"
+        ]
+        Resource = [
+          var.aws_dynamodb_table_users_arn,
+          "${var.aws_dynamodb_table_users_arn}/index/leaderboard-index"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          var.aws_dynamodb_table_games_arn,
+          "${var.aws_dynamodb_table_games_arn}/index/user_id-index"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          var.aws_dynamodb_table_ws_connections_arn,
+          "${var.aws_dynamodb_table_ws_connections_arn}/index/game_session_id-index"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["execute-api:ManageConnections"]
+        Resource = "${var.aws_apigateway_ws_execution_arn}/*/*/@connections/*"
+      }
+    ]
+  })
 }

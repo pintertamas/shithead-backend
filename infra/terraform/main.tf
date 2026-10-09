@@ -67,24 +67,25 @@ module "api_gateway" {
   aws_lambda_function_ws_authorizer_arn           = module.lambda.ws_lambda_function_ws_authorizer_arn
   aws_lambda_function_ws_authorizer_function_name = module.lambda.ws_lambda_function_ws_authorizer_function_name
   aws_cloudwatch_log_group_websocket_apigw_arn    = module.cloudwatch.aws_cloudwatch_log_group_websocket_apigw_arn
-  join_game_invoke_arn                            = module.lambda.join_game_alias_arn
-  join_game_function_name                         = module.lambda.join_game_function_name
-  leave_game_invoke_arn                           = module.lambda.leave_game_alias_arn
-  leave_game_function_name                        = module.lambda.leave_game_function_name
-  start_game_invoke_arn                           = module.lambda.start_game_alias_arn
-  start_game_function_name                        = module.lambda.start_game_function_name
-  get_state_invoke_arn                            = module.lambda.get_state_alias_arn
-  get_state_function_name                         = module.lambda.get_state_function_name
-  leaderboard_session_invoke_arn                  = module.lambda.leaderboard_session_alias_arn
-  leaderboard_session_function_name               = module.lambda.leaderboard_session_function_name
-  leaderboard_top_invoke_arn                      = module.lambda.leaderboard_top_alias_arn
-  leaderboard_top_function_name                   = module.lambda.leaderboard_top_function_name
-  play_card_ws_invoke_arn                         = module.lambda.play_card_ws_alias_arn
-  play_card_ws_function_name                      = module.lambda.play_card_ws_function_name
-  pickup_pile_ws_invoke_arn                       = module.lambda.pickup_pile_ws_alias_arn
-  pickup_pile_ws_function_name                    = module.lambda.pickup_pile_ws_function_name
-  account_management_invoke_arn                   = module.lambda.account_management_alias_arn
-  account_management_function_name                = module.lambda.account_management_function_name
+  # Every REST and WebSocket game/profile route is served by the single game API function.
+  join_game_invoke_arn              = module.lambda.game_api_alias_arn
+  join_game_function_name           = module.lambda.game_api_function_name
+  leave_game_invoke_arn             = module.lambda.game_api_alias_arn
+  leave_game_function_name          = module.lambda.game_api_function_name
+  start_game_invoke_arn             = module.lambda.game_api_alias_arn
+  start_game_function_name          = module.lambda.game_api_function_name
+  get_state_invoke_arn              = module.lambda.game_api_alias_arn
+  get_state_function_name           = module.lambda.game_api_function_name
+  leaderboard_session_invoke_arn    = module.lambda.game_api_alias_arn
+  leaderboard_session_function_name = module.lambda.game_api_function_name
+  leaderboard_top_invoke_arn        = module.lambda.game_api_alias_arn
+  leaderboard_top_function_name     = module.lambda.game_api_function_name
+  play_card_ws_invoke_arn           = module.lambda.game_api_alias_arn
+  play_card_ws_function_name        = module.lambda.game_api_function_name
+  pickup_pile_ws_invoke_arn         = module.lambda.game_api_alias_arn
+  pickup_pile_ws_function_name      = module.lambda.game_api_function_name
+  account_management_invoke_arn     = module.lambda.game_api_alias_arn
+  account_management_function_name  = module.lambda.game_api_function_name
 }
 
 
