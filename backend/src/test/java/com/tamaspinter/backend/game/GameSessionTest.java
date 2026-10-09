@@ -99,6 +99,99 @@ class GameSessionTest {
         assertTrue(session.isSetupComplete());
     }
 
+    @Test
+    void swapStartingCards_twoCards_swapsPairwiseAndKeepsZonesSorted() {
+        // Given
+        session.start();
+        Player alice = session.getPlayers().get(0);
+        List<Card> hand = List.copyOf(alice.getHand());
+        List<Card> faceUp = List.copyOf(alice.getFaceUp());
+        // When — hand[0] <-> faceUp[2], hand[2] <-> faceUp[0]
+        boolean swapped = session.swapStartingCards("p1", List.of(0, 2), List.of(2, 0));
+
+        // Then
+        assertTrue(swapped);
+        assertSameCards(List.of(hand.get(1), faceUp.get(2), faceUp.get(0)), alice.getHand());
+        assertSameCards(List.of(faceUp.get(1), hand.get(0), hand.get(2)), alice.getFaceUp());
+        assertTrue(isSorted(alice.getHand()));
+        assertTrue(isSorted(alice.getFaceUp()));
+    }
+
+    @Test
+    void swapStartingCards_threeCards_swapsAllFaceUpCards() {
+        // Given
+        session.start();
+        Player alice = session.getPlayers().get(0);
+        List<Card> hand = List.copyOf(alice.getHand());
+        List<Card> faceUp = List.copyOf(alice.getFaceUp());
+        // When
+        boolean swapped = session.swapStartingCards("p1", List.of(0, 1, 2), List.of(2, 1, 0));
+
+        // Then
+        assertTrue(swapped);
+        assertSameCards(faceUp, alice.getHand());
+        assertSameCards(hand, alice.getFaceUp());
+    }
+
+    @Test
+    void swapStartingCards_invalidSelections_areRejectedWithoutChangingState() {
+        // Given
+        session.start();
+        Player alice = session.getPlayers().get(0);
+        List<Card> hand = List.copyOf(alice.getHand());
+        List<Card> faceUp = List.copyOf(alice.getFaceUp());
+
+        // When / Then — each invalid input is rejected and nothing changes
+        assertFalse(session.swapStartingCards("p1", List.of(0, 1), List.of(0)));
+        assertFalse(session.swapStartingCards("p1", List.of(), List.of()));
+        assertFalse(session.swapStartingCards("p1", null, List.of(0)));
+        assertFalse(session.swapStartingCards("p1", List.of(0, 0), List.of(0, 1)));
+        assertFalse(session.swapStartingCards("p1", List.of(0, 1), List.of(2, 2)));
+        assertFalse(session.swapStartingCards("p1", List.of(3), List.of(0)));
+        assertFalse(session.swapStartingCards("p1", List.of(0), List.of(-1)));
+        assertFalse(session.swapStartingCards("p1", java.util.Arrays.asList(0, null), List.of(0, 1)));
+        assertFalse(session.swapStartingCards("nobody", List.of(0), List.of(0)));
+        assertEquals(hand, List.copyOf(alice.getHand()));
+        assertEquals(faceUp, List.copyOf(alice.getFaceUp()));
+    }
+
+    @Test
+    void swapStartingCards_readyPlayer_isRejected() {
+        // Given
+        session.start();
+        Player alice = session.getPlayers().get(0);
+        List<Card> hand = List.copyOf(alice.getHand());
+        assertTrue(session.markReady("p1"));
+
+        // When / Then
+        assertFalse(session.swapStartingCards("p1", List.of(0, 1), List.of(0, 1)));
+        assertEquals(hand, List.copyOf(alice.getHand()));
+    }
+
+    @Test
+    void swapStartingCards_afterSetupComplete_isRejected() {
+        // Given
+        session.start();
+        assertTrue(session.markReady("p1"));
+        assertTrue(session.markReady("p2"));
+        assertTrue(session.isSetupComplete());
+        Player bob = session.getPlayers().get(1);
+        List<Card> hand = List.copyOf(bob.getHand());
+
+        // When / Then
+        assertFalse(session.swapStartingCards("p2", List.of(0), List.of(0)));
+        assertFalse(session.swapStartingCards("p2", List.of(0, 1), List.of(0, 1)));
+        assertEquals(hand, List.copyOf(bob.getHand()));
+    }
+
+    /** Asserts both zones hold the same card instances, ignoring order. */
+    private void assertSameCards(List<Card> expected, Iterable<Card> actual) {
+        List<Card> actualCards = new java.util.ArrayList<>();
+        actual.forEach(actualCards::add);
+        assertEquals(expected.size(), actualCards.size());
+        assertTrue(actualCards.containsAll(expected) && expected.containsAll(actualCards));
+    }
+
     private boolean isSorted(Iterable<Card> cards) {
         List<Card> values = new java.util.ArrayList<>();
         cards.forEach(values::add);

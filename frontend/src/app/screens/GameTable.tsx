@@ -51,6 +51,7 @@ export default function GameTable() {
   const mixedSelectionIncomplete = canMixHandAndFaceUp && hand.length > 0 && selectedHasFaceUp && !selectedHasHand;
   const selectedStartingHand = selected.filter((item) => item.source === "hand");
   const selectedStartingUp = selected.filter((item) => item.source === "faceUp");
+  const canSwapStartingCards = selectedStartingHand.length > 0 && selectedStartingHand.length === selectedStartingUp.length;
   const notReady = state?.players.filter((player) => !player.ready) || [];
 
   const redirectIfGameMissing = useCallback((cause: unknown) => {
@@ -124,15 +125,17 @@ export default function GameTable() {
 
   const sendSetup = useCallback((setupAction: "ready" | "swap") => {
     if (!sessionId || pendingAction) return;
-    const handCard = selected.find((item) => item.source === "hand");
-    const faceUpCard = selected.find((item) => item.source === "faceUp");
-    if (setupAction === "swap" && (!handCard || !faceUpCard)) return;
+    if (setupAction === "swap" && !canSwapStartingCards) return;
+    // The i-th selected hand card is swapped with the i-th selected face-up card. The first pair is also sent as
+    // handIndex/faceUpIndex so a backend without multi-card support still performs a single swap.
+    const handIndices = selectedStartingHand.map((item) => item.index);
+    const faceUpIndices = selectedStartingUp.map((item) => item.index);
     const payload = setupAction === "swap"
-      ? { action: "setup", sessionId, setupAction, handIndex: handCard!.index, faceUpIndex: faceUpCard!.index }
+      ? { action: "setup", sessionId, setupAction, handIndices, faceUpIndices, handIndex: handIndices[0], faceUpIndex: faceUpIndices[0] }
       : { action: "setup", sessionId, setupAction };
     setError(null);
     if (sendWs(payload)) setPendingAction(true);
-  }, [sessionId, selected, pendingAction, sendWs]);
+  }, [sessionId, pendingAction, canSwapStartingCards, selectedStartingHand, selectedStartingUp, sendWs]);
 
   const sendChat = useCallback((text: string) => {
     return sessionId ? sendChatMessage(wsRef.current, sessionId, text) : false;
@@ -305,11 +308,16 @@ export default function GameTable() {
             {setupStage ? (
               <div className="setup-controls">
                 <h3 className="title">Choose your starting cards</h3>
-                <p>Select one card from your hand and one face-up card to swap them. You can change your choice until you’re ready.</p>
+                <p>Select cards from your hand and the same number of face-up cards to swap them in pairs. You can change your choice until you’re ready.</p>
                 {!you.ready ? (
                   <>
-                    <button className="button secondary" disabled={pendingAction || selectedStartingHand.length !== 1 || selectedStartingUp.length !== 1}
+                    <button className="button secondary" disabled={pendingAction || !canSwapStartingCards}
                       onClick={() => sendSetup("swap")}>Swap selected cards</button>
+                    <p className="game-hint">
+                      {canSwapStartingCards
+                        ? `${selectedStartingHand.length} ${selectedStartingHand.length === 1 ? "card" : "cards"} selected on each side.`
+                        : `${selectedStartingHand.length} from hand and ${selectedStartingUp.length} face-up selected. Select the same number on each side to swap.`}
+                    </p>
                     <button className="button" disabled={pendingAction} onClick={() => { setSelected([]); sendSetup("ready"); }}>
                       {pendingAction ? "Saving…" : "Ready"}
                     </button>

@@ -115,7 +115,8 @@ export default function RulesModal({ specialRules, faceUpFailurePickup, onClose 
 
           <h3>Start of the game</h3>
           <p>
-            Once dealt, you may swap one hand card with one face-up card. When you are happy, mark yourself
+            Once dealt, you may swap several cards at once: select the same number of hand cards and face-up cards,
+            then press Swap selected cards. The cards are swapped in pairs. When you are happy, mark yourself
             ready. Cards are locked after that, and play begins once every player is ready.
           </p>
 
