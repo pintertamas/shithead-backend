@@ -92,6 +92,19 @@ class RuleEngineTest {
     }
 
     @Test
+    void testTransparentCardUsesLastNonTransparentCardForComparison() {
+        Deque<Card> pile = new ArrayDeque<>();
+        pile.add(Card.builder().suit(Suit.HEARTS).value(13).rule(CardRule.DEFAULT).alwaysPlayable(false).build());
+        pile.add(Card.builder().suit(Suit.SPADES).value(8).rule(CardRule.TRANSPARENT).alwaysPlayable(false).build());
+
+        Card queen = Card.builder().suit(Suit.CLUBS).value(12).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+        Card ace = Card.builder().suit(Suit.DIAMONDS).value(14).rule(CardRule.DEFAULT).alwaysPlayable(false).build();
+
+        assertFalse(RuleEngine.canPlay(queen, pile));
+        assertTrue(RuleEngine.canPlay(ace, pile));
+    }
+
+    @Test
     void testPlayAfterEffectBurnerClearsPile() {
         // Given
         Card burner = Card.builder().suit(Suit.CLUBS).value(10).rule(CardRule.BURNER).alwaysPlayable(false).build();
