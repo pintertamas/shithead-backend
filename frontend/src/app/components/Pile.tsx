@@ -16,7 +16,7 @@ function cardLabel(card: Card) {
 function DrawPile({ title, count, fxAnchor }: { title: string; count: number; fxAnchor?: string }) {
   const layers = count <= 0 ? 0 : Math.min(MAX_DRAW_LAYERS, 1 + Math.floor(count / 8));
   const stackLayers = Math.max(layers, 1);
-  return (
+  const pileElement = (
     <div
       className={`card pile pile-draw${count === 0 ? " pile-empty" : ""}`}
       data-fx={fxAnchor}
@@ -35,6 +35,18 @@ function DrawPile({ title, count, fxAnchor }: { title: string; count: number; fx
         <span className="draw-count">{count}</span>
       </div>
     </div>
+  );
+
+  return (
+    <PeekWrap
+      className="pile-peek-wrap"
+      label={`Show ${title.toLowerCase()} count`}
+      toggleText="View pile"
+      pressToOpen
+      popover={<div className="peek-note">Draw pile: {count} {count === 1 ? "card" : "cards"}</div>}
+    >
+      {pileElement}
+    </PeekWrap>
   );
 }
 
