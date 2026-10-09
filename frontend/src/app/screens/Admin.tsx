@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AdminUser, fetchAdminUsers, setUserBlocked } from "../api/admin";
+import { useEffect, useMemo, useState } from "react";
+import { AdminUser } from "../api/admin";
 import { clearAllGames } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert, { SuccessAlert } from "../components/ErrorAlert";
+import { AdminRowsSkeleton } from "../components/Skeleton";
+import { invalidateGames, useAdminUsersQuery, useSetUserBlockedMutation } from "../data/queries";
 import "../styles/admin.css";
 
 type PendingChange = { user: AdminUser; blocked: boolean };
@@ -10,8 +12,10 @@ type PendingChange = { user: AdminUser; blocked: boolean };
 export default function Admin() {
   const { token } = useAuth();
   const ownId = useMemo(() => subjectOf(token), [token]);
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const usersQuery = useAdminUsersQuery(token);
+  const blockMutation = useSetUserBlockedMutation(token);
+  const users: AdminUser[] = usersQuery.data ?? [];
+  const loading = usersQuery.isPending;
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<PendingChange | null>(null);
@@ -21,21 +25,9 @@ export default function Admin() {
   const [confirmationText, setConfirmationText] = useState("");
   const [clearing, setClearing] = useState(false);
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      setUsers(await fetchAdminUsers(token));
-      setError(null);
-    } catch (cause) {
-      setError(messageOf(cause, "Couldn't load users."));
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
   useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    if (usersQuery.isError) setError(messageOf(usersQuery.error, "Couldn't load users."));
+  }, [usersQuery.isError, usersQuery.error]);
 
   useEffect(() => {
     if (!pending) return;
@@ -60,8 +52,8 @@ export default function Admin() {
     setBusyUserId(user.userId);
     setError(null);
     try {
-      await setUserBlocked(token, user.userId, blocked);
-      setUsers((rows) => rows.map((row) => (row.userId === user.userId ? { ...row, blocked } : row)));
+      // The row updates optimistically and rolls back on error; the mutation refetches the list when it settles.
+      await blockMutation.mutateAsync({ userId: user.userId, blocked });
     } catch (cause) {
       setError(messageOf(cause, blocked ? "Couldn't block this user." : "Couldn't unblock this user."));
     } finally {
@@ -76,6 +68,7 @@ export default function Admin() {
     setClearing(true);
     try {
       const result = await clearAllGames(token);
+      void invalidateGames(token);
       setShowDoomsdayConfirmation(false);
       setConfirmationText("");
       setNotice(result.failedConnections === 0
@@ -112,9 +105,7 @@ export default function Admin() {
       </div>
 
       {loading ? (
-        <div className="lobby-rankings-message" role="status">
-          <span className="game-starting-spinner" />Loading users…
-        </div>
+        <AdminRowsSkeleton rows={5} />
       ) : visibleUsers.length === 0 ? (
         <p className="lobby-rankings-message">No users match your search.</p>
       ) : (

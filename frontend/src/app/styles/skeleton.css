@@ -1,0 +1,60 @@
+/* Placeholder blocks shown on first load. Heights are reserved so the page does not shift when data arrives. */
+.skeleton {
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(222, 230, 212, .06) 25%, rgba(222, 230, 212, .14) 37%, rgba(222, 230, 212, .06) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+
+.skeleton-grow { flex: 1 1 auto; min-width: 0; }
+
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 156px;
+  padding: 4px 0;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 52px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(183, 204, 178, .1);
+}
+
+.skeleton-games {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  min-height: 150px;
+}
+
+.skeleton-card { min-height: 150px; justify-content: space-between; }
+
+.skeleton-cta { margin-top: auto; align-self: flex-end; }
+
+.skeleton-admin { min-height: 280px; }
+
+.skeleton-admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 56px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(183, 204, 178, .1);
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}

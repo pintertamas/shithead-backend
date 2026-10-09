@@ -1,61 +1,34 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { joinGame } from "../api/game";
-import { fetchOpenGames, OpenGame } from "../api/games";
+import { OpenGame } from "../api/games";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
+import { GameCardsSkeleton } from "../components/Skeleton";
+import { invalidateGames, useOpenGamesQuery } from "../data/queries";
 import "../styles/games.css";
-
-const REFRESH_INTERVAL_MS = 5000;
 
 export default function Games() {
   const navigate = useNavigate();
   const { token } = useAuth();
-  const [games, setGames] = useState<OpenGame[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Cached rows paint immediately; the query refreshes in the background and polls every 5 s while mounted and visible.
+  const gamesQuery = useOpenGamesQuery(token);
+  const games: OpenGame[] = gamesQuery.data ?? [];
+  const loading = gamesQuery.isPending;
   const [error, setError] = useState<string | null>(null);
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-    let timer: number | null = null;
-    const refresh = () => {
-      fetchOpenGames(token)
-        .then((rows) => { if (active) { setGames(rows); setError(null); } })
-        .catch((cause: unknown) => { if (active) setError(messageOf(cause, "Couldn't load open games.")); })
-        .finally(() => { if (active) setLoading(false); });
-    };
-    const stopRefreshing = () => {
-      if (timer !== null) window.clearInterval(timer);
-      timer = null;
-    };
-    const startRefreshing = () => {
-      if (timer === null) timer = window.setInterval(refresh, REFRESH_INTERVAL_MS);
-    };
-    // Pause polling while the tab is hidden and refresh immediately when it becomes visible again.
-    const onVisibilityChange = () => {
-      if (document.hidden) {
-        stopRefreshing();
-        return;
-      }
-      refresh();
-      startRefreshing();
-    };
-    refresh();
-    if (!document.hidden) startRefreshing();
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      active = false;
-      stopRefreshing();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [token]);
+    if (gamesQuery.isError) setError(messageOf(gamesQuery.error, "Couldn't load open games."));
+    else if (gamesQuery.isSuccess) setError(null);
+  }, [gamesQuery.isError, gamesQuery.isSuccess, gamesQuery.error]);
 
   const handleJoin = async (sessionId: string) => {
     setError(null);
     setJoiningId(sessionId);
     try {
       await joinGame(token, sessionId);
+      void invalidateGames(token);
       navigate(`/room/${sessionId}`);
     } catch (cause) {
       setError(messageOf(cause, "Couldn't join this game."));
@@ -74,9 +47,7 @@ export default function Games() {
       </header>
 
       {loading ? (
-        <div className="lobby-rankings-message" role="status">
-          <span className="game-starting-spinner" />Loading games…
-        </div>
+        <GameCardsSkeleton count={3} />
       ) : games.length === 0 ? (
         <div className="glass card games-empty">
           <h2 className="title">No open games right now</h2>
