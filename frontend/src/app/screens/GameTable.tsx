@@ -53,8 +53,6 @@ function neighbourPlayerId(players: PlayerState[], index: number, step: 1 | -1):
   }
   return null;
 }
-import VoicePanel from "../components/VoicePanel";
-
 export default function GameTable() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -386,7 +384,6 @@ export default function GameTable() {
           </div>
         )}
         <NudgeButton onNudge={sendNudgeToTable} />
-        {state.voiceEnabled === true && <VoicePanel sessionId={state.sessionId} players={state.players} finished={state.finished} />}
       </header>
       <main className="game-board" ref={boardRef} style={{ "--opponent-count": Math.max(1, others.length) } as CSSProperties}>
         {state.revealedCard && (
@@ -498,7 +495,8 @@ export default function GameTable() {
 
       <div className="game-companion">
         {!phone && <GameFeed events={state.events} />}
-        <ChatPanel messages={chatMessages} currentUserId={you.playerId} connected={socketOpen} onSend={sendChat} />
+        <ChatPanel messages={chatMessages} currentUserId={you.playerId} connected={socketOpen} onSend={sendChat}
+          voiceEnabled={state.voiceEnabled === true} sessionId={state.sessionId} players={state.players} finished={state.finished} />
       </div>
       </div>
 
