@@ -1,9 +1,11 @@
 package com.tamaspinter.backend.mapper;
 
 import com.tamaspinter.backend.entity.CardEntity;
+import com.tamaspinter.backend.entity.GameEventEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
 import com.tamaspinter.backend.game.GameConfig;
+import com.tamaspinter.backend.game.GameEvent;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.Deck;
@@ -11,6 +13,7 @@ import com.tamaspinter.backend.model.Player;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,6 +33,7 @@ public class SessionMapper {
                 .players(statesToEntities(session.getPlayers()))
                 .deck(deck != null ? cardsToEntities(new ArrayDeque<>(deck.getCards())) : List.of())
                 .config(session.getConfig().toEntity())
+                .events(eventsToEntities(session.getEvents()))
                 .createdAt(session.getCreatedAt())
                 .ttl(session.getTtl())
                 .build();
@@ -51,6 +55,7 @@ public class SessionMapper {
             session.setFinished(true);
         }
         session.setShitheadId(entity.getShitheadId());
+        session.getEvents().addAll(entitiesToEvents(entity.getEvents()));
         Deque<Card> discard = entitiesToCards(entity.getDiscardPile());
         session.getDiscardPile().clear();
         discard.forEach(session.getDiscardPile()::addLast);
@@ -82,7 +87,38 @@ public class SessionMapper {
         return session;
     }
 
-    private static List<CardEntity> cardsToEntities(Deque<Card> cards) {
+    /** Maps persisted events back to domain events; items written before the feed existed have no list. */
+    public static List<GameEvent> entitiesToEvents(List<GameEventEntity> entities) {
+        if (entities == null) {
+            return new ArrayList<>();
+        }
+        return entities.stream()
+                .map(entity -> new GameEvent(
+                        entity.getSeq(),
+                        entity.getType(),
+                        entity.getPlayerId(),
+                        entity.getUsername(),
+                        entity.getCards() == null ? List.of() : entitiesToCardList(entity.getCards()),
+                        entity.getCount(),
+                        entity.getTs()))
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private static List<GameEventEntity> eventsToEntities(List<GameEvent> events) {
+        return events.stream()
+                .map(event -> GameEventEntity.builder()
+                        .seq(event.seq())
+                        .type(event.type())
+                        .playerId(event.playerId())
+                        .username(event.username())
+                        .cards(cardsToEntities(event.cards()))
+                        .count(event.count())
+                        .ts(event.ts())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private static List<CardEntity> cardsToEntities(Collection<Card> cards) {
         return cards.stream()
                 .map(card -> CardEntity.builder()
                         .suit(card.getSuit())
