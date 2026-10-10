@@ -8,7 +8,7 @@ export const MAX_FART_VOICES = 8;
 /** Most nudges kept while audio is locked. Nudges beyond this count are dropped so memory stays bounded. */
 export const MAX_QUEUED_FARTS = 50;
 /** Gap between the starts of queued nudges, so a burst stays audible instead of cutting the oldest voices. */
-export const FLUSH_SPACING_MS = 180;
+export const FLUSH_SPACING_MS = 250;
 
 /** A sound that is still playing. `stop` cuts it off. */
 type Voice = { stop: () => void };
