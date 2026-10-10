@@ -40,6 +40,12 @@
   outline: none;
 }
 
+/* A hover or focus preview is only a preview: clicks and taps go to the element underneath. Pinned overlays
+   (tap, the View pile button, Enter) and the phone dialog take pointer events as normal. */
+.peek-overlay.peek-overlay-passive {
+  pointer-events: none;
+}
+
 /* Phones and touch screens: a centred dialog over a backdrop. Sized with dvh where supported. */
 .peek-overlay-mobile {
   top: 50%;

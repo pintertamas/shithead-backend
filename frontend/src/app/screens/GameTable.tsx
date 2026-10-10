@@ -15,6 +15,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
 import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, nextSelection, reconcileSelection } from "../lib/selection";
+import { moveSignature, mustPickUp } from "../lib/rules";
 import StarterPicker from "../components/StarterPicker";
 import PeekWrap from "../components/PeekWrap";
 import { SeatChip, SeatPeek } from "../components/SeatChip";
@@ -119,6 +120,32 @@ export default function GameTable() {
   const selectedStartingUp = selected.filter((item) => item.source === "faceUp");
   const canSwapStartingCards = selectedStartingHand.length > 0 && selectedStartingHand.length === selectedStartingUp.length;
   const notReady = state?.players.filter((player) => !player.ready) || [];
+  // No legal move (see lib/rules.ts): the discard pile is selected automatically. The key changes only when the turn,
+  // the pile top or the hand/face-up cards change, so a card the player then selects or a pick-up they then drop is not undone.
+  const forcedMoveKey = useMemo(() => {
+    if (!state || !you) return null;
+    const input = {
+      setupComplete: state.setupComplete,
+      finished: state.finished,
+      yourTurn,
+      discardPile: state.discardPile ?? [],
+      hand: you.hand ?? [],
+      faceUp: you.faceUp,
+      deckCount: state.deckCount,
+      allowMixedHandAndFaceUpWhenDeckEmpty: state.allowMixedHandAndFaceUpWhenDeckEmpty
+    };
+    return mustPickUp(input) ? moveSignature({ ...input, currentPlayerId: state.currentPlayerId }) : null;
+  }, [state, you, yourTurn]);
+  const autoPickupKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (forcedMoveKey === null) {
+      autoPickupKeyRef.current = null;
+      return;
+    }
+    if (autoPickupKeyRef.current === forcedMoveKey) return;
+    autoPickupKeyRef.current = forcedMoveKey;
+    setSelection({ selected: [], pickupSelected: true });
+  }, [forcedMoveKey]);
   // The next player is found in the server's state.players order (cyclic after the current player), skipping players who are out.
   const nextPlayerId = useMemo(() => {
     if (!state || setupStage || state.finished) return null;
