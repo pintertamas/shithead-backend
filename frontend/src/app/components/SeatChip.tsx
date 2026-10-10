@@ -5,6 +5,7 @@ import ChatBubble from "./ChatBubble";
 import SeatTableView from "./SeatTableView";
 import "../styles/overlays.css";
 import "../styles/table-mobile.css";
+import "../styles/seat-indicators.css";
 
 /** Phones only: other players who are not the neighbours of the viewer are shown as small chips. */
 type ChipProps = {
@@ -31,7 +32,7 @@ export function SeatChip({ player, isCurrentTurn, isNext, chatBubble, onOpen }: 
         type="button"
         className="seat-chip"
         onClick={() => onOpen(player.playerId)}
-        aria-label={`${player.username}: ${player.handCount} in hand, ${player.faceDownCount} face-down, ${player.faceUp.length} face-up${isCurrentTurn ? ", playing now" : ""}. Show cards`}
+        aria-label={`${player.username}: ${player.handCount} in hand, ${player.faceDownCount} face-down, ${player.faceUp.length} face-up${isCurrentTurn ? ", current turn" : ""}${isNext ? ", plays next" : ""}. Show cards`}
       >
         <span className="seat-chip-name">
           {player.username}
@@ -44,7 +45,6 @@ export function SeatChip({ player, isCurrentTurn, isNext, chatBubble, onOpen }: 
           </span>
           <span className="seat-chip-counts">{player.handCount}·{player.faceDownCount}</span>
         </span>
-        {isCurrentTurn && <span className="seat-chip-turn">Playing</span>}
       </button>
     </div>
   );

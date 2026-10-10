@@ -1,16 +1,14 @@
 /*
  * Seat panels during the swap phase (state.started && !state.setupComplete; GameTable adds `setup-phase` to the
- * page). The seat counts and the PLAYING badge say nothing useful then, so they go, and the freed height goes to
+ * page). The seat counts say nothing useful then, so they go, and the freed height goes to
  * the cards: the opponents' and the own cards are sized from the height left once the setup block is placed.
  * Loaded through PlayerPanel.tsx. Play-phase sizes stay in table-fit.css and table-desktop-fix.css.
  */
 
-/* ---------- Swap phase, any width: no counts, no PLAYING badge ---------- */
+/* ---------- Swap phase, any width: no counts ---------- */
 
 .game-page.setup-phase .seat-card-counts,
-.game-page.setup-phase .game-seat .seat-turn,
-.game-page.setup-phase .seat-chip-counts,
-.game-page.setup-phase .seat-chip-turn {
+.game-page.setup-phase .seat-chip-counts {
   display: none;
 }
 

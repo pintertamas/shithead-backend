@@ -228,19 +228,13 @@
     font-size: 12px;
   }
 
-  /* Room for the name and the NEXT badge on a narrow panel; the peek dialog still shows Elo. */
+  /* Room for the name on a narrow panel; the peek dialog still shows Elo. */
   .game-page.phone-table .game-board .game-seat-compact .elo-badge {
     display: none;
   }
 
   .game-page.phone-table .game-board .game-seat-compact .seat-card-counts {
     font-size: 10px;
-  }
-
-  .game-page.phone-table .game-board .game-seat-compact .seat-turn {
-    justify-self: start;
-    font-size: 9px;
-    padding: 1px 6px;
   }
 
   /* The count line says how many cards are in hand; the fan of backs is for the chips. */
@@ -339,30 +333,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .game-page.phone-table .seat-chip-turn {
-    justify-self: start;
-    padding: 0 5px;
-    border-radius: 99px;
-    background: #f2c46f;
-    color: #243027;
-    font-size: 8px;
-    font-weight: 700;
-    line-height: 1.5;
-    text-transform: uppercase;
-  }
-
-  .game-page.phone-table .seat-chip-wrap.seat-chip-playing .seat-chip {
-    border-color: rgba(255, 210, 120, 0.95);
-    box-shadow: 0 0 0 2px rgba(255, 210, 120, 0.2);
-  }
-
-  .game-page.phone-table .seat-chip-wrap.seat-next .seat-chip {
-    border-color: #5fd3e6;
-  }
-
-  .game-page.phone-table .seat-chip-wrap.seat-chip-playing.seat-next .seat-chip {
-    border-color: rgba(255, 210, 120, 0.95);
-  }
+  /* Turn and next-player highlights for chips: seat-indicators.css. */
 
   .game-page.phone-table .seat-chip-wrap.seat-chip-out .seat-chip {
     opacity: 0.55;
@@ -506,8 +477,7 @@
     max-width: 120px;
   }
 
-  .game-page.phone-table .seat-chip-fan,
-  .game-page.phone-table .seat-chip-turn {
+  .game-page.phone-table .seat-chip-fan {
     display: none;
   }
 
