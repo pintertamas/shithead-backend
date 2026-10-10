@@ -70,6 +70,7 @@ export default function GameTable() {
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
   const pendingRef = useRef(false);
+  const phoneChipsRef = useRef<HTMLDivElement>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [socketOpen, setSocketOpen] = useState(false);
   // Latest chat line per player id, shown as a speech bubble above that seat.
@@ -344,6 +345,19 @@ export default function GameTable() {
     return () => window.clearTimeout(timeout);
   }, [state?.revealedCard]);
 
+  // Phone: the chip strip scrolls sideways when there are more chips than fit; keep the player whose turn it is in view.
+  useEffect(() => {
+    const strip = phoneChipsRef.current;
+    const turnId = state?.currentPlayerId;
+    if (!strip || !turnId) return;
+    const chip = Array.from(strip.querySelectorAll<HTMLElement>("[data-seat-id]"))
+      .find((element) => element.dataset.seatId === turnId);
+    if (!chip) return;
+    const offset = chip.getBoundingClientRect().left - strip.getBoundingClientRect().left;
+    const target = strip.scrollLeft + offset - (strip.clientWidth - chip.offsetWidth) / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  }, [state?.currentPlayerId, phone, phoneSeats?.chips.length]);
+
   if (!state || !you) {
     return (
       <div className="page">
@@ -377,7 +391,7 @@ export default function GameTable() {
         <span className="badge">SHITHEAD</span>
         <h2 className="title table-bar-title">{state.sessionId} <span className="header-player-name">· {you.username}</span></h2>
         {phone && phoneSeats && phoneSeats.chips.length > 0 && (
-          <div className="phone-chips" role="group" aria-label="Other players">
+          <div className="phone-chips" ref={phoneChipsRef} role="group" aria-label="Other players">
             {phoneSeats.chips.map((player) => (
               <SeatChip key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
                 isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} onOpen={setPeekId} />

@@ -30,6 +30,10 @@ public class GameSession {
     public static final int MAX_EVENTS = 30;
     /** Rating assumed for a player whose rating is unknown. */
     public static final double DEFAULT_RATING = 1000.0;
+    /** Most seats a game can have. Joins beyond this are rejected and browse reports this as the cap. */
+    public static final int MAX_PLAYERS = 10;
+    /** Cards in one standard deck. */
+    public static final int DECK_CARD_COUNT = 52;
 
     private final String sessionId;
     @Builder.Default
@@ -55,6 +59,9 @@ public class GameSession {
     public void addPlayer(String id, String name) {
         if (started) {
             throw new IllegalStateException("Game already started");
+        }
+        if (players.size() >= MAX_PLAYERS) {
+            throw new IllegalStateException("Game is full: at most " + MAX_PLAYERS + " players can join");
         }
         players.add(Player.builder()
                 .playerId(id)
@@ -83,8 +90,11 @@ public class GameSession {
      */
     public void start(Map<String, Double> ratings) {
         int cardsPerPlayer = config.getFaceDownCount() + config.getFaceUpCount() + config.getHandCount();
-        if (players.size() * cardsPerPlayer > config.getDecksCount() * 52) {
-            throw new IllegalStateException("Not enough cards in the selected deck count");
+        int totalCards = config.getDecksCount() * DECK_CARD_COUNT;
+        if (cardsPerPlayer > 0 && players.size() * cardsPerPlayer > totalCards) {
+            int supported = Math.min(MAX_PLAYERS, totalCards / cardsPerPlayer);
+            throw new IllegalStateException("Not enough cards: this setup supports at most " + supported
+                    + " players with " + config.getDecksCount() + " deck(s)");
         }
         deck = new Deck(config.getDecksCount(), config);
         for (Player player : players) {

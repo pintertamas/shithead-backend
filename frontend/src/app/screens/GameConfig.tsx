@@ -85,7 +85,7 @@ export default function GameConfig() {
 
         <section className="glass card config-decks">
           <h3 className="title">Decks</h3>
-          <p className="config-description">Choose how many standard decks the next game will use.</p>
+          <p className="config-description">Choose how many standard decks the next game will use. Up to 10 players can play; use 2 decks for more than 5.</p>
           <div className="choice-switch" role="group" aria-label="Number of decks">
             {([1, 2] as const).map((count) => (
               <button
