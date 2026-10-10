@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { LeaderboardEntry } from "../api/leaderboard";
@@ -64,6 +64,46 @@ function EloChangeIndicator({ before, after }: { before: number; after: number }
   );
 }
 
+/**
+ * Points a player won or lost in the session's game: the change shown on their row, computed from the same rounded
+ * ratings as EloChangeIndicator, so equal numbers on screen always tie. Null when no change was recorded.
+ */
+function sessionPoints(entry: LeaderboardEntry): number | null {
+  if (entry.eloBefore == null || entry.eloAfter == null) return null;
+  return Math.round(entry.eloAfter) - Math.round(entry.eloBefore);
+}
+
+/** Session rows may carry `shithead` (the seat that lost the game). A missing field counts as false. */
+function lostGame(entry: LeaderboardEntry): boolean {
+  return (entry as LeaderboardEntry & { shithead?: boolean }).shithead === true;
+}
+
+/** Hides the "Lost the game" text visually while keeping it for screen readers. */
+const visuallyHidden: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+};
+
+/**
+ * Session rows ranked by points, highest first. Rows without a recorded change go after all ranked rows. Ties and
+ * unrecorded rows keep seat order: the sort is stable and runs on a copy, so the query data is not mutated.
+ */
+function rankSessionRows(rows: LeaderboardEntry[]): LeaderboardEntry[] {
+  return [...rows].sort((a, b) => {
+    const pointsA = sessionPoints(a);
+    const pointsB = sessionPoints(b);
+    if (pointsA === null || pointsB === null) {
+      if (pointsA === pointsB) return 0;
+      return pointsA === null ? 1 : -1;
+    }
+    return pointsB - pointsA;
+  });
+}
+
 export default function Leaderboard() {
   const { sessionId } = useParams();
   const { token } = useAuth();
@@ -74,7 +114,7 @@ export default function Leaderboard() {
   const [error, setError] = useState<string | null>(null);
   const sessionQuery = useSessionLeaderboardQuery(token, sessionId);
   const globalQuery = useGlobalLeaderboardQuery(token);
-  const sessionData: LeaderboardEntry[] = sessionQuery.data ?? [];
+  const sessionRows = useMemo(() => rankSessionRows(sessionQuery.data ?? []), [sessionQuery.data]);
   const globalData: LeaderboardEntry[] = globalQuery.data ?? [];
   const sessionLoading = Boolean(sessionId) && sessionQuery.isPending;
   const globalLoading = globalQuery.isPending;
@@ -87,7 +127,7 @@ export default function Leaderboard() {
     if (globalQuery.error) setError(messageOf(globalQuery.error, "Couldn't load the global leaderboard."));
   }, [globalQuery.error]);
 
-  const rows = tab === "Session" ? sessionData : globalData;
+  const rows = tab === "Session" ? sessionRows : globalData;
   const loading = tab === "Session" ? sessionLoading : globalLoading;
 
   // Rank is the position in the full list, so filtering never renumbers players.
@@ -190,7 +230,16 @@ export default function Leaderboard() {
                           {pagedVisible.map(({ entry, rank }) => (
                             <tr key={entry.userId}>
                               <td><span className={`lobby-rank${rank <= 3 ? ` top-${rank}` : ""}`}>{rank}</span></td>
-                              <td>{entry.username}</td>
+                              <td>
+                                {entry.username}
+                                {tab === "Session" && lostGame(entry) && (
+                                  <>
+                                    {" "}
+                                    <span aria-hidden="true">💩</span>
+                                    <span style={visuallyHidden}>Lost the game</span>
+                                  </>
+                                )}
+                              </td>
                               <td>
                                 {tab === "Session" && entry.eloBefore != null && entry.eloAfter != null ? (
                                   <div className="elo-cell">
