@@ -1,8 +1,8 @@
 import { CSSProperties, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { PlayerState } from "../api/game";
-import { CardFaceContent, cardRank, isRedSuit } from "./CardFace";
 import ChatBubble from "./ChatBubble";
+import SeatTableView from "./SeatTableView";
 import "../styles/overlays.css";
 import "../styles/table-mobile.css";
 
@@ -56,7 +56,7 @@ type PeekProps = {
   onClose: () => void;
 };
 
-/** Centred dialog with an opponent's face-up cards, enlarged. Closes on Escape, backdrop tap or the close button. */
+/** Centred dialog with the opponent's whole seat (hand, face-down and face-up cards). Closes on Escape, backdrop tap or the close button. */
 export function SeatPeek({ player, isCurrentTurn, onClose }: PeekProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -81,25 +81,7 @@ export function SeatPeek({ player, isCurrentTurn, onClose }: PeekProps) {
         tabIndex={-1}
       >
         <button type="button" className="peek-close" aria-label="Close" onClick={onClose}>×</button>
-        <div className="seat-peek-head">
-          <strong className="seat-peek-name">{player.username}</strong>
-          <span className="elo-badge">{Math.round(player.eloScore)}</span>
-          {isCurrentTurn && <span className="seat-turn">Playing</span>}
-        </div>
-        <div className="seat-peek-counts">{player.handCount} in hand · {player.faceDownCount} face-down</div>
-        <div className="seat-peek-cards">
-          {player.faceUp.length === 0 ? (
-            <p className="seat-peek-empty">No face-up cards.</p>
-          ) : player.faceUp.map((card, index) => (
-            <div
-              key={`${card.suit}-${card.value}-${index}`}
-              className={`playing-card face-up-card seat-peek-card${isRedSuit(card.suit) ? " red-card" : ""}`}
-              aria-label={`${cardRank(card.value)} of ${card.suit}`}
-            >
-              <CardFaceContent card={card} />
-            </div>
-          ))}
-        </div>
+        <SeatTableView player={player} isCurrentTurn={isCurrentTurn} />
       </div>
     </>,
     document.body
