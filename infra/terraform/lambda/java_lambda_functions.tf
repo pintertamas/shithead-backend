@@ -26,6 +26,8 @@ resource "aws_lambda_function" "game_api" {
       WS_CONNECTIONS_TABLE             = var.aws_dynamodb_table_ws_connection_name
       WS_MANAGEMENT_ENDPOINT           = format("%s/$default", replace(var.websocket_api_endpoint, "wss://", "https://"))
       SPRING_CLOUD_FUNCTION_DEFINITION = "gameApi"
+      # Account deletion (DELETE /profile) removes the Cognito user from this pool.
+      COGNITO_USER_POOL_ID             = var.cognito_user_pool_id
       # Voice chat (LiveKit). Empty values keep the feature off; see backend VoiceTokenHandler.
       LIVEKIT_URL                      = var.livekit_url
       LIVEKIT_API_KEY                  = var.livekit_api_key
@@ -117,6 +119,12 @@ resource "aws_iam_role_policy" "game_api" {
         Effect   = "Allow"
         Action   = ["execute-api:ManageConnections"]
         Resource = "${var.aws_apigateway_ws_execution_arn}/*/*/@connections/*"
+      },
+      {
+        # DELETE /profile: removes only the signed-in user's own Cognito account.
+        Effect   = "Allow"
+        Action   = ["cognito-idp:AdminDeleteUser"]
+        Resource = var.cognito_user_pool_arn
       }
     ]
   })

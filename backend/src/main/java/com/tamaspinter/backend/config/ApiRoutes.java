@@ -41,6 +41,7 @@ public class ApiRoutes {
         rest("GET", "/leaderboard/session/{sessionId}", game.leaderboardSession());
         rest("GET", "/profile", account.accountManagement());
         rest("PUT", "/profile", account.accountManagement());
+        rest("DELETE", "/profile", account.accountManagement());
         rest("POST", "/admin/doomsday", account.accountManagement());
         rest("GET", "/admin/users", account.accountManagement());
         rest("POST", "/admin/users/{userId}/block", account.accountManagement());

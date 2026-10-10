@@ -18,6 +18,7 @@ import software.amazon.awssdk.enhanced.dynamodb.model.UpdateItemEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.ArrayList;
@@ -94,6 +95,20 @@ public class UserProfileRepository {
 
     public UserProfile get(String userId) {
         return table.getItem(r -> r.key(k -> k.partitionValue(userId)));
+    }
+
+    /**
+     * Removes the profile row (nickname, Elo rating, leaderboard entry) and the nickname claim it owns.
+     */
+    public void deleteProfile(String userId) {
+        UserProfile profile = get(userId);
+        if (profile != null) {
+            usernameRepository.releaseNickname(profile);
+        }
+        dynamoClient.deleteItem(DeleteItemRequest.builder()
+                .tableName(tableName)
+                .key(Map.of("user_id", AttributeValue.fromS(userId)))
+                .build());
     }
 
     public boolean updateUsernameIfAvailable(UserProfile profile, String username) {

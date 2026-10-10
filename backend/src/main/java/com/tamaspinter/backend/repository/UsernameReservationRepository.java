@@ -1,11 +1,14 @@
 package com.tamaspinter.backend.repository;
 
 import com.tamaspinter.backend.model.UserProfile;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.Delete;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.Put;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
@@ -24,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+@Slf4j
 @Repository
 public class UsernameReservationRepository {
     private static final String USERNAME_CLAIM_PREFIX = "__username__#";
@@ -40,6 +44,28 @@ public class UsernameReservationRepository {
         this.dynamoClient = dynamoClient;
         this.tableName = tableName;
         this.table = enhancedClient.table(tableName, TableSchema.fromBean(UserProfile.class));
+    }
+
+    /**
+     * Deletes the nickname claim row of the profile, but only when this user owns it.
+     * Used when the account is deleted; a missing or foreign claim is left alone.
+     */
+    public void releaseNickname(UserProfile profile) {
+        if (profile.getUsername() == null) {
+            return;
+        }
+        String claimId = claimId(normalizeUsername(profile.getUsername()));
+        try {
+            dynamoClient.deleteItem(DeleteItemRequest.builder()
+                    .tableName(tableName)
+                    .key(Map.of("user_id", AttributeValue.fromS(claimId)))
+                    .conditionExpression("#owner = :owner")
+                    .expressionAttributeNames(Map.of("#owner", CLAIM_OWNER_ATTRIBUTE))
+                    .expressionAttributeValues(Map.of(":owner", AttributeValue.fromS(profile.getUserId())))
+                    .build());
+        } catch (ConditionalCheckFailedException e) {
+            log.debug("No nickname claim owned by this user to release");
+        }
     }
 
     public boolean updateUsernameIfAvailable(UserProfile profile, String username) {

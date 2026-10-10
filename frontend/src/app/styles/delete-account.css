@@ -1,0 +1,79 @@
+/* Danger zone on the profile page and the account deletion confirmation dialog. */
+
+.danger-zone {
+  border-color: rgba(255, 107, 107, 0.45);
+}
+
+.danger-zone-text {
+  margin: 0 0 12px;
+  color: var(--ink-dim);
+}
+
+.profile-email {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 1.05rem;
+}
+
+.profile-email-missing {
+  color: var(--ink-dim);
+}
+
+.delete-account-backdrop {
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* Two classes so this beats the generic .modal rule (text-align: center) from layout.css. */
+.modal.delete-account-dialog {
+  width: 100%;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  text-align: left;
+  border-color: rgba(255, 107, 107, 0.45);
+}
+
+.delete-account-body {
+  color: var(--ink-dim);
+  line-height: 1.5;
+}
+
+.delete-account-body p {
+  margin: 0 0 10px;
+}
+
+.delete-account-body ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: var(--ink);
+}
+
+.delete-account-body li + li {
+  margin-top: 4px;
+}
+
+.delete-account-confirm {
+  display: block;
+  margin-top: 16px;
+}
+
+.delete-account-confirm span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink-dim);
+  font-size: 0.9rem;
+}
+
+.delete-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 480px) {
+  .delete-account-actions .button {
+    flex: 1 1 100%;
+  }
+}
