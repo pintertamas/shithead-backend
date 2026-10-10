@@ -33,6 +33,20 @@ type Props = {
 const FAN_LIMIT = 10;
 
 /**
+ * An opponent with only a hand has no table slots, so the peek wrapper has no size and could not be hovered or
+ * tapped. This invisible box covers where one card would sit. It is absolutely positioned, so it takes no room in
+ * the seat layout and the seat keeps its size.
+ */
+const emptyTableHitArea: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: "50%",
+  width: "var(--card-w)",
+  height: "var(--card-h)",
+  transform: "translateX(-50%)",
+};
+
+/**
  * Table slots for one player's stacks. A face-up slot holds the card that was dealt there (or null once
  * it has been played); a face-down slot is alive until the card behind it is played. Slots never move,
  * so the server's compacted lists are mapped onto them: server index = rank among occupied slots.
@@ -190,9 +204,6 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
           </div>
         );
       })}
-      {/* An opponent with only a hand has no table slots, so the peek wrapper would be 0 px wide and unreachable.
-          One empty slot (no content, card-sized from the table CSS) gives the peek a target. */}
-      {stackCount === 0 && !player.isYou && opponentHasCards && <div className="paired-card-stack" aria-hidden="true" />}
     </div>
   );
 
@@ -233,6 +244,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
             popover={<SeatTableView player={player} isCurrentTurn={isCurrentTurn} />}
           >
             {stacks}
+            {stackCount === 0 && <span aria-hidden="true" style={emptyTableHitArea} />}
           </PeekWrap>
         ) : stacks}
       </div>
