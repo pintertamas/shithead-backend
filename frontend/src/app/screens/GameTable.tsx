@@ -23,6 +23,7 @@ import { describeEvent } from "../lib/gameFeed";
 import "../styles/table-mobile.css";
 import "../styles/companion-width.css";
 import "../styles/table-bar.css";
+import "../styles/swap-phase-phone.css";
 
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
@@ -387,6 +388,25 @@ export default function GameTable() {
     );
   }
 
+  // Swap and Ready. On phones the swap button carries the pair counter (Swap (2↔2)) and the hint is hidden (CSS).
+  const swapLabel = phone
+    ? `Swap (${selectedStartingHand.length}↔${selectedStartingUp.length})`
+    : "Swap selected cards";
+  const setupButtons = (
+    <>
+      <button className="button secondary" disabled={pendingAction || !canSwapStartingCards}
+        title={`${selectedStartingHand.length} from hand and ${selectedStartingUp.length} face-up selected. Select the same number on each side to swap.`}
+        onClick={() => sendSetup("swap")}>{swapLabel}</button>
+      <p className="game-hint">
+        {canSwapStartingCards
+          ? `${selectedStartingHand.length} ${selectedStartingHand.length === 1 ? "card" : "cards"} selected on each side.`
+          : `${selectedStartingHand.length} from hand and ${selectedStartingUp.length} face-up selected. Select the same number on each side to swap.`}
+      </p>
+      <button className="button" disabled={pendingAction} onClick={() => { setSelected([]); sendSetup("ready"); }}>
+        {pendingAction ? "Saving…" : "Ready"}
+      </button>
+    </>
+  );
   const sidePanel = (playerId: string | null | undefined, side: "left" | "right") => {
     const player = playerId ? state.players.find((candidate) => candidate.playerId === playerId) : undefined;
     return (
@@ -475,22 +495,23 @@ export default function GameTable() {
                 <h3 className="title">Choose your starting cards</h3>
                 <StarterPicker players={state.players} currentPlayerId={state.currentPlayerId} isOwner={state.isOwner}
                   disabled={pendingAction} onPick={(starterId) => sendWs({ action: "setup", sessionId, setupAction: "starter", starterId })} />
-                <p>Select cards from your hand and the same number of face-up cards to swap them in pairs. You can change your choice until you’re ready.</p>
-                {!you.ready ? (
-                  <>
-                    <button className="button secondary" disabled={pendingAction || !canSwapStartingCards}
-                      onClick={() => sendSetup("swap")}>Swap selected cards</button>
-                    <p className="game-hint">
-                      {canSwapStartingCards
-                        ? `${selectedStartingHand.length} ${selectedStartingHand.length === 1 ? "card" : "cards"} selected on each side.`
-                        : `${selectedStartingHand.length} from hand and ${selectedStartingUp.length} face-up selected. Select the same number on each side to swap.`}
-                    </p>
-                    <button className="button" disabled={pendingAction} onClick={() => { setSelected([]); sendSetup("ready"); }}>
-                      {pendingAction ? "Saving…" : "Ready"}
-                    </button>
-                  </>
-                ) : <p className="ready-confirmation">You’re ready. Waiting for the other players.</p>}
-                <p className="setup-waiting"><strong>Not everybody is ready</strong>{notReady.length > 0 && <>: {notReady.map((player) => player.username).join(", ")}</>}</p>
+                {phone ? (
+                  <details className="setup-how">
+                    <summary>How swapping works</summary>
+                    <p>Select cards from your hand and the same number of face-up cards to swap them in pairs. You can change your choice until you’re ready.</p>
+                  </details>
+                ) : (
+                  <p>Select cards from your hand and the same number of face-up cards to swap them in pairs. You can change your choice until you’re ready.</p>
+                )}
+                {!you.ready ? (phone ? <div className="setup-actions">{setupButtons}</div> : setupButtons)
+                  : <p className="ready-confirmation">You’re ready. Waiting for the other players.</p>}
+                {phone ? (notReady.length > 0 && (
+                  <p className="setup-waiting" title={`Not ready: ${notReady.map((player) => player.username).join(", ")}`}>
+                    Waiting for {notReady.length} {notReady.length === 1 ? "player" : "players"}
+                  </p>
+                )) : (
+                  <p className="setup-waiting"><strong>Not everybody is ready</strong>{notReady.length > 0 && <>: {notReady.map((player) => player.username).join(", ")}</>}</p>
+                )}
               </div>
             ) : null}
           </div>
