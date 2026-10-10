@@ -1,0 +1,54 @@
+/*
+ * Voice speaking highlight on seats: desktop panels (opponents and own), compact phone panels and the phone chip strip.
+ *
+ * A soft green ring that pulses while the player is speaking in this game's voice call. It is drawn by a pseudo-element
+ * inside the seat's own box, so it adds nothing to the layout and no seat or card moves. The scroll containers
+ * (.game-opponents, .phone-chips) clip anything outside their boxes, which is why the ring sits inside the seat.
+ *
+ * It is separate from the turn and next-player rings in seat-indicators.css (gold solid, teal dashed), which are not
+ * changed here. The ring sits between the gold ring and the teal outline so a seat that has several states still shows
+ * each one. Only the ring pulses; with reduced motion it stays solid.
+ */
+
+.game-page .game-seat.seat-speaking,
+.game-page .seat-chip-wrap.seat-speaking .seat-chip {
+  position: relative;
+}
+
+.game-page .game-seat.seat-speaking::after,
+.game-page .seat-chip-wrap.seat-speaking .seat-chip::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px #4ade80, inset 0 0 8px rgba(74, 222, 128, 0.3);
+  animation: seat-speaking-pulse 1.6s ease-in-out infinite;
+}
+
+/* Desktop and compact panels: inside the 1px border and 3px in, so the ring sits between the gold ring and the teal outline. */
+.game-page .game-seat.seat-speaking::after {
+  inset: 3px;
+  border-radius: 11px;
+}
+
+/* Phone chips: the chip is small, so the ring is 1px in from the padding edge. */
+.game-page .seat-chip-wrap.seat-speaking .seat-chip::after {
+  inset: 1px;
+  border-radius: 8px;
+}
+
+@keyframes seat-speaking-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-page .game-seat.seat-speaking::after,
+  .game-page .seat-chip-wrap.seat-speaking .seat-chip::after {
+    animation: none;
+  }
+}

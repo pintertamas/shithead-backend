@@ -7,6 +7,7 @@ import SeatTableView from "./SeatTableView";
 import "../styles/player-panel.css";
 import "../styles/seat-panels.css";
 import "../styles/seat-indicators.css";
+import "../styles/voice-speaking.css";
 
 type Props = {
   player: PlayerState;
@@ -14,6 +15,8 @@ type Props = {
   chatBubble?: { text: string; ts: number } | null;
   isCurrentTurn?: boolean;
   isNext?: boolean;
+  /** In this game's voice call and speaking right now. Draws the green speaking ring (voice-speaking.css); nothing otherwise. */
+  speaking?: boolean;
   /** Phones: a smaller panel for the previous and next player. Face-up cards open on tap. */
   compact?: boolean;
   canSelectFaceUp?: boolean;
@@ -147,7 +150,7 @@ function OpponentFan({ count, name }: { count: number; name: string }) {
   );
 }
 
-export default function PlayerPanel({ player, isCurrentTurn = false, isNext = false, compact = false, canSelectFaceUp = false, canSelectFaceDown = false,
+export default function PlayerPanel({ player, isCurrentTurn = false, isNext = false, speaking = false, compact = false, canSelectFaceUp = false, canSelectFaceDown = false,
   selectedFaceUp = [], selectedFaceDown = [], selectedHand = [], onToggleFaceUp, onToggleFaceDown, onToggleHand, chatBubble }: Props) {
   const ownHand = player.isYou ? player.hand || [] : [];
 
@@ -189,13 +192,14 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
   );
 
   return (
-    <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${compact ? " game-seat-compact" : ""}${isCurrentTurn ? " game-seat-active" : ""}${isNext ? " seat-next" : ""}`}
+    <section className={`game-seat${player.isYou ? " game-seat-own" : ""}${compact ? " game-seat-compact" : ""}${isCurrentTurn ? " game-seat-active" : ""}${isNext ? " seat-next" : ""}${speaking ? " seat-speaking" : ""}`}
       data-seat-id={player.playerId}>
       {chatBubble && <ChatBubble key={chatBubble.ts} text={chatBubble.text} />}
       <header className="game-seat-header">
         <div className="game-seat-name" title={player.username}>{player.username}{player.isYou ? <span className="you-tag">You</span> : null}<span className="elo-badge">{Math.round(player.eloScore)}</span></div>
         {isCurrentTurn && <span className="seat-sr-only">Current turn</span>}
         {isNext && <span className="seat-sr-only">Plays next</span>}
+        {speaking && <span className="seat-sr-only">Speaking</span>}
         {!player.isYou && player.handCount > FAN_LIMIT && <div className="seat-card-counts">{player.handCount} in hand</div>}
       </header>
       {!player.isYou && <OpponentFan count={player.handCount} name={player.username} />}
