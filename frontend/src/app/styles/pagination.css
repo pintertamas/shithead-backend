@@ -1,0 +1,43 @@
+/* Previous / Next pager used under long lists (leaderboard). Colours follow the leaderboard's green palette. */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pager-button {
+  min-width: 96px;
+  min-height: 40px;
+  padding: 8px 14px;
+  box-shadow: none;
+  white-space: nowrap;
+  background: #294b37;
+  border: 1px solid rgba(201, 216, 189, .16);
+  color: #eee5c9;
+}
+
+.pager-button:hover:not(:disabled) { background: #315740; }
+.pager-button:focus-visible { outline: 2px solid #d6b75e; outline-offset: 2px; }
+.pager-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.pager-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  text-align: center;
+  color: #f5edda;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager-range { color: rgba(245, 237, 218, .7); font-size: 13px; }
+
+@media (max-width: 650px) {
+  .pager { flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .pager-status { order: -1; width: 100%; font-size: 14px; }
+  .pager-range { font-size: 12px; }
+  .pager-button { flex: 1 1 0; min-width: 0; font-size: 14px; }
+}
