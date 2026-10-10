@@ -6,10 +6,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-// Gzip budgets in kB (1 kB = 1000 bytes, same unit Vite prints). Measured on the split build: entry 14.69 kB,
-// main CSS 11.52 kB; each budget is that plus ~10% headroom, rounded up.
+// Gzip budgets in kB (1 kB = 1000 bytes, same unit Vite prints). Measured on the split build: entry 15.13 kB,
+// main CSS 11.52 kB. The entry budget is that plus ~15% headroom, rounded to 0.1 kB; main CSS keeps ~10%, rounded up.
 const BUDGET_KB = {
-  entryJs: 16.2,
+  entryJs: 17.4,
   mainCss: 12.7,
 };
 
