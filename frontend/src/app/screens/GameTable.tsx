@@ -367,7 +367,7 @@ export default function GameTable() {
   const latestEvent = state.events && state.events.length > 0 ? state.events[state.events.length - 1] : null;
 
   return (
-    <div className={`page fade-in game-page${phone ? " phone-table" : ""}`}>
+    <div className={`page fade-in game-page${phone ? " phone-table" : ""}${setupStage ? " setup-phase" : ""}`}>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <NudgeBanner username={nudgeFrom} />
 
