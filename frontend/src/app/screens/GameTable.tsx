@@ -145,7 +145,7 @@ export default function GameTable() {
   const canSwapStartingCards = selectedStartingHand.length > 0 && selectedStartingHand.length === selectedStartingUp.length;
   const notReady = state?.players.filter((player) => !player.ready) || [];
   // No legal move (see lib/rules.ts): the discard pile is selected automatically. The key changes only when the turn,
-  // the pile top or the hand/face-up cards change, so a card the player then selects or a pick-up they then drop is not undone.
+  // the pile top or the hand/face-up cards change; the effect below decides when the pile is (re)selected.
   const forcedMoveKey = useMemo(() => {
     if (!state || !you) return null;
     const input = {
@@ -161,15 +161,20 @@ export default function GameTable() {
     return mustPickUp(input) ? moveSignature({ ...input, currentPlayerId: state.currentPlayerId }) : null;
   }, [state, you, yourTurn]);
   const autoPickupKeyRef = useRef<string | null>(null);
+  const selectedCount = selected.length;
+  // A new forced situation always selects the pile. Within the same situation it is selected again only when no card
+  // is selected and the pile is not selected, so a card the player taps is never overridden. Setting the pile re-runs
+  // this effect once; that run returns at once (the pile is selected then), so it cannot loop.
   useEffect(() => {
     if (forcedMoveKey === null) {
       autoPickupKeyRef.current = null;
       return;
     }
-    if (autoPickupKeyRef.current === forcedMoveKey) return;
+    const sameSituation = autoPickupKeyRef.current === forcedMoveKey;
+    if (sameSituation && (selectedCount > 0 || pickupSelected)) return;
     autoPickupKeyRef.current = forcedMoveKey;
     setSelection({ selected: [], pickupSelected: true });
-  }, [forcedMoveKey]);
+  }, [forcedMoveKey, selectedCount, pickupSelected]);
   // The next player is found in the server's state.players order (cyclic after the current player), skipping players who are out.
   const nextPlayerId = useMemo(() => {
     if (!state || setupStage || state.finished) return null;
