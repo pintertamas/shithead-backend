@@ -11,7 +11,7 @@ export const TTL = {
   profile: 5 * 60_000,
   globalLeaderboard: 60_000,
   sessionLeaderboard: 5 * 60_000,
-  games: 0,
+  games: 5_000,
   adminUsers: 30_000,
 } as const;
 

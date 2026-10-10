@@ -11,7 +11,7 @@ import { fetchScreen, type RouteKey } from "../routeModules";
 
 type ConnectionInfo = { saveData?: boolean; effectiveType?: string };
 
-// Games has staleTime 0 and always refetches, so repeated intents would hit the API again. Keep data intents to one per window.
+// Repeated intents would otherwise call a screen's API again, so keep data intents to one per window.
 const DATA_INTENT_WINDOW_MS = 15_000;
 // Screens reached from the lobby, in the order they are fetched while the lobby is idle.
 const IDLE_ORDER: RouteKey[] = ["games", "leaderboard", "profile", "config"];
