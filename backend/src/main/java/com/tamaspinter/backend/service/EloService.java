@@ -1,6 +1,5 @@
 package com.tamaspinter.backend.service;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,26 +29,6 @@ public class EloService {
             updated.put(id, newRating);
         }
         return updated;
-    }
-
-    /**
-     * Pairwise-consistent scores for a game that ends with one shithead: the shithead scores 0 against
-     * everyone, and every other player beats the shithead and ties the rest (1 point for a win, 0.5 for a tie).
-     * Each score is divided by the number of opponents, so the scores sum to n / 2, the same total as the
-     * expected scores, which keeps the rating changes zero-sum for any number of players.
-     */
-    public static Map<String, Double> shitheadScores(Collection<String> playerIds, String shitheadId) {
-        int count = playerIds.size();
-        Map<String, Double> scores = new HashMap<>();
-        if (count < 2) {
-            playerIds.forEach(id -> scores.put(id, 0.0));
-            return scores;
-        }
-        double winnerScore = (1.0 + 0.5 * (count - 2)) / (count - 1);
-        for (String id : playerIds) {
-            scores.put(id, id.equals(shitheadId) ? 0.0 : winnerScore);
-        }
-        return scores;
     }
 
     /**

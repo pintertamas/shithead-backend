@@ -581,10 +581,13 @@ public class GameFunctionConfig {
      */
     private Map<String, EloChangeEntity> updateElo(GameSession session) {
         String shitheadId = session.getShitheadId();
+        Map<String, Double> results = new HashMap<>();
+        for (var player : session.getPlayers()) {
+            results.put(player.getPlayerId(), player.getPlayerId().equals(shitheadId) ? 0.0 : 1.0);
+        }
         List<String> playerIds = session.getPlayers().stream()
                 .map(Player::getPlayerId)
                 .collect(Collectors.toList());
-        Map<String, Double> results = EloService.shitheadScores(playerIds, shitheadId);
         try {
             List<UserProfile> profiles = userRepo.batchGet(playerIds);
             Map<String, Double> current = profiles.stream()
