@@ -72,16 +72,15 @@ export function useNudgeNotice(): [string | null, (username: string) => void] {
 
 /** Short banner for a received nudge. The wrapper is always rendered so screen readers get the announcement. */
 export function NudgeBanner({ username }: { username: string | null }) {
-  // Shows the hint while a nudge waits for the first tap, because the browser has not let audio play yet.
   const waiting = useSyncExternalStore(subscribeFartState, isWaitingForTap);
-  // The wrapper never grows past the viewport (12 px gutters). A long name is cut with an ellipsis; "farted" and the
-  // hint keep their width, so the banner stays on screen at phone widths.
+  // The wrapper never grows past the viewport (12 px gutters). A long name is cut with an ellipsis; "farted" keeps
+  // its width, so the banner stays on screen at phone widths.
   return (
     <div className="nudge-live" role="status" aria-live="polite" style={{ width: "max-content", maxWidth: "calc(100vw - 24px)" }}>
       {username && (
         <div className="nudge-banner" style={{ display: "flex" }}>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{username}</span>
-          <span style={{ flexShrink: 0, whiteSpace: "pre" }}> farted 💨{waiting ? " · tap to hear" : ""}</span>
+          <span style={{ flexShrink: 0, whiteSpace: "pre" }}> farted 💨</span>
         </div>
       )}
     </div>
