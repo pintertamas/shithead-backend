@@ -98,6 +98,10 @@ jobs:
           npm ci
           npm run build
 
+      - name: Frontend size budget
+        working-directory: frontend
+        run: npm run size
+
   deploy-backend:
     name: Deploy Backend
     runs-on: ubuntu-24.04  # pinned; move to ubuntu-26.04 deliberately

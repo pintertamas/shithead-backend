@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminUser } from "../api/admin";
 import { clearAllGames } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
@@ -6,8 +6,13 @@ import ErrorAlert, { SuccessAlert } from "../components/ErrorAlert";
 import { AdminRowsSkeleton } from "../components/Skeleton";
 import { invalidateGames, useAdminUsersQuery, useSetUserBlockedMutation } from "../data/queries";
 import "../styles/admin.css";
+import "../styles/admin-mobile.css";
 
 type PendingChange = { user: AdminUser; blocked: boolean };
+
+const PHONE_QUERY = "(max-width: 700px)";
+const PHONE_PAGE_SIZE = 5;
+const DESKTOP_PAGE_SIZE = 10;
 
 export default function Admin() {
   const { token } = useAuth();
@@ -16,8 +21,12 @@ export default function Admin() {
   const blockMutation = useSetUserBlockedMutation(token);
   const users: AdminUser[] = usersQuery.data ?? [];
   const loading = usersQuery.isPending;
+  const phone = usePhoneViewport();
+  const pageSize = phone ? PHONE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const listRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,6 +53,24 @@ export default function Admin() {
     return users.filter((user) =>
       (user.username ?? "").toLowerCase().includes(needle) || user.userId.toLowerCase().includes(needle));
   }, [users, query]);
+
+  // Filtering happens over all users first; the page is then clamped so it never points past the last page.
+  const totalPages = Math.max(1, Math.ceil(visibleUsers.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [page, currentPage]);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pagedUsers = visibleUsers.slice(pageStart, pageStart + pageSize);
+  const rangeStart = visibleUsers.length === 0 ? 0 : pageStart + 1;
+  const rangeEnd = Math.min(pageStart + pageSize, visibleUsers.length);
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    // The pager sits below the list, so bring the top of the list back into view after a page change.
+    const list = listRef.current;
+    if (list && list.getBoundingClientRect().top < 0) list.scrollIntoView({ block: "start" });
+  };
 
   const confirmChange = async () => {
     if (!pending) return;
@@ -99,7 +126,10 @@ export default function Admin() {
           placeholder="Search by nickname or user id"
           aria-label="Search users"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
         />
         {!loading && <p className="admin-count">{visibleUsers.length} of {users.length} users</p>}
       </div>
@@ -109,7 +139,8 @@ export default function Admin() {
       ) : visibleUsers.length === 0 ? (
         <p className="lobby-rankings-message">No users match your search.</p>
       ) : (
-        <div className="admin-table-wrap glass">
+        <>
+        <div className="admin-table-wrap glass" ref={listRef}>
           <table className="admin-table">
             <thead>
               <tr>
@@ -120,15 +151,17 @@ export default function Admin() {
               </tr>
             </thead>
             <tbody>
-              {visibleUsers.map((user) => {
+              {pagedUsers.map((user) => {
                 const isSelf = user.userId === ownId;
                 const busy = busyUserId === user.userId;
                 return (
                   <tr key={user.userId} className={user.blocked ? "admin-row blocked" : "admin-row"}>
                     <td data-label="User">
                       <span className="admin-username">{user.username || "(no nickname)"}</span>
-                      <span className="admin-userid">{user.userId}</span>
-                      {isSelf && <span className="admin-you">This is you</span>}
+                      <span className="admin-userid">
+                        {user.userId}
+                        {isSelf && <span className="admin-you">This is you</span>}
+                      </span>
                     </td>
                     <td data-label="ELO" className="admin-elo">{Math.round(user.eloScore)}</td>
                     <td data-label="Status">
@@ -164,6 +197,31 @@ export default function Admin() {
             </tbody>
           </table>
         </div>
+        <nav className="admin-pager" aria-label="User list pages">
+          <button
+            className="button secondary admin-pager-button"
+            type="button"
+            aria-label="Previous page"
+            disabled={currentPage <= 1}
+            onClick={() => goToPage(currentPage - 1)}
+          >
+            Previous
+          </button>
+          <p className="admin-pager-status" aria-live="polite">
+            <span>Page {currentPage} of {totalPages}</span>
+            <span className="admin-pager-range">{rangeStart}–{rangeEnd} of {visibleUsers.length} users</span>
+          </p>
+          <button
+            className="button secondary admin-pager-button"
+            type="button"
+            aria-label="Next page"
+            disabled={currentPage >= totalPages}
+            onClick={() => goToPage(currentPage + 1)}
+          >
+            Next
+          </button>
+        </nav>
+        </>
       )}
 
       <section className="glass card admin-maintenance" aria-labelledby="admin-maintenance-title">
@@ -230,6 +288,20 @@ export default function Admin() {
       )}
     </div>
   );
+}
+
+// Tracks the phone breakpoint so the page size follows the viewport.
+function usePhoneViewport(): boolean {
+  const [phone, setPhone] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(PHONE_QUERY).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia(PHONE_QUERY);
+    const onChange = () => setPhone(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+  return phone;
 }
 
 // Cognito subject (user id) from the ID token payload, used to stop admins blocking themselves.

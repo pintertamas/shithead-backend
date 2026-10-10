@@ -39,7 +39,7 @@
 
 .admin-userid { display: block; margin-top: 2px; color: var(--ink-dim); font-size: 12px; word-break: break-all; }
 
-.admin-you { display: inline-block; margin-top: 4px; color: var(--accent); font-size: 12px; }
+.admin-you { display: inline-block; margin-left: 8px; color: var(--accent); font-size: 12px; word-break: normal; }
 
 .admin-active { color: var(--accent-2); }
 
@@ -48,6 +48,29 @@
 .admin-row.blocked td { background: rgba(255, 107, 107, 0.05); }
 
 .admin-action { padding: 8px 14px; box-shadow: none; white-space: nowrap; }
+
+.admin-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.admin-pager-button { box-shadow: none; white-space: nowrap; }
+
+.admin-pager-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.admin-pager-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-pager-range { color: var(--ink-dim); font-size: 13px; }
 
 .admin-dialog { width: min(440px, calc(100% - 32px)); margin: auto; }
 
@@ -66,30 +89,6 @@
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
-}
-
-/* Phones: each user becomes a stacked block with labelled fields. */
-@media (max-width: 640px) {
-  .admin-table-wrap { overflow: visible; background: transparent; border: none; }
-  .admin-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .admin-table,
-  .admin-table tbody,
-  .admin-table tr,
-  .admin-table td { display: block; width: 100%; }
-  .admin-table tr {
-    margin-bottom: 12px;
-    padding: 12px 14px;
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: var(--radius);
-  }
-  .admin-row.blocked { background: rgba(60, 26, 26, 0.6); }
-  .admin-table td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border: none; }
-  .admin-table td::before { content: attr(data-label); color: var(--ink-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .admin-table td[data-label="User"] { display: block; }
-  .admin-table td[data-label="User"]::before { content: none; }
-  .admin-action-cell { padding-top: 10px; }
-  .admin-action { min-height: 44px; }
 }
 
 /* Full-screen notice when the signed-in account is blocked. */

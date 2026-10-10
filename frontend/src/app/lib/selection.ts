@@ -74,3 +74,51 @@ export function reconcileSelection(
   if (pickupSelected === current.pickupSelected && selected.length === current.selected.length) return current;
   return { selected, pickupSelected };
 }
+
+/** "play": the normal turn. "setup": the swap phase before play starts, where hand and face-up cards pair up. */
+export type SelectionPhase = "setup" | "play";
+
+/** The viewer's own cards that a selection can refer to. Face-down cards are hidden, so they are not included. */
+export type VisibleCards = { hand?: Card[]; faceUp?: Card[] };
+
+function cardAt(item: CardSelection, cards: VisibleCards): Card | undefined {
+  if (item.source === "hand") return cards.hand?.[item.index];
+  if (item.source === "faceUp") return cards.faceUp?.[item.index];
+  return undefined;
+}
+
+/**
+ * The selection after the player clicks a card (the toggle on the table).
+ * - Clicking a selected card removes it.
+ * - Face-down cards are hidden, so a face-down selection is always a single card and replaces any other selection.
+ * - Setup (swap phase): cards accumulate from hand and face-up, of any value, as before.
+ * - Play: a card with the same value as the selected cards is added (hand and face-up can mix only when the
+ *   server allows it). A card with a different value replaces the whole selection, because only one value can be
+ *   played in one move.
+ * Any click clears the discard-pile pickup selection.
+ */
+export function nextSelection(
+  prev: SelectionState,
+  clicked: CardSelection,
+  cards: VisibleCards,
+  phase: SelectionPhase
+): SelectionState {
+  const exists = prev.selected.some((item) => item.source === clicked.source && item.index === clicked.index);
+  if (exists) {
+    return {
+      selected: prev.selected.filter((item) => item.source !== clicked.source || item.index !== clicked.index),
+      pickupSelected: false
+    };
+  }
+  if (clicked.source === "faceDown" || prev.selected.some((item) => item.source === "faceDown")) {
+    return { selected: [clicked], pickupSelected: false };
+  }
+  if (phase === "play" && prev.selected.length > 0) {
+    const clickedCard = cardAt(clicked, cards);
+    const selectedCard = cardAt(prev.selected[0], cards);
+    if (!clickedCard || !selectedCard || clickedCard.value !== selectedCard.value) {
+      return { selected: [clicked], pickupSelected: false };
+    }
+  }
+  return { selected: [...prev.selected, clicked], pickupSelected: false };
+}

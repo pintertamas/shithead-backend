@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { GameEvent } from "../api/game";
 import { describeEvent } from "../lib/gameFeed";
 import Icon from "./Icon";
@@ -28,12 +28,22 @@ export default function GameFeed({ events }: Props) {
   const list = events ?? [];
   const newest = list.length > 0 ? list[list.length - 1] : null;
   const newestSeq = newest?.seq ?? 0;
+  const sectionRef = useRef<HTMLElement>(null);
   const [wide, setWide] = useState(isWideScreen);
   const [expanded, setExpanded] = useState(false);
-  const open = wide || expanded;
+  // Inside the phone log dialog (PeekWrap) the list is always shown: opening the dialog is the one step.
+  const [inDialog, setInDialog] = useState(false);
+  const open = wide || inDialog || expanded;
+  const staticHeading = wide || inDialog;
   const [banner, setBanner] = useState<GameEvent | null>(null);
   // Start from the newest event already loaded so existing history does not replay as a banner.
   const announcedSeq = useRef(newestSeq);
+
+  // Runs before paint, so the dialog never shows the collapsed state. The dialog is portalled, so the check is
+  // made on the DOM the section is mounted in.
+  useLayoutEffect(() => {
+    setInDialog(sectionRef.current?.closest(".phone-log-popover") != null);
+  }, []);
 
   useEffect(() => {
     let query: MediaQueryList;
@@ -64,8 +74,8 @@ export default function GameFeed({ events }: Props) {
   );
 
   return (
-    <section className="game-feed glass" aria-label="Game log">
-      {wide ? (
+    <section ref={sectionRef} className="game-feed glass" aria-label="Game log">
+      {staticHeading ? (
         <div className="game-feed-toggle is-static">{heading}</div>
       ) : (
         <button
@@ -80,7 +90,7 @@ export default function GameFeed({ events }: Props) {
       )}
       {/* The banner floats over the top of the body, so showing or hiding it never changes the box height. */}
       <div className="game-feed-body">
-        {banner && (
+        {banner && !inDialog && (
           <div key={banner.seq} className="game-feed-banner" role="status" data-type={banner.type}>
             {describeEvent(banner)}
           </div>

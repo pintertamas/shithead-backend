@@ -37,6 +37,20 @@ export function GameCardsSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
+// Placeholder for a lazily loaded screen. "menu" matches the lobby content column; "bare" is for full-page routes.
+export function RouteSkeleton({ variant = "menu" }: { variant?: "menu" | "bare" }) {
+  return (
+    <div className={variant === "menu" ? "lobby-content route-skeleton" : "route-skeleton route-skeleton-bare"} role="status">
+      <span className="visually-hidden">Loading…</span>
+      <div className="route-skeleton-blocks" aria-hidden="true">
+        <Skeleton height={34} width="40%" />
+        <Skeleton height={16} width="65%" />
+        <Skeleton height={156} />
+      </div>
+    </div>
+  );
+}
+
 export function AdminRowsSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="admin-table-wrap glass skeleton-admin" role="status">
