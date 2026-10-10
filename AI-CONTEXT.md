@@ -216,7 +216,26 @@ User nicknames are stored in the users DynamoDB table. `UserProfileService` crea
 |---|---|
 | `SUCCESS` | Cards played; after-effects applied; turn advances unless the card or a pile burn grants a replay |
 | `PICKUP` | Player picks up the pile (explicit or blind flip failure) |
-| `INVALID` | Move rejected — wrong turn, illegal card, or game finished |
+| `INVALID` | Move rejected — see the reason below |
+
+`GameSession.getLastInvalidReason()` (an `InvalidReason` enum, cleared at the start of every `playCards` / `playSelections` / `pickupPile` call) says why an `INVALID` happened. `getLastRequiredPileValue()` gives the pile-top value for `TOO_LOW` / `TOO_HIGH`. The not-your-turn check runs in `GameFunctionConfig` before the session is touched. `config/PlayErrorMessages.forReason()` turns the reason into the player-facing WebSocket error text. Messages never reveal face-down values.
+
+| Reason | Message |
+|---|---|
+| (not your turn, `GameFunctionConfig`) | It's not your turn yet. |
+| `SETUP_NOT_COMPLETE` | Wait until everyone is ready. |
+| `GAME_FINISHED` | This game has already ended. |
+| `EMPTY_SELECTION` | Select a card to play first. |
+| `CARD_NOT_AVAILABLE` | Those cards are not available to play. |
+| `WRONG_ZONE` | You can't play those cards right now: use your hand first, then your face-up cards, then the face-down ones. |
+| `FACE_DOWN_ONE_AT_A_TIME` | Flip your face-down cards one at a time. |
+| `MIXED_VALUES` | Cards played together must have the same value. |
+| `TOO_LOW` | That card is too low: play {rank} or higher. |
+| `TOO_HIGH` | That card is too high: play {rank} or lower. |
+| `MIXED_HAND_FACEUP_NOT_ALLOWED` | Hand and face-up cards can only be played together when the draw pile is empty and that option is on. |
+| `PILE_EMPTY` | There is nothing to pick up. |
+
+`TOO_LOW` / `TOO_HIGH` are decided by the effective pile top (transparent cards are looked through): a `SMALLER` top needs an equal or lower card (`TOO_HIGH`), any other top needs an equal or higher one (`TOO_LOW`). `{rank}` is the top value, with 11-14 named Jack, Queen, King, Ace.
 
 Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty. `allowFailedFaceUpPlay` (default `false`, missing attribute reads as `false`) applies when a player with an empty hand plays an illegal face-up selection: the selected card(s) go onto the pile and the player immediately picks up the whole pile, including them (`PlayResult.PICKUP`, same as a failed blind flip). When off, that play is `INVALID`. The option is exposed to clients as `allowFailedFaceUpPlay` on `GameStateView`; the `/config` screen groups it with the mixed hand/face-up toggle under "Face-up cards".
 

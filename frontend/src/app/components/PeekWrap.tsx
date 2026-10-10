@@ -4,20 +4,27 @@ import "../styles/overlays.css";
 
 type Props = {
   className?: string;
+  /** Extra class on the overlay element (used by dialog-style content such as the discard pile). */
+  dialogClassName?: string;
   /** Accessible name of the toggle button and of the overlay. */
   label: string;
   /** Visible text of the toggle button. */
   toggleText: string;
-  /** Kept for compatibility; desktop overlays are centred on the element, mobile ones are centred in the viewport. */
+  /** Kept for compatibility; desktop overlays are centred on the element, dialogs are centred in the viewport. */
   placement?: "above" | "below";
-  popover: ReactNode;
+  /** Content of the overlay. A function receives whether the overlay is shown as a dialog (touch devices). */
+  popover: ReactNode | ((dialog: boolean) => ReactNode);
   children: ReactNode;
-  /** On phones, tapping the wrapped element itself also opens the overlay. */
+  /** On touch devices, tapping the wrapped element itself also opens the overlay. */
   pressToOpen?: boolean;
 };
 
-const MOBILE_QUERY = "(max-width: 700px), (pointer: coarse)";
-const FINE_HOVER_QUERY = "(hover: hover) and (pointer: fine)";
+/**
+ * Hover and focus behaviour follow the input capability, not the width: a device with a fine pointer that
+ * can hover gets the anchored overlay at any window width. Only devices without hover (phones, tablets)
+ * get the tap-to-open dialog. The phone layout of the table is a separate, width-based concern.
+ */
+const HOVER_QUERY = "(hover: hover) and (pointer: fine)";
 const EDGE = 8;
 const HIDE_DELAY_MS = 150;
 
@@ -29,28 +36,30 @@ function clamp(value: number, low: number, high: number) {
   return Math.max(low, Math.min(high, value));
 }
 
-function useIsMobile() {
-  const [mobile, setMobile] = useState(() => matches(MOBILE_QUERY));
+function useCanHover() {
+  const [canHover, setCanHover] = useState(() => matches(HOVER_QUERY));
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia(MOBILE_QUERY);
-    const update = () => setMobile(query.matches);
+    const query = window.matchMedia(HOVER_QUERY);
+    const update = () => setCanHover(query.matches);
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
   }, []);
-  return mobile;
+  return canHover;
 }
 
 /**
  * Wraps a table element with a peek overlay. The overlay is portalled to document.body and is
- * position: fixed, so it never affects layout. Mouse and keyboard users get it on hover or focus
- * (anchored over the element); touch users tap the toggle (or the element when pressToOpen) to get
- * a centred dialog with a backdrop that closes on tap outside, Escape or the close button.
+ * position: fixed, so it never affects layout. Devices with hover get it on pointer hover or keyboard
+ * focus, anchored over the element and kept inside the viewport. Touch devices tap the toggle (or the
+ * element when pressToOpen) to get a centred dialog with a backdrop that closes on tap outside, Escape or
+ * the close button.
  */
-export default function PeekWrap({ className = "", label, toggleText, placement = "above", popover, children, pressToOpen = false }: Props) {
+export default function PeekWrap({ className = "", dialogClassName = "", label, toggleText, placement = "above", popover, children, pressToOpen = false }: Props) {
   const id = useId();
-  const mobile = useIsMobile();
-  // pinned: opened by tap, click or keyboard on the toggle. hovered / focused: desktop pointer or focus.
+  const canHover = useCanHover();
+  const dialog = !canHover;
+  // pinned: opened by tap, click or keyboard on the toggle. hovered / focused: pointer or focus on a hover device.
   const [pinned, setPinned] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -66,6 +75,17 @@ export default function PeekWrap({ className = "", label, toggleText, placement 
   };
 
   useEffect(() => cancelHide, []);
+
+  // Leaving hover mode (or the pointer changing) drops any hover state.
+  useEffect(() => {
+    if (dialog) {
+      cancelHide();
+      setHovered(false);
+      setFocused(false);
+    } else {
+      setPinned(false);
+    }
+  }, [dialog]);
 
   // Escape closes every state; focus returns to the toggle if it was inside the overlay.
   useEffect(() => {
@@ -83,7 +103,7 @@ export default function PeekWrap({ className = "", label, toggleText, placement 
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
-  // Tapping or clicking outside a pinned overlay closes it (the mobile backdrop is also outside).
+  // Tapping or clicking outside a pinned overlay closes it (the dialog backdrop is also outside).
   useEffect(() => {
     if (!pinned) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -94,15 +114,15 @@ export default function PeekWrap({ className = "", label, toggleText, placement 
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [pinned]);
 
-  // Mobile dialog takes focus when it opens.
+  // The dialog takes focus when it opens.
   useEffect(() => {
-    if (pinned && mobile) popoverRef.current?.focus({ preventScroll: true });
-  }, [pinned, mobile]);
+    if (pinned && dialog) popoverRef.current?.focus({ preventScroll: true });
+  }, [pinned, dialog]);
 
-  // Desktop: centre the overlay on the wrapped element, clamped inside the viewport. Positioned with
-  // fixed coordinates only, so the document never changes size.
+  // Anchored overlay: centred on the wrapped element, clamped inside the viewport. Fixed coordinates only,
+  // so the document never changes size. Runs after each render so content changes keep it inside.
   useLayoutEffect(() => {
-    if (!open || mobile) return;
+    if (!open || dialog) return;
     const place = () => {
       const overlay = popoverRef.current;
       const anchor = wrapperRef.current?.firstElementChild;
@@ -111,8 +131,8 @@ export default function PeekWrap({ className = "", label, toggleText, placement 
       const p = overlay.getBoundingClientRect();
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
-      const left = clamp(a.left + a.width / 2 - p.width / 2, EDGE, viewportWidth - p.width - EDGE);
-      const top = clamp(a.top + a.height / 2 - p.height / 2, EDGE, viewportHeight - p.height - EDGE);
+      const left = clamp(a.left + a.width / 2 - p.width / 2, EDGE, Math.max(EDGE, viewportWidth - p.width - EDGE));
+      const top = clamp(a.top + a.height / 2 - p.height / 2, EDGE, Math.max(EDGE, viewportHeight - p.height - EDGE));
       overlay.style.left = `${left}px`;
       overlay.style.top = `${top}px`;
     };
@@ -123,22 +143,22 @@ export default function PeekWrap({ className = "", label, toggleText, placement 
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open, mobile]);
+  });
 
-  // Desktop hover: a short delay lets the pointer move from the element onto the overlay.
+  // Hover: a short delay lets the pointer move from the element onto the overlay.
   const onPointerEnter = (event: ReactPointerEvent) => {
-    if (event.pointerType === "touch" || matches(MOBILE_QUERY)) return;
+    if (event.pointerType === "touch" || !canHover) return;
     cancelHide();
     setHovered(true);
   };
   const onPointerLeave = (event: ReactPointerEvent) => {
-    if (event.pointerType === "touch") return;
+    if (event.pointerType === "touch" || !canHover) return;
     cancelHide();
     hideTimer.current = window.setTimeout(() => setHovered(false), HIDE_DELAY_MS);
   };
 
   const onFocusIn = () => {
-    if (!matches(MOBILE_QUERY) && matches(FINE_HOVER_QUERY)) setFocused(true);
+    if (canHover) setFocused(true);
   };
   const onFocusOut = (event: ReactFocusEvent) => {
     const next = event.relatedTarget as Node | null;
@@ -147,7 +167,7 @@ export default function PeekWrap({ className = "", label, toggleText, placement 
   };
 
   const onWrapperClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (!pressToOpen || !matches(MOBILE_QUERY)) return;
+    if (!pressToOpen || !dialog) return;
     if (toggleRef.current?.contains(event.target as Node)) return;
     setPinned((value) => !value);
   };
@@ -157,26 +177,28 @@ export default function PeekWrap({ className = "", label, toggleText, placement 
     toggleRef.current?.focus();
   };
 
+  const content = typeof popover === "function" ? popover(dialog) : popover;
+
   const overlay = open
     ? createPortal(
         <>
-          {mobile && pinned && <div className="peek-overlay-backdrop" aria-hidden="true" />}
+          {dialog && pinned && <div className="peek-overlay-backdrop" aria-hidden="true" />}
           <div
             ref={popoverRef}
             id={id}
-            className={`peek-overlay ${mobile ? "peek-overlay-mobile" : "peek-overlay-desktop"}`}
-            role={mobile ? "dialog" : "region"}
-            aria-modal={mobile ? true : undefined}
+            className={`peek-overlay ${dialog ? `peek-overlay-mobile${dialogClassName ? ` ${dialogClassName}` : ""}` : "peek-overlay-desktop"}`}
+            role={dialog ? "dialog" : "region"}
+            aria-modal={dialog ? true : undefined}
             aria-label={label}
-            tabIndex={mobile ? -1 : undefined}
+            tabIndex={dialog ? -1 : undefined}
             onPointerEnter={onPointerEnter}
             onPointerLeave={onPointerLeave}
             onBlur={onFocusOut}
           >
-            {mobile && pinned && (
+            {dialog && pinned && (
               <button type="button" className="peek-close" aria-label="Close" onClick={closeFromButton}>×</button>
             )}
-            {popover}
+            {content}
           </div>
         </>,
         document.body

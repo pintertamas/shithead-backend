@@ -57,3 +57,20 @@
 .game-board .game-seat .paired-card-stack {
   flex: 0 0 var(--card-w);
 }
+
+/* Face-down cards sit under the face-up card of their slot and peek out below it by --back-peek, so the
+   number of backs stays readable. Declared on the panel itself so compact phone panels (which set their
+   own --card-h) get their own offset. */
+.game-board .game-seat {
+  --back-peek: calc(var(--card-h) * 0.16);
+}
+
+/* The phone rules in table-mobile.css set the stack height with five classes, so the phone selector here has six. */
+.game-page .game-board .game-seat .game-seat-content .paired-card-stack,
+.game-page.phone-table .game-board .game-seat .game-seat-content .paired-card-stack {
+  height: calc(var(--card-h) + var(--back-peek));
+}
+
+.game-board .game-seat .paired-card-stack .face-down-card {
+  top: var(--back-peek);
+}
