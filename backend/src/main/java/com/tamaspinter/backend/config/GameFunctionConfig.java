@@ -742,7 +742,8 @@ public class GameFunctionConfig {
      * map when nothing was updated (fewer than two profiles, or a DynamoDB failure); the caller then leaves
      * {@code eloUpdated} unset so the update can be retried.
      */
-    private Map<String, EloChangeEntity> updateElo(GameSession session) {
+    // package-private for tests
+    Map<String, EloChangeEntity> updateElo(GameSession session) {
         String shitheadId = session.getShitheadId();
         // Bots have no rating. Only humans are rated, and only when a human lost: a bot shithead would let every
         // human gain without anyone losing.
