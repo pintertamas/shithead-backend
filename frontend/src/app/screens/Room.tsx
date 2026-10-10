@@ -17,6 +17,8 @@ type RoomGameState = GameStateView & { decksCount?: number };
 
 /** Seats of a one-deck game with the default layout (3 face-down + 3 face-up + 3 hand = 9 cards): 52 / 9 = 5. Hardcoded because the state does not send the layout. */
 const ONE_DECK_SEATS = 5;
+/** Most seats any game has (GameSession.MAX_PLAYERS). */
+const MAX_SEATS = 10;
 
 /** Bot types the owner can add. Add an entry (e.g. INTERMEDIATE / "Intermediate bot") to offer another type. */
 const BOT_TYPES = [
@@ -195,7 +197,9 @@ export default function Room() {
   };
 
   const canManageBots = !!state && state.isOwner && !state.started && !state.starting;
-  const lobbyFull = !!state && state.players.length >= (state.decksCount === 2 ? 10 : ONE_DECK_SEATS);
+  // Custom card layouts can seat more than ONE_DECK_SEATS with one deck, so only the hard cap disables the button;
+  // the server answers 409 with the real limit.
+  const lobbyFull = !!state && state.players.length >= MAX_SEATS;
 
   const runBotRequest = async (request: () => Promise<unknown>, fallback: string) => {
     if (!sessionId || botRequestInProgress.current) return;
