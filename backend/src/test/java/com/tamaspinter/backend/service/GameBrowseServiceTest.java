@@ -91,14 +91,14 @@ class GameBrowseServiceTest {
     void maxPlayers_isDerivedFromDeckSizeAndCardsPerPlayer() {
         // Given: one deck, 3 + 3 + 3 cards per player -> 52 / 9 = 5
         GameConfigEntity oneDeck = GameConfigEntity.builder().decksCount(1).build();
-        // Given: two decks, 9 cards per player -> 104 / 9 = 11, capped at 6
+        // Given: two decks, 9 cards per player -> 104 / 9 = 11, capped at 10
         GameConfigEntity twoDecks = GameConfigEntity.builder().decksCount(2).build();
         // Given: a layout that uses 18 cards per player -> 52 / 18 = 2
         GameConfigEntity bigLayout = GameConfigEntity.builder().decksCount(1).faceDownCount(6).faceUpCount(6).handCount(6).build();
 
         // When / Then
         assertEquals(5, GameBrowseService.maxPlayers(oneDeck));
-        assertEquals(6, GameBrowseService.maxPlayers(twoDecks));
+        assertEquals(10, GameBrowseService.maxPlayers(twoDecks));
         assertEquals(2, GameBrowseService.maxPlayers(bigLayout));
     }
 

@@ -3,6 +3,7 @@ import { useAuth } from "../auth/useAuth";
 import { useProfileQuery } from "../data/queries";
 import { clearAppCache } from "../data/queryClient";
 import Icon from "./Icon";
+import PrefetchNavLink from "./PrefetchNavLink";
 import "../styles/nav-bottom.css";
 
 export default function MenuLayout() {
@@ -39,10 +40,10 @@ export default function MenuLayout() {
         </div>
         <nav className="lobby-nav">
           <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/lobby" aria-label="Home" title="Home"><Icon name="home" className="lobby-nav-icon" /><span className="lobby-nav-label">Home</span></NavLink>
-          <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/config" aria-label="Game Config" title="Game Config"><Icon name="settings" className="lobby-nav-icon" /><span className="lobby-nav-label">Game Config</span></NavLink>
-          <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/games" aria-label="Browse games" title="Browse games"><Icon name="list" className="lobby-nav-icon" /><span className="lobby-nav-label">Browse games</span></NavLink>
-          <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/profile" aria-label="Profile" title="Profile"><Icon name="user" className="lobby-nav-icon" /><span className="lobby-nav-label">Profile</span></NavLink>
-          {canAdmin && <NavLink className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/admin" aria-label="Admin" title="Admin"><Icon name="shield" className="lobby-nav-icon" /><span className="lobby-nav-label">Admin</span></NavLink>}
+          <PrefetchNavLink prefetch="config" className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/config" aria-label="Game Config" title="Game Config"><Icon name="settings" className="lobby-nav-icon" /><span className="lobby-nav-label">Game Config</span></PrefetchNavLink>
+          <PrefetchNavLink prefetch="games" className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/games" aria-label="Browse games" title="Browse games"><Icon name="list" className="lobby-nav-icon" /><span className="lobby-nav-label">Browse games</span></PrefetchNavLink>
+          <PrefetchNavLink prefetch="profile" className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/profile" aria-label="Profile" title="Profile"><Icon name="user" className="lobby-nav-icon" /><span className="lobby-nav-label">Profile</span></PrefetchNavLink>
+          {canAdmin && <PrefetchNavLink prefetch="admin" className={({ isActive }) => `lobby-nav-item${isActive ? " active" : ""}`} to="/admin" aria-label="Admin" title="Admin"><Icon name="shield" className="lobby-nav-icon" /><span className="lobby-nav-label">Admin</span></PrefetchNavLink>}
           <button className="lobby-nav-item lobby-nav-logout" onClick={handleLogout} aria-label="Log out" title="Log out"><Icon name="logout" className="lobby-nav-icon" /><span className="lobby-nav-label">Log out</span></button>
         </nav>
       </aside>

@@ -14,6 +14,22 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          // Stable vendor and query-client chunks, so app code changes do not invalidate them. livekit-client keeps
+          // its own lazy chunk (returning undefined leaves it to Rollup).
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return undefined;
+            if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler|@remix-run[\\/]router)[\\/]/.test(id)) {
+              return "vendor";
+            }
+            if (/[\\/]node_modules[\\/]@tanstack[\\/]/.test(id)) return "tanstack";
+            return undefined;
+          }
+        }
+      }
+    },
     server: {
       port: 5173
     }

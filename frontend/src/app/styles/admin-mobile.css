@@ -1,0 +1,61 @@
+/* Phones (<=700px): compact user cards and the pager. Desktop rules live in admin.css. */
+@media (max-width: 700px) {
+  .admin-toolbar { gap: 8px; margin-bottom: 10px; }
+  .admin-search { max-width: none; flex: 1 1 100%; min-height: 40px; }
+  .admin-count { font-size: 13px; }
+
+  .admin-table-wrap { overflow: visible; background: transparent; border: none; box-shadow: none; backdrop-filter: none; }
+  .admin-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .admin-table,
+  .admin-table tbody { display: block; width: 100%; }
+  .admin-table tbody { display: flex; flex-direction: column; gap: 6px; }
+
+  /* Two-line card: name, ELO and status on the first line; id and button on the second. */
+  .admin-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "name elo status"
+      "id id action";
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 4px;
+    padding: 8px 10px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+  }
+  .admin-row.blocked { background: rgba(60, 26, 26, 0.6); }
+
+  .admin-table td { display: block; min-width: 0; padding: 0; border: none; }
+  .admin-table td[data-label="User"] { display: contents; }
+  .admin-username {
+    grid-area: name;
+    font-size: 14px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .admin-userid {
+    grid-area: id;
+    margin-top: 0;
+    font-size: 11px;
+    line-height: 1.3;
+    word-break: break-all;
+  }
+  .admin-you { margin-left: 6px; font-size: 11px; }
+  .admin-table td[data-label="ELO"] { grid-area: elo; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .admin-elo::after { content: " Elo"; color: var(--ink-dim); font-size: 11px; font-weight: 400; }
+  .admin-table td[data-label="Status"] { grid-area: status; white-space: nowrap; font-size: 12px; }
+  .admin-table td[data-label="Status"] .badge { padding: 2px 8px; font-size: 11px; }
+  .admin-action-cell { grid-area: action; }
+  .admin-action { min-height: 40px; padding: 6px 12px; font-size: 14px; }
+
+  .admin-pager { gap: 8px; margin-top: 10px; }
+  .admin-pager-button { min-height: 40px; padding: 6px 12px; font-size: 14px; }
+  .admin-pager-status { font-size: 14px; }
+  .admin-pager-range { font-size: 12px; }
+
+  .admin-maintenance { margin-top: 16px; padding: 14px; }
+  .admin-maintenance .button { margin-top: 6px; min-height: 40px; }
+  .admin-maintenance .admin-dialog-text { font-size: 13px; margin: 0; }
+}

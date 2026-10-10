@@ -14,7 +14,7 @@ import ShitheadModal from "../components/ShitheadModal";
 import ErrorAlert from "../components/ErrorAlert";
 import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
-import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, reconcileSelection } from "../lib/selection";
+import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, nextSelection, reconcileSelection } from "../lib/selection";
 import StarterPicker from "../components/StarterPicker";
 import PeekWrap from "../components/PeekWrap";
 import { SeatChip, SeatPeek } from "../components/SeatChip";
@@ -70,6 +70,7 @@ export default function GameTable() {
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
   const pendingRef = useRef(false);
+  const phoneChipsRef = useRef<HTMLDivElement>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [socketOpen, setSocketOpen] = useState(false);
   // Latest chat line per player id, shown as a speech bubble above that seat.
@@ -175,15 +176,8 @@ export default function GameTable() {
   }, []);
 
   const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
-    setSelection((prev) => {
-      const exists = prev.selected.some((item) => item.source === source && item.index === index);
-      let nextSelected: CardSelection[];
-      if (exists) nextSelected = prev.selected.filter((item) => item.source !== source || item.index !== index);
-      else if (source === "faceDown" || prev.selected.some((item) => item.source === "faceDown")) nextSelected = [{ source, index }];
-      else nextSelected = [...prev.selected, { source, index }];
-      return { selected: nextSelected, pickupSelected: false };
-    });
-  }, []);
+    setSelection((prev) => nextSelection(prev, { source, index }, { hand: you?.hand, faceUp: you?.faceUp }, setupStage ? "setup" : "play"));
+  }, [you, setupStage]);
 
   const sendWs = useCallback((payload: object) => {
     const ws = wsRef.current;
@@ -344,6 +338,19 @@ export default function GameTable() {
     return () => window.clearTimeout(timeout);
   }, [state?.revealedCard]);
 
+  // Phone: the chip strip scrolls sideways when there are more chips than fit; keep the player whose turn it is in view.
+  useEffect(() => {
+    const strip = phoneChipsRef.current;
+    const turnId = state?.currentPlayerId;
+    if (!strip || !turnId) return;
+    const chip = Array.from(strip.querySelectorAll<HTMLElement>("[data-seat-id]"))
+      .find((element) => element.dataset.seatId === turnId);
+    if (!chip) return;
+    const offset = chip.getBoundingClientRect().left - strip.getBoundingClientRect().left;
+    const target = strip.scrollLeft + offset - (strip.clientWidth - chip.offsetWidth) / 2;
+    strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  }, [state?.currentPlayerId, phone, phoneSeats?.chips.length]);
+
   if (!state || !you) {
     return (
       <div className="page">
@@ -367,7 +374,7 @@ export default function GameTable() {
   const latestEvent = state.events && state.events.length > 0 ? state.events[state.events.length - 1] : null;
 
   return (
-    <div className={`page fade-in game-page${phone ? " phone-table" : ""}`}>
+    <div className={`page fade-in game-page${phone ? " phone-table" : ""}${setupStage ? " setup-phase" : ""}`}>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <NudgeBanner username={nudgeFrom} />
 
@@ -377,7 +384,7 @@ export default function GameTable() {
         <span className="badge">SHITHEAD</span>
         <h2 className="title table-bar-title">{state.sessionId} <span className="header-player-name">· {you.username}</span></h2>
         {phone && phoneSeats && phoneSeats.chips.length > 0 && (
-          <div className="phone-chips" role="group" aria-label="Other players">
+          <div className="phone-chips" ref={phoneChipsRef} role="group" aria-label="Other players">
             {phoneSeats.chips.map((player) => (
               <SeatChip key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
                 isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} onOpen={setPeekId} />
@@ -471,15 +478,15 @@ export default function GameTable() {
             <button className="button" disabled={(!pickupSelected && (selected.length === 0 || mixedSelectionIncomplete)) || pendingAction || !yourTurn || (pickupSelected && !pileHasCards)} onClick={playSelected}>
               {pendingAction ? "Sending..." : pickupSelected ? "Pick Up" : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
-            <p className="game-hint">
-              {!yourTurn
-                ? `Waiting for ${currentName || "the current player"}'s turn.`
-                : pickupSelected
-                  ? "Discard pile selected. Press Pick Up to collect it."
-                  : selected.length === 0
-                  ? "Select cards, then press Play."
-                  : "Selected cards are highlighted. Press Play to submit your move."}
-            </p>
+            {(!yourTurn || pickupSelected || selected.length === 0) && (
+              <p className="game-hint">
+                {!yourTurn
+                  ? `Waiting for ${currentName || "the current player"}'s turn.`
+                  : pickupSelected
+                    ? "Discard pile selected. Press Pick Up to collect it."
+                    : "Select cards, then press Play."}
+              </p>
+            )}
           </div>
         )}
         {phone && (

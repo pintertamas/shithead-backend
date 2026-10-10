@@ -7,6 +7,7 @@ import com.tamaspinter.backend.model.CardRule;
 import com.tamaspinter.backend.model.Deck;
 import com.tamaspinter.backend.model.Player;
 import com.tamaspinter.backend.rules.RuleEngine;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,8 +30,31 @@ import java.util.Set;
 public class GameSession {
     /** Activity feed keeps only the most recent entries so the persisted item stays small. */
     public static final int MAX_EVENTS = 30;
+
+    /**
+     * Why the last play or pickup call returned {@link PlayResult#INVALID}. Not persisted; cleared at the start of
+     * every play and pickup call. The not-your-turn check runs in the Lambda before the session is touched.
+     */
+    public enum InvalidReason {
+        SETUP_NOT_COMPLETE,
+        GAME_FINISHED,
+        EMPTY_SELECTION,
+        CARD_NOT_AVAILABLE,
+        WRONG_ZONE,
+        FACE_DOWN_ONE_AT_A_TIME,
+        MIXED_VALUES,
+        TOO_LOW,
+        TOO_HIGH,
+        MIXED_HAND_FACEUP_NOT_ALLOWED,
+        PILE_EMPTY
+    }
+
     /** Rating assumed for a player whose rating is unknown. */
     public static final double DEFAULT_RATING = 1000.0;
+    /** Most seats a game can have. Joins beyond this are rejected and browse reports this as the cap. */
+    public static final int MAX_PLAYERS = 10;
+    /** Cards in one standard deck. */
+    public static final int DECK_CARD_COUNT = 52;
 
     private final String sessionId;
     @Builder.Default
@@ -51,10 +76,19 @@ public class GameSession {
     private String ownerId;
     private String createdAt;
     private Long ttl;
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private InvalidReason lastInvalidReason;
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private int lastRequiredPileValue;
 
     public void addPlayer(String id, String name) {
         if (started) {
             throw new IllegalStateException("Game already started");
+        }
+        if (players.size() >= MAX_PLAYERS) {
+            throw new IllegalStateException("Game is full: at most " + MAX_PLAYERS + " players can join");
         }
         players.add(Player.builder()
                 .playerId(id)
@@ -83,8 +117,11 @@ public class GameSession {
      */
     public void start(Map<String, Double> ratings) {
         int cardsPerPlayer = config.getFaceDownCount() + config.getFaceUpCount() + config.getHandCount();
-        if (players.size() * cardsPerPlayer > config.getDecksCount() * 52) {
-            throw new IllegalStateException("Not enough cards in the selected deck count");
+        int totalCards = config.getDecksCount() * DECK_CARD_COUNT;
+        if (cardsPerPlayer > 0 && players.size() * cardsPerPlayer > totalCards) {
+            int supported = Math.min(MAX_PLAYERS, totalCards / cardsPerPlayer);
+            throw new IllegalStateException("Not enough cards: this setup supports at most " + supported
+                    + " players with " + config.getDecksCount() + " deck(s)");
         }
         deck = new Deck(config.getDecksCount(), config);
         for (Player player : players) {
@@ -234,6 +271,50 @@ public class GameSession {
         return false;
     }
 
+    /** The reason the cards break the same-value or pile rules, or null when they are legal. */
+    private InvalidReason ruleViolation(List<Card> cards) {
+        if (notAllCardsAreTheSameValue(cards)) {
+            return InvalidReason.MIXED_VALUES;
+        }
+        return playerCannotPlayAllSelectedCards(cards) ? pileRejectionReason() : null;
+    }
+
+    /**
+     * Explains a rejected card: the pile top decides the direction. A 'smaller' top (looking through transparent
+     * cards) needs an equal or lower card, every other top needs an equal or higher one.
+     */
+    private InvalidReason pileRejectionReason() {
+        Iterator<Card> fromTop = discardPile.descendingIterator();
+        while (fromTop.hasNext()) {
+            Card top = fromTop.next();
+            if (top.getRule() != CardRule.TRANSPARENT) {
+                lastRequiredPileValue = top.getValue();
+                return top.getRule() == CardRule.SMALLER ? InvalidReason.TOO_HIGH : InvalidReason.TOO_LOW;
+            }
+        }
+        return InvalidReason.TOO_LOW;
+    }
+
+    private void clearInvalidReason() {
+        lastInvalidReason = null;
+        lastRequiredPileValue = 0;
+    }
+
+    private PlayResult invalid(InvalidReason reason) {
+        lastInvalidReason = reason;
+        return PlayResult.INVALID;
+    }
+
+    /** Why the last play or pickup returned INVALID, or null if it did not. */
+    public InvalidReason getLastInvalidReason() {
+        return lastInvalidReason;
+    }
+
+    /** For TOO_LOW / TOO_HIGH: the value of the pile top the card was compared against, otherwise 0. */
+    public int getLastRequiredPileValue() {
+        return lastRequiredPileValue;
+    }
+
     private Optional<List<Card>> matchSelectedCards(List<Card> available, List<Card> selected) {
         if (selected == null || selected.isEmpty()) {
             return Optional.empty();
@@ -265,8 +346,15 @@ public class GameSession {
     }
 
     public PlayResult playCards(List<Card> cards) {
-        if (finished || !setupComplete) {
-            return PlayResult.INVALID;
+        clearInvalidReason();
+        if (finished) {
+            return invalid(InvalidReason.GAME_FINISHED);
+        }
+        if (!setupComplete) {
+            return invalid(InvalidReason.SETUP_NOT_COMPLETE);
+        }
+        if (cards == null || cards.isEmpty()) {
+            return invalid(InvalidReason.EMPTY_SELECTION);
         }
         Player player = players.get(currentIndex);
         PlayResult result = resolvePlayResult(player, cards);
@@ -279,19 +367,26 @@ public class GameSession {
     }
 
     public PlayResult playSelections(List<CardSelection> selections) {
-        if (finished || !setupComplete || selections == null || selections.isEmpty()) {
-            return PlayResult.INVALID;
+        clearInvalidReason();
+        if (finished) {
+            return invalid(InvalidReason.GAME_FINISHED);
+        }
+        if (!setupComplete) {
+            return invalid(InvalidReason.SETUP_NOT_COMPLETE);
+        }
+        if (selections == null || selections.isEmpty()) {
+            return invalid(InvalidReason.EMPTY_SELECTION);
         }
         Player player = players.get(currentIndex);
         ResolvedSelections resolved = resolveSelections(player, selections);
         if (resolved == null) {
-            return PlayResult.INVALID;
+            return invalid(InvalidReason.CARD_NOT_AVAILABLE);
         }
         PlayResult result;
         if (resolved.sources().contains(CardSource.FACE_DOWN)) {
-            result = selections.size() == 1 && resolved.sources().size() == 1
+            result = selectionsAreSingleFaceDownFlip(selections, resolved)
                     ? playFromFaceDown(resolved.cards())
-                    : PlayResult.INVALID;
+                    : invalid(faceDownSelectionReason(resolved));
         } else if (isMixedHandAndFaceUp(resolved.sources())) {
             result = playMixedHandAndFaceUp(player, selections, resolved.cards());
         } else {
@@ -303,6 +398,15 @@ public class GameSession {
             finishSuccessfulPlay(resolved.cards().get(0), player);
         }
         return result;
+    }
+
+    private static boolean selectionsAreSingleFaceDownFlip(List<CardSelection> selections, ResolvedSelections resolved) {
+        return selections.size() == 1 && resolved.sources().size() == 1;
+    }
+
+    /** Several face-down cards chosen at once is its own case; mixing face-down with other zones is a wrong zone. */
+    private static InvalidReason faceDownSelectionReason(ResolvedSelections resolved) {
+        return resolved.sources().size() == 1 ? InvalidReason.FACE_DOWN_ONE_AT_A_TIME : InvalidReason.WRONG_ZONE;
     }
 
     private ResolvedSelections resolveSelections(Player player, List<CardSelection> selections) {
@@ -344,19 +448,21 @@ public class GameSession {
 
     private PlayResult playMixedHandAndFaceUp(
             Player player, List<CardSelection> selections, List<Card> selectedCards) {
-        if (!isValidMixedPlay(selectedCards)) {
-            return PlayResult.INVALID;
+        InvalidReason violation = mixedPlayViolation(selectedCards);
+        if (violation != null) {
+            return invalid(violation);
         }
         removeMixedSelections(player, selections, selectedCards);
         commitPlay(player, selectedCards);
         return PlayResult.SUCCESS;
     }
 
-    private boolean isValidMixedPlay(List<Card> selectedCards) {
-        return config.isAllowMixedHandAndFaceUpWhenDeckEmpty()
-                && deck != null && deck.getCards().isEmpty()
-                && !notAllCardsAreTheSameValue(selectedCards)
-                && !playerCannotPlayAllSelectedCards(selectedCards);
+    /** Mixing hand and face-up cards is only allowed with the option on and the draw pile empty. */
+    private InvalidReason mixedPlayViolation(List<Card> selectedCards) {
+        if (!config.isAllowMixedHandAndFaceUpWhenDeckEmpty() || deck == null || !deck.getCards().isEmpty()) {
+            return InvalidReason.MIXED_HAND_FACEUP_NOT_ALLOWED;
+        }
+        return ruleViolation(selectedCards);
     }
 
     private void removeMixedSelections(Player player, List<CardSelection> selections, List<Card> selectedCards) {
@@ -410,12 +516,19 @@ public class GameSession {
         if (!player.getFaceDown().isEmpty()) {
             return playFromFaceDown(cards);
         }
-        return PlayResult.INVALID;
+        return invalid(InvalidReason.CARD_NOT_AVAILABLE);
     }
 
     public PlayResult pickupPile() {
-        if (finished || !setupComplete || discardPile.isEmpty()) {
-            return PlayResult.INVALID;
+        clearInvalidReason();
+        if (finished) {
+            return invalid(InvalidReason.GAME_FINISHED);
+        }
+        if (!setupComplete) {
+            return invalid(InvalidReason.SETUP_NOT_COMPLETE);
+        }
+        if (discardPile.isEmpty()) {
+            return invalid(InvalidReason.PILE_EMPTY);
         }
         return pickUpPile(players.get(currentIndex), List.of(), GameEventType.PICKED_UP);
     }
@@ -438,15 +551,16 @@ public class GameSession {
     private PlayResult playFromHand(List<Card> cards) {
         Player player = players.get(currentIndex);
         if (player.getHand().isEmpty()) {
-            return PlayResult.INVALID;
+            return invalid(InvalidReason.CARD_NOT_AVAILABLE);
         }
         Optional<List<Card>> matchedCards = matchSelectedCards(new ArrayList<>(player.getHand()), cards);
         if (matchedCards.isEmpty()) {
-            return PlayResult.INVALID;
+            return invalid(InvalidReason.CARD_NOT_AVAILABLE);
         }
         List<Card> matched = matchedCards.get();
-        if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
-            return PlayResult.INVALID;
+        InvalidReason violation = ruleViolation(matched);
+        if (violation != null) {
+            return invalid(violation);
         }
         matched.forEach(player.getHand()::remove);
         commitPlay(player, matched);
@@ -455,18 +569,22 @@ public class GameSession {
 
     private PlayResult playFromFaceUp(List<Card> cards) {
         Player player = players.get(currentIndex);
-        if (!player.getHand().isEmpty() || player.getFaceUp().isEmpty()) {
-            return PlayResult.INVALID;
+        if (!player.getHand().isEmpty()) {
+            return invalid(InvalidReason.WRONG_ZONE);
+        }
+        if (player.getFaceUp().isEmpty()) {
+            return invalid(InvalidReason.CARD_NOT_AVAILABLE);
         }
         Optional<List<Card>> matchedCards = matchSelectedCards(new ArrayList<>(player.getFaceUp()), cards);
         if (matchedCards.isEmpty()) {
-            return PlayResult.INVALID;
+            return invalid(InvalidReason.CARD_NOT_AVAILABLE);
         }
         List<Card> matched = matchedCards.get();
-        if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
+        InvalidReason violation = ruleViolation(matched);
+        if (violation != null) {
             return config.isAllowFailedFaceUpPlay()
                     ? pickUpAfterFailedFaceUpPlay(player, matched)
-                    : PlayResult.INVALID;
+                    : invalid(violation);
         }
         matched.forEach(player.getFaceUp()::remove);
         commitPlay(player, matched);
@@ -484,16 +602,19 @@ public class GameSession {
 
     private PlayResult playFromFaceDown(List<Card> cards) {
         Player player = players.get(currentIndex);
-        if (!player.getHand().isEmpty() || !player.getFaceUp().isEmpty() || player.getFaceDown().isEmpty()) {
-            return PlayResult.INVALID;
+        if (!player.getHand().isEmpty() || !player.getFaceUp().isEmpty()) {
+            return invalid(InvalidReason.WRONG_ZONE);
+        }
+        if (player.getFaceDown().isEmpty()) {
+            return invalid(InvalidReason.CARD_NOT_AVAILABLE);
         }
         Optional<List<Card>> matchedCards = matchSelectedCards(new ArrayList<>(player.getFaceDown()), cards);
         if (matchedCards.isEmpty()) {
-            return PlayResult.INVALID;
+            return invalid(InvalidReason.CARD_NOT_AVAILABLE);
         }
         List<Card> matched = matchedCards.get();
         matched.forEach(player.getFaceDown()::remove);
-        if (notAllCardsAreTheSameValue(matched) || playerCannotPlayAllSelectedCards(matched)) {
+        if (ruleViolation(matched) != null) {
             return pickUpPile(player, matched, GameEventType.FAILED_FLIP);
         }
         commitPlay(player, matched);

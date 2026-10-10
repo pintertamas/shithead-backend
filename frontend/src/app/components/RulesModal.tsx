@@ -105,6 +105,7 @@ export default function RulesModal({ specialRules, faceUpFailurePickup, onClose 
         <div className="howto-body">
           <h3>Goal</h3>
           <p>Get rid of all your cards first. The last player still holding cards is the Shithead.</p>
+          <p>A game has up to 10 players. Use 2 decks for more than 5 players.</p>
 
           <h3>Your cards</h3>
           <ul>

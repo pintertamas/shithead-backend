@@ -77,6 +77,11 @@ public class GameFunctionConfig {
         return new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withHeaders(CORS_HEADERS).withBody(body);
     }
 
+    /** A 409 whose JSON body carries a message the client shows to the player. Messages must not contain quotes. */
+    private static APIGatewayProxyResponseEvent conflictResponse(String message) {
+        return corsResponse(409, "{\"message\":\"" + message + "\"}");
+    }
+
     private void cleanupOldSessions(String userId, String excludeSessionId) {
         for (GameSessionEntity owned : sessionRepo.findByOwnerId(userId)) {
             if (owned.isStarted() || owned.getSessionId().equals(excludeSessionId)) {
@@ -130,7 +135,7 @@ public class GameFunctionConfig {
             try {
                 session.addPlayer(userId, username);
             } catch (IllegalStateException e) {
-                return corsResponse(409);
+                return conflictResponse(e.getMessage());
             }
             sessionRepo.save(session.toEntity());
             return corsResponse(200);
@@ -185,7 +190,7 @@ public class GameFunctionConfig {
                     entity.setStarting(false);
                     sessionRepo.save(entity);
                 }
-                return corsResponse(409);
+                return conflictResponse(e.getMessage());
             }
             sessionRepo.save(session.toEntity());
             return corsResponse(200);
@@ -287,7 +292,7 @@ public class GameFunctionConfig {
                 return handleSetupAction(ev, msg, entity, userId);
             }
             if (!userId.equals(entity.getCurrentPlayerId())) {
-                return websocketError(ev, 400, "It is not your turn.");
+                return websocketError(ev, 400, PlayErrorMessages.NOT_YOUR_TURN);
             }
 
             final Card revealedCard = revealedSelectionCard(msg, entity, userId);
@@ -297,7 +302,7 @@ public class GameFunctionConfig {
                     : session.playSelections(msg.selections());
             if (result == PlayResult.INVALID) {
                 return websocketError(ev, 400,
-                        "That play can't be made right now. Check that it's your turn and the cards are allowed.");
+                        PlayErrorMessages.forReason(session.getLastInvalidReason(), session.getLastRequiredPileValue()));
             }
 
             GameSessionEntity updated = session.toEntity();
@@ -468,13 +473,14 @@ public class GameFunctionConfig {
                 return websocketError(ev, 403, BlockedUserGuard.BLOCKED_MESSAGE);
             }
             if (userId == null || !userId.equals(entity.getCurrentPlayerId())) {
-                return websocketError(ev, 400, "It is not your turn.");
+                return websocketError(ev, 400, PlayErrorMessages.NOT_YOUR_TURN);
             }
 
             GameSession session = SessionMapper.fromEntity(entity);
             PlayResult result = session.pickupPile();
             if (result == PlayResult.INVALID) {
-                return websocketError(ev, 400, "You can't pick up the pile right now. It may be empty or not your turn.");
+                return websocketError(ev, 400,
+                        PlayErrorMessages.forReason(session.getLastInvalidReason(), session.getLastRequiredPileValue()));
             }
 
             GameSessionEntity updated = session.toEntity();
