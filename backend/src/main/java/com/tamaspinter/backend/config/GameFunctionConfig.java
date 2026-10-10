@@ -573,7 +573,8 @@ public class GameFunctionConfig {
             Map<String, UserProfile> profiles = userRepo.batchGet(playerIds)
                     .stream()
                     .collect(Collectors.toMap(UserProfile::getUserId, profile -> profile));
-            List<LeaderboardEntry> entries = sessionEntries(playerIds, profiles, entity.getEloChanges());
+            List<LeaderboardEntry> entries = sessionEntries(
+                    playerIds, profiles, entity.getEloChanges(), entity.isFinished(), entity.getShitheadId());
             try {
                 return corsResponse(200, mapper.writeValueAsString(entries));
             } catch (JsonProcessingException e) {
@@ -585,10 +586,12 @@ public class GameFunctionConfig {
 
     /**
      * Session leaderboard rows in seat order. {@code eloScore} is the current rating; {@code eloBefore} and
-     * {@code eloAfter} come from the game's recorded Elo change and stay null when none was recorded.
+     * {@code eloAfter} come from the game's recorded Elo change and stay null when none was recorded. {@code shithead}
+     * is true only for the seat whose id is {@code shitheadId} in a finished game, and false for every row otherwise.
      */
     public static List<LeaderboardEntry> sessionEntries(
-            List<String> playerIds, Map<String, UserProfile> profiles, Map<String, EloChangeEntity> eloChanges) {
+            List<String> playerIds, Map<String, UserProfile> profiles, Map<String, EloChangeEntity> eloChanges,
+            boolean finished, String shitheadId) {
         return playerIds.stream()
                 .map(playerId -> {
                     UserProfile profile = profiles.getOrDefault(playerId, UserProfile.builder()
@@ -603,6 +606,7 @@ public class GameFunctionConfig {
                             .eloScore(profile.getEloScore())
                             .eloBefore(change == null ? null : change.getBefore())
                             .eloAfter(change == null ? null : change.getAfter())
+                            .shithead(finished && shitheadId != null && shitheadId.equals(playerId))
                             .build();
                 })
                 .collect(Collectors.toList());
