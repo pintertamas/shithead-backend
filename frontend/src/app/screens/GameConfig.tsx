@@ -11,6 +11,7 @@ import { fetchProfile } from "../api/profile";
 import { useAuth } from "../auth/useAuth";
 import "../styles/config-layout.css";
 import "../styles/select-fix.css";
+import "../styles/rule-list.css";
 
 export default function GameConfig() {
   const { token } = useAuth();
@@ -185,7 +186,13 @@ export default function GameConfig() {
               </tbody>
             </table>
           </div>
-          <p className="config-note">Joker is playable on anything. Smaller restricts the next card; Transparent ignores the card below it; Reverse changes turn order; Burner clears the pile and gives you another turn.</p>
+          <ul className="config-note rule-list">
+            <li><strong>Joker</strong> is playable on anything.</li>
+            <li><strong>Smaller</strong> restricts the next card.</li>
+            <li><strong>Transparent</strong> ignores the card below it.</li>
+            <li><strong>Reverse</strong> changes turn order.</li>
+            <li><strong>Burner</strong> clears the pile and gives you another turn.</li>
+          </ul>
         </section>
 
         <div className="config-actions">
