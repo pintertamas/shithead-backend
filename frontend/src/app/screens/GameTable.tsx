@@ -373,11 +373,13 @@ export default function GameTable() {
     }
   }, [state]);
 
+  // Long enough to read the revealed card in the failed blind-flip notice.
+  const FAILED_FLIP_NOTICE_MS = 3500;
   useEffect(() => {
     if (!state?.revealedCard) return;
     const timeout = window.setTimeout(() => {
       setState((current) => current ? { ...current, revealedCard: null } : current);
-    }, 1100);
+    }, FAILED_FLIP_NOTICE_MS);
     return () => window.clearTimeout(timeout);
   }, [state?.revealedCard]);
 
