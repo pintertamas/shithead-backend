@@ -1,7 +1,8 @@
 /*
  * Swap phase on phones (max-width: 700px; GameTable adds `setup-phase` and `phone-table`). The whole screen fits
- * the visible height with no scrolling: a compact setup block, the own cards sized from the height left (see
- * seat-panels.css), and the chat button moved into the top bar so it never covers a card or a button.
+ * the visible height with no scrolling: a compact setup block and the own cards sized from the height left (see
+ * seat-panels.css). The chat button keeps its play-phase bottom-right position (chat-layout.css; the landscape
+ * offset is in the block below), so it may cover part of an own card or a button at some phone sizes.
  * Play-phase phone rules stay in table-mobile.css and are not changed here.
  */
 
@@ -10,20 +11,6 @@
   .game-page.setup-phase.phone-table {
     height: 100vh;
     height: 100svh;
-  }
-
-  /* Chat button: top right, 12px in from the top and right edges. The default bottom-right spot covers the own cards
-     on 375x667 and 390x844. The bar's right padding keeps the nudge button 11px left of the chat button. */
-  .game-page.setup-phase.phone-table .table-bar {
-    padding-right: 56px;
-  }
-
-  body:has(.game-page.setup-phase.phone-table) .chat-fab {
-    top: 12px;
-    right: 12px;
-    bottom: auto;
-    width: 40px;
-    height: 40px;
   }
 
   /* Setup block: one compact column with fixed line heights (the own-card budget in seat-panels.css counts on them). */
@@ -117,5 +104,10 @@
     --card-h: calc(var(--card-w) * 7 / 5);
     --card-corner-fs: calc(var(--card-w) * 0.22);
     --card-center-fs: calc(var(--card-w) * 0.46);
+  }
+
+  /* The same bottom offset as the play phase (table-mobile.css), so the chat button stays in place between phases. */
+  body:has(.game-page.setup-phase.phone-table) .chat-fab {
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
   }
 }
