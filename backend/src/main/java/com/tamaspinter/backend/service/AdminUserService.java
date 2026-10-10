@@ -20,6 +20,7 @@ import java.util.List;
 public class AdminUserService {
 
     static final String CLAIM_ROW_PREFIX = "__username__#";
+    static final String VOICE_ROW_PREFIX = "__voice_";
 
     private final UserProfileRepository userRepo;
     private final UserConnectionService connections;
@@ -76,8 +77,10 @@ public class AdminUserService {
         }
     }
 
+    /** Profiles only: skips username claim rows and voice bookkeeping rows (usage, open markers). */
     private static boolean isUserRow(UserProfile profile) {
-        return profile.getUserId() != null && !profile.getUserId().startsWith(CLAIM_ROW_PREFIX);
+        String userId = profile.getUserId();
+        return userId != null && !userId.startsWith(CLAIM_ROW_PREFIX) && !userId.startsWith(VOICE_ROW_PREFIX);
     }
 
     private static AdminUserView toView(UserProfile profile) {
