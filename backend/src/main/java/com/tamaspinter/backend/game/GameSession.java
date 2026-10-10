@@ -51,7 +51,7 @@ public class GameSession {
 
     /** Rating assumed for a player whose rating is unknown. */
     public static final double DEFAULT_RATING = 1000.0;
-    /** Most seats a game can have. Joins beyond this are rejected and browse reports this as the cap. */
+    /** Most seats a game can have, however many decks it uses. Joins beyond the deck capacity are rejected. */
     public static final int MAX_PLAYERS = 10;
     /** Cards in one standard deck. */
     public static final int DECK_CARD_COUNT = 52;
@@ -83,17 +83,44 @@ public class GameSession {
     @Setter(AccessLevel.NONE)
     private int lastRequiredPileValue;
 
+    /**
+     * Seats that the decks hold when every player is dealt a full layout, capped at {@link #MAX_PLAYERS}.
+     * With the default 3 + 3 + 3 layout one deck seats 5 players and two decks reach the cap.
+     */
+    public static int seatCapacity(int decksCount, int faceDownCount, int faceUpCount, int handCount) {
+        int cardsPerPlayer = faceDownCount + faceUpCount + handCount;
+        if (cardsPerPlayer <= 0) {
+            return MAX_PLAYERS;
+        }
+        return Math.min(MAX_PLAYERS, decksCount * DECK_CARD_COUNT / cardsPerPlayer);
+    }
+
+    /** Seats of this game, from its deck count and card layout. */
+    public int seatCapacity() {
+        return seatCapacity(config.getDecksCount(), config.getFaceDownCount(), config.getFaceUpCount(),
+                config.getHandCount());
+    }
+
     public void addPlayer(String id, String name) {
         if (started) {
             throw new IllegalStateException("Game already started");
         }
-        if (players.size() >= MAX_PLAYERS) {
-            throw new IllegalStateException("Game is full: at most " + MAX_PLAYERS + " players can join");
+        int capacity = seatCapacity();
+        if (players.size() >= capacity) {
+            throw new IllegalStateException(fullMessage(capacity));
         }
         players.add(Player.builder()
                 .playerId(id)
                 .username(name)
                 .build());
+    }
+
+    /** Explains a full game. A one-deck game points the owner at the second deck, the only way to seat more. */
+    private String fullMessage(int capacity) {
+        if (config.getDecksCount() == 1 && capacity < MAX_PLAYERS) {
+            return "Game is full: one deck seats " + capacity + " players. The owner can add a second deck.";
+        }
+        return "Game is full: at most " + capacity + " players can join";
     }
 
     public void removePlayer(String playerId) {

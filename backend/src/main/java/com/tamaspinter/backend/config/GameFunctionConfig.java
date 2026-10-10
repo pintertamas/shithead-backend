@@ -4,10 +4,13 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2WebSocketEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tamaspinter.backend.entity.EloChangeEntity;
+import com.tamaspinter.backend.entity.GameConfigEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
+import com.tamaspinter.backend.game.GameConfig;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.game.PlayResult;
 import com.tamaspinter.backend.mapper.SessionMapper;
@@ -61,6 +64,9 @@ public class GameFunctionConfig {
             "Access-Control-Allow-Headers", "Content-Type,Authorization",
             "Access-Control-Allow-Methods", "POST,GET,PUT,OPTIONS"
     );
+    /** Deck count of a game that raised its deck, and the burn count the glue sets for two decks too. */
+    private static final int TWO_DECKS = 2;
+    private static final int TWO_DECKS_BURN_COUNT = 6;
 
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
@@ -195,6 +201,64 @@ public class GameFunctionConfig {
             sessionRepo.save(session.toEntity());
             return corsResponse(200);
         };
+    }
+
+    /**
+     * Owner-only, before the start: raises a one-deck lobby to two decks so it can seat more players.
+     * Body {@code {"decksCount": 2}}; the burn count becomes 6, as for any two-deck game.
+     */
+    @Bean
+    @SuppressWarnings("PMD.CognitiveComplexity")
+    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> raiseDecks() {
+        return req -> {
+            String sessionId = req.getPathParameters().get("sessionId");
+            GameSessionEntity entity = sessionRepo.get(sessionId);
+            if (entity == null) {
+                return corsResponse(404);
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
+            String userId = claims.get("sub");
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
+            if (userId == null || !userId.equals(entity.getOwnerId())) {
+                return corsResponse(403);
+            }
+            if (entity.isStarted()) {
+                return conflictResponse("Game already started");
+            }
+            if (!isRaiseToTwoDecks(req.getBody())) {
+                return corsResponse(400);
+            }
+            GameConfigEntity config = entity.getConfig() != null
+                    ? entity.getConfig()
+                    : GameConfig.defaultGameConfig().toEntity();
+            if (config.getDecksCount() >= TWO_DECKS) {
+                return conflictResponse("This game already uses two decks");
+            }
+            config.setDecksCount(TWO_DECKS);
+            config.setBurnCount(TWO_DECKS_BURN_COUNT);
+            entity.setConfig(config);
+            sessionRepo.save(entity);
+            return corsResponse(200, "{\"decksCount\":" + TWO_DECKS + ",\"burnCount\":" + TWO_DECKS_BURN_COUNT + "}");
+        };
+    }
+
+    /**
+     * True only for a body whose {@code decksCount} is the integer 2. Any other value, or no body, is false.
+     */
+    private boolean isRaiseToTwoDecks(String body) {
+        if (body == null) {
+            return false;
+        }
+        try {
+            JsonNode root = mapper.readTree(body);
+            JsonNode requested = root == null ? null : root.get("decksCount");
+            return requested != null && requested.isInt() && requested.intValue() == TWO_DECKS;
+        } catch (JsonProcessingException e) {
+            return false;
+        }
     }
 
     @Bean
@@ -760,6 +824,7 @@ public class GameFunctionConfig {
                 .shitheadId(entity.getShitheadId())
                 .isOwner(viewerId != null && viewerId.equals(entity.getOwnerId()))
                 .deckCount(deck.size())
+                .decksCount(entity.getConfig() == null ? 1 : entity.getConfig().getDecksCount())
                 .allowMixedHandAndFaceUpWhenDeckEmpty(entity.getConfig() != null
                         && entity.getConfig().isAllowMixedHandAndFaceUpWhenDeckEmpty())
                 .allowFailedFaceUpPlay(entity.getConfig() != null
