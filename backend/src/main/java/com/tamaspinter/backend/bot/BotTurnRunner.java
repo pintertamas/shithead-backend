@@ -133,7 +133,8 @@ public final class BotTurnRunner {
         try {
             return strategies.apply(bot.getBotType()).choosePlay(BotView.of(session, bot), legalPlays, random);
         } catch (RuntimeException e) {
-            log.error("Bot strategy failed in game {}", session.getSessionId(), e);
+            // One line without the stack trace: a broken strategy fails on every move, up to MAX_BOT_MOVES times.
+            log.warn("Bot strategy failed in game {}: {}", session.getSessionId(), e.toString());
             return legalPlays.isEmpty() ? null : legalPlays.get(0);
         }
     }
