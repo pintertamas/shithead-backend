@@ -169,6 +169,8 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
   const faceUpIndexes = serverIndexes(faceUpOccupied);
   const faceDownIndexes = serverIndexes(layout.faceDown);
   const stackCount = Math.max(layout.faceUp.length, layout.faceDown.length);
+  // Any card left (hand, face-down or face-up) makes the opponent peekable. An empty seat shows the plain stacks.
+  const opponentHasCards = player.handCount > 0 || player.faceDownCount > 0 || player.faceUp.length > 0;
 
   const stacks = (
     <div className="player-card-stacks" aria-label={`${player.username}'s table cards`}>
@@ -188,6 +190,9 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
           </div>
         );
       })}
+      {/* An opponent with only a hand has no table slots, so the peek wrapper would be 0 px wide and unreachable.
+          One empty slot (no content, card-sized from the table CSS) gives the peek a target. */}
+      {stackCount === 0 && !player.isYou && opponentHasCards && <div className="paired-card-stack" aria-hidden="true" />}
     </div>
   );
 
@@ -218,10 +223,10 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
             </div>
           </div>
         )}
-        {!player.isYou && player.faceUp.length > 0 ? (
+        {!player.isYou && opponentHasCards ? (
           <PeekWrap
             className="stack-peek-wrap"
-            label={`Enlarge ${player.username}'s face-up cards`}
+            label={`Enlarge ${player.username}'s cards`}
             toggleText="Enlarge"
             placement="below"
             pressToOpen={compact}
