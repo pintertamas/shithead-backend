@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { clearAuth } from "../auth/useAuth";
+import { clearAccountDeleted, isAccountDeleted } from "../auth/accountDeleted";
 import "../styles/login.css";
 
 const domain = import.meta.env.VITE_COGNITO_DOMAIN;
@@ -63,6 +64,8 @@ function CardFace({ rank, suit, className }: { rank: string; suit: string; class
 export default function Login() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  // Read once; cleared only when the user signs in again, so the notice survives the Cognito logout redirect.
+  const [accountDeleted] = useState(isAccountDeleted);
 
   useEffect(() => {
     clearAuth();
@@ -73,6 +76,7 @@ export default function Login() {
 
     setIsRedirecting(true);
     setStartError(null);
+    clearAccountDeleted();
     try {
       const verifier = createVerifier();
       localStorage.setItem(PKCE_VERIFIER_KEY, verifier);
@@ -124,6 +128,12 @@ export default function Login() {
         <p className="login-lede">
           Sign in to start a table or join your friends, and climb the leaderboard.
         </p>
+
+        {accountDeleted && (
+          <p className="success-alert" role="status">
+            Your account was deleted.
+          </p>
+        )}
 
         <button
           className="login-google-button"

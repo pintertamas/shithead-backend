@@ -49,6 +49,11 @@ variable "cognito_user_pool_id" {
   type        = string
 }
 
+variable "cognito_user_pool_arn" {
+  description = "ARN of the Cognito User Pool (the game API deletes a user's own account with AdminDeleteUser)"
+  type        = string
+}
+
 variable "livekit_url" {
   description = "LiveKit server WebSocket URL (empty disables voice chat)"
   type        = string

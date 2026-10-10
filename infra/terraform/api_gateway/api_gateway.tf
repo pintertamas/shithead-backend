@@ -288,7 +288,7 @@ resource "aws_api_gateway_integration_response" "options_profile" {
   status_code = aws_api_gateway_method_response.options_profile.status_code
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,DELETE,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
 }
@@ -659,7 +659,9 @@ resource "aws_api_gateway_deployment" "deployment" {
       aws_api_gateway_integration.options_leaderboard_top.id,
       aws_api_gateway_integration.get_profile.id,
       aws_api_gateway_integration.put_profile.id,
+      aws_api_gateway_integration.delete_profile.id,
       aws_api_gateway_integration.options_profile.id,
+      aws_api_gateway_integration_response.options_profile.response_parameters["method.response.header.Access-Control-Allow-Methods"],
       aws_api_gateway_integration.admin_doomsday.id,
       aws_api_gateway_integration.options_admin_doomsday.id,
       aws_api_gateway_integration.get_admin_users.id,

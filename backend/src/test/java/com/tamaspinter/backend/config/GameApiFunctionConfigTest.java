@@ -94,8 +94,9 @@ class GameApiFunctionConfigTest {
     void profileAndAdminRoutesGoToAccountManagement() {
         assertEquals("accountManagement", invoke(restEvent("GET", "/profile", null)).getBody());
         assertEquals("accountManagement", invoke(restEvent("PUT", "/profile", null)).getBody());
+        assertEquals("accountManagement", invoke(restEvent("DELETE", "/profile", null)).getBody());
         assertEquals("accountManagement", invoke(restEvent("POST", "/admin/doomsday", null)).getBody());
-        verify(accountManagement, org.mockito.Mockito.times(3)).apply(any(APIGatewayProxyRequestEvent.class));
+        verify(accountManagement, org.mockito.Mockito.times(4)).apply(any(APIGatewayProxyRequestEvent.class));
     }
 
     @Test
@@ -131,7 +132,7 @@ class GameApiFunctionConfigTest {
 
     @Test
     void knownPathWithUnsupportedMethodReturnsNotFound() {
-        assertEquals(404, invoke(restEvent("DELETE", "/profile", null)).getStatusCode());
+        assertEquals(404, invoke(restEvent("PATCH", "/profile", null)).getStatusCode());
         verify(accountManagement, never()).apply(any(APIGatewayProxyRequestEvent.class));
     }
 

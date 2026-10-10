@@ -7,6 +7,7 @@ import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.handler.AdminUserHandler;
 import com.tamaspinter.backend.handler.GameBrowseHandler;
 import com.tamaspinter.backend.repository.UserProfileRepository;
+import com.tamaspinter.backend.service.AccountDeletionService;
 import com.tamaspinter.backend.service.AdminUserService;
 import com.tamaspinter.backend.service.BlockedUserGuard;
 import com.tamaspinter.backend.service.GameBrowseService;
@@ -40,6 +41,7 @@ class AccountManagementFunctionConfigTest {
     private GameBrowseService gameBrowse;
     private BlockedUserGuard blockedUserGuard;
     private UserProfileService profileService;
+    private AccountDeletionService accountDeletion;
     private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> lambda;
 
     @BeforeAll
@@ -54,6 +56,7 @@ class AccountManagementFunctionConfigTest {
         gameBrowse = mock(GameBrowseService.class);
         blockedUserGuard = mock(BlockedUserGuard.class);
         profileService = mock(UserProfileService.class);
+        accountDeletion = mock(AccountDeletionService.class);
         ObjectMapper mapper = new ObjectMapper();
         AccountManagementFunctionConfig config = new AccountManagementFunctionConfig(
                 mock(GameSessionRepository.class),
@@ -62,6 +65,7 @@ class AccountManagementFunctionConfigTest {
                 blockedUserGuard,
                 new AdminUserHandler(adminUsers, mapper),
                 new GameBrowseHandler(gameBrowse, mapper),
+                accountDeletion,
                 mapper);
         lambda = config.accountManagement();
     }
@@ -184,6 +188,89 @@ class AccountManagementFunctionConfigTest {
         assertEquals(200, response.getStatusCode());
         assertTrue(response.getBody().contains("\"sessionId\":\"g1\""));
         assertTrue(response.getBody().contains("\"maxPlayers\":5"));
+    }
+
+    @Test
+    void delete_deletesOnlyTheTokenSubject_ignoringBodyIds() {
+        // Given
+        when(accountDeletion.deleteAccount(PLAYER_SUB, "Google_player"))
+                .thenReturn(AccountDeletionService.DeletionOutcome.DELETED);
+        APIGatewayProxyRequestEvent request = deleteRequest(PLAYER_SUB, "Google_player")
+                .withBody("{\"userId\":\"" + TARGET + "\"}");
+
+        // When
+        APIGatewayProxyResponseEvent response = lambda.apply(request);
+
+        // Then
+        assertEquals(200, response.getStatusCode());
+        assertEquals("{\"deleted\":true}", response.getBody());
+        verify(accountDeletion).deleteAccount(PLAYER_SUB, "Google_player");
+        verify(accountDeletion, never()).deleteAccount(TARGET, "Google_player");
+    }
+
+    @Test
+    void delete_blockedUser_mayStillDeleteOwnAccount() {
+        // Given
+        when(blockedUserGuard.isBlocked(PLAYER_SUB)).thenReturn(true);
+        when(accountDeletion.deleteAccount(PLAYER_SUB, "Google_player"))
+                .thenReturn(AccountDeletionService.DeletionOutcome.DELETED);
+
+        // When
+        APIGatewayProxyResponseEvent response = lambda.apply(deleteRequest(PLAYER_SUB, "Google_player"));
+
+        // Then
+        assertEquals(200, response.getStatusCode());
+        verify(accountDeletion).deleteAccount(PLAYER_SUB, "Google_player");
+    }
+
+    @Test
+    void delete_cognitoFailure_returns500() {
+        // Given
+        when(accountDeletion.deleteAccount(PLAYER_SUB, "Google_player"))
+                .thenReturn(AccountDeletionService.DeletionOutcome.COGNITO_FAILED);
+
+        // When
+        APIGatewayProxyResponseEvent response = lambda.apply(deleteRequest(PLAYER_SUB, "Google_player"));
+
+        // Then
+        assertEquals(500, response.getStatusCode());
+        assertTrue(response.getBody().contains("could not be deleted"));
+    }
+
+    @Test
+    void delete_missingClaims_returns401WithoutDeleting() {
+        // Given
+        APIGatewayProxyRequestEvent noUsername = deleteRequest(PLAYER_SUB, null);
+        APIGatewayProxyRequestEvent noSubject = deleteRequest(null, "Google_player");
+
+        // When / Then
+        assertEquals(401, lambda.apply(noUsername).getStatusCode());
+        assertEquals(401, lambda.apply(noSubject).getStatusCode());
+        verify(accountDeletion, never()).deleteAccount(anyString(), anyString());
+    }
+
+    @Test
+    void cors_allowsDeleteMethod() {
+        // Given
+        APIGatewayProxyRequestEvent request = deleteRequest(null, null);
+
+        // When
+        APIGatewayProxyResponseEvent response = lambda.apply(request);
+
+        // Then
+        assertTrue(response.getHeaders().get("Access-Control-Allow-Methods").contains("DELETE"));
+    }
+
+    private static APIGatewayProxyRequestEvent deleteRequest(String sub, String cognitoUsername) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("sub", sub);
+        claims.put("cognito:username", cognitoUsername);
+        APIGatewayProxyRequestEvent.ProxyRequestContext context = new APIGatewayProxyRequestEvent.ProxyRequestContext();
+        context.setAuthorizer(Map.of("claims", claims));
+        return new APIGatewayProxyRequestEvent()
+                .withHttpMethod("DELETE")
+                .withPath("/prod/profile")
+                .withRequestContext(context);
     }
 
     private static APIGatewayProxyRequestEvent request(String method, String path, String sub, List<String> groups) {

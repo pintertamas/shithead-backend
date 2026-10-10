@@ -10,6 +10,7 @@ import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
 import com.tamaspinter.backend.handler.AdminUserHandler;
 import com.tamaspinter.backend.handler.GameBrowseHandler;
+import com.tamaspinter.backend.service.AccountDeletionService;
 import com.tamaspinter.backend.service.BlockedUserGuard;
 import com.tamaspinter.backend.service.UserProfileService;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +46,7 @@ public class AccountManagementFunctionConfig {
     private static final Map<String, String> CORS_HEADERS = Map.of(
             "Access-Control-Allow-Origin", "*",
             "Access-Control-Allow-Headers", "Content-Type,Authorization",
-            "Access-Control-Allow-Methods", "POST,GET,PUT,OPTIONS"
+            "Access-Control-Allow-Methods", "POST,GET,PUT,DELETE,OPTIONS"
     );
 
     private static final Pattern BLOCK_ROUTE = Pattern.compile(".*/admin/users/([^/]+)/(block|unblock)");
@@ -56,6 +57,7 @@ public class AccountManagementFunctionConfig {
     private final BlockedUserGuard blockedUserGuard;
     private final AdminUserHandler adminUsers;
     private final GameBrowseHandler gameBrowse;
+    private final AccountDeletionService accountDeletion;
     private final ObjectMapper mapper;
     private final DynamoDbClient dynamoClient = DynamoDbClient.create();
     private final String wsConnectionsTable = System.getenv("WS_CONNECTIONS_TABLE");
@@ -76,11 +78,16 @@ public class AccountManagementFunctionConfig {
             String path = req.getPath() == null ? "" : req.getPath();
             String method = req.getHttpMethod();
             Map<String, Object> claims = requestClaims(req);
-            if (blockedUserGuard.isBlocked((String) claims.get("sub"))) {
+            // A blocked user may still delete their own account, so the block check is skipped for that route.
+            if (!isOwnAccountDeletion(method, path) && blockedUserGuard.isBlocked((String) claims.get("sub"))) {
                 return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
             }
             return dispatch(req, path, method, claims);
         };
+    }
+
+    private static boolean isOwnAccountDeletion(String method, String path) {
+        return "DELETE".equals(method) && path.endsWith("/profile");
     }
 
     private APIGatewayProxyResponseEvent dispatch(
@@ -94,7 +101,24 @@ public class AccountManagementFunctionConfig {
         if ("PUT".equals(method) && path.endsWith("/profile")) {
             return updateProfile(req, claims);
         }
+        if (isOwnAccountDeletion(method, path)) {
+            return deleteAccount(claims);
+        }
         return corsResponse(404);
+    }
+
+    private APIGatewayProxyResponseEvent deleteAccount(Map<String, Object> claims) {
+        Object userId = claims.get("sub");
+        Object cognitoUsername = claims.get("cognito:username");
+        if (!(userId instanceof String id) || id.isBlank()
+                || !(cognitoUsername instanceof String name) || name.isBlank()) {
+            return corsResponse(401, "{\"message\":\"Sign in again to delete your account.\"}");
+        }
+        AccountDeletionService.DeletionOutcome outcome = accountDeletion.deleteAccount(id, name);
+        return switch (outcome) {
+            case DELETED -> corsResponse(200, "{\"deleted\":true}");
+            case COGNITO_FAILED -> corsResponse(500, "{\"message\":\"Your account could not be deleted. Please try again.\"}");
+        };
     }
 
     private APIGatewayProxyResponseEvent dispatchGet(String path, Map<String, Object> claims) {
