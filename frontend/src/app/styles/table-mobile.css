@@ -183,11 +183,12 @@
     line-height: 1.35;
   }
 
-  .game-page.phone-table .game-piles .pile {
+  /* The pile box width comes from piles.css (the same for both piles). Phones only narrow its side padding, so the
+     title keeps a clear gap from the edges without the box getting wider than the centre column. */
+  .game-page.phone-table .game-piles .pile.pile-box {
+    --pile-pad-x: 8px;
     min-width: 0;
-    width: 100%;
-    max-width: 104px;
-    padding: 4px;
+    padding: 4px var(--pile-pad-x);
   }
 
   .game-page.phone-table .game-piles .pile-count {
@@ -199,10 +200,12 @@
     display: none;
   }
 
-  /* The chat button floats over the bottom-right corner; the play row and log line leave room for it. */
+  /* The chat button floats over the bottom-right corner (it is a child of body); the play row and log line stop
+     short of it, so their boxes do not overlap it. */
   .game-page.phone-table .game-actions-play,
   .game-page.phone-table .phone-log-wrap {
-    padding-right: 66px;
+    width: auto;
+    margin-right: 66px;
   }
 
   /* Compact opponent panels: a narrower card size and a short header. */
@@ -363,7 +366,6 @@
     align-items: center;
     gap: 8px;
     min-width: 0;
-    width: 100%;
   }
 
   .game-page.phone-table .phone-log-line {
@@ -506,9 +508,8 @@
     gap: 14px;
   }
 
-  .game-page.phone-table .game-piles .pile {
-    max-width: 96px;
-    padding: 3px 4px;
+  .game-page.phone-table .game-piles .pile.pile-box {
+    padding: 3px var(--pile-pad-x);
   }
 
   .game-page.phone-table .game-board .game-seat-own .playing-hand {
@@ -563,6 +564,76 @@
 
   .game-page.phone-table .game-actions-play .game-hint {
     flex: 0 1 auto;
+  }
+}
+
+/* ---------- Play phase: the own cards get more of the height (setup keeps its sizes: seat-panels.css) ----------
+   The card-size tokens are resolved on .game-board, so the own panel sets all of them again; otherwise its cards
+   would keep the board size (the piles' size). The piles and the previous/next seats keep the board sizes. */
+
+/* Portrait: the middle row (the two piles, stacked) takes the height that is left, so the own cards grow with the
+   screen height. Everything else is about 428px (header with the chips row, paddings, play row, log line, piles),
+   and the own panel is 2.8 card widths plus about 45px. 530px keeps about 40px of spare height in the middle row even
+   with a transparent card on the discard pile (the "View pile" toggle hangs about 25px below the pile, and the
+   transparent card takes 15px more). Between the old 38px and 52px. */
+@media (max-width: 700px) and (orientation: portrait) {
+  .game-page.phone-table:not(.setup-phase) .game-board .game-seat-own {
+    --own-card-w: clamp(38px, calc((100dvh - 530px) / 2.8), 52px);
+    --card-w: var(--own-card-w);
+    --card-h: calc(var(--card-w) * 7 / 5);
+    --card-corner-fs: calc(var(--card-w) * 0.22);
+    --card-center-fs: calc(var(--card-w) * 0.46);
+    --card-overlap: calc(var(--card-w) * -0.46);
+    --card-fan-step: calc(var(--card-w) * 0.22);
+  }
+}
+
+/* Landscape: the height is the limit (the middle row takes no spare height). The own panel and its hand get less
+   padding, and the header and chips a little less, so the own cards grow from 30px as far as the height allows. */
+@media (max-width: 700px) and (orientation: landscape) {
+  .game-page.phone-table:not(.setup-phase) .table-bar {
+    padding: 2px 8px;
+  }
+
+  .game-page.phone-table:not(.setup-phase) .seat-chip {
+    padding: 2px 6px;
+  }
+
+  /* The chat button (a child of body) sits in the play and log band; 8px from the bottom it stays below the own
+     panel's bottom edge. */
+  body:has(.game-page.phone-table:not(.setup-phase)) .chat-fab {
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Play has no action row in the middle (only in setup), so its row gap goes. The discard pile's "View pile" toggle
+     sits beside the pile here (below it there is no room at this height), so the reserve under the piles goes too.
+     The 263px constant reserves the 9px a transparent card on the discard pile adds (its overlap is taller). */
+  .game-page.phone-table:not(.setup-phase) .game-middle.phone-middle {
+    row-gap: 0;
+    padding-bottom: 0;
+  }
+
+  .game-page.phone-table:not(.setup-phase) .pile-peek-wrap:has(.pile-discard) > .peek-toggle {
+    top: 50%;
+    left: 100%;
+    margin: 0 0 0 6px;
+    transform: translateY(-50%);
+  }
+
+  .game-page.phone-table:not(.setup-phase) .game-board .game-seat-own {
+    --own-card-w: clamp(30px, calc((100dvh - 263px) / 2.8), 38px);
+    --card-w: var(--own-card-w);
+    --card-h: calc(var(--card-w) * 7 / 5);
+    --card-corner-fs: calc(var(--card-w) * 0.22);
+    --card-center-fs: calc(var(--card-w) * 0.46);
+    --card-overlap: calc(var(--card-w) * -0.46);
+    --card-fan-step: calc(var(--card-w) * 0.22);
+    padding: 4px 6px;
+  }
+
+  .game-page.phone-table:not(.setup-phase) .game-board .game-seat-own .playing-hand {
+    min-height: calc(var(--card-h) + 2px);
+    padding: 1px 4px;
   }
 }
 

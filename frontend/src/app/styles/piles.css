@@ -7,20 +7,23 @@
 
 /* ---------- Pile box ---------- */
 
+/* Both piles get the same width: the wider of the card area and the title ("Discard pile" at 11px), plus the
+   side padding (and the 1px border on each side). The width does not depend on the title or on the cards, so
+   the draw and discard piles match at every card size. Height is the same too, except with a transparent card
+   on top (its overlap is taller, see .pile-overlap). */
 .game-board .game-piles .pile.pile-box {
+  --pile-title-w: 66px;
+  --pile-pad-x: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
   box-sizing: border-box;
-  min-width: calc(var(--card-w) + 34px);
-  padding: 10px 10px 8px;
+  width: calc(max(var(--card-w) + 12px, var(--pile-title-w)) + 2 * var(--pile-pad-x) + 2px);
+  min-width: 0;
+  padding: 10px var(--pile-pad-x) 8px;
   color: #f5edda;
   text-align: center;
-}
-
-.game-board .game-piles .pile.pile-box.pile-with-transparent {
-  min-width: max(calc(var(--card-w) + 34px), min(45vw, 280px));
 }
 
 .game-board .game-piles .pile-box .pile-title {
