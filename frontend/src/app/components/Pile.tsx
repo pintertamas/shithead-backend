@@ -1,7 +1,8 @@
-import { CSSProperties } from "react";
+import { CSSProperties, ReactNode } from "react";
 import { Card } from "../api/game";
 import { CardFaceContent, cardRank, isRedSuit } from "./CardFace";
 import PeekWrap from "./PeekWrap";
+import "../styles/piles.css";
 
 const MAX_DRAW_LAYERS = 6;
 
@@ -13,48 +14,39 @@ function cardLabel(card: Card) {
   return `${cardRank(card.value)} of ${card.suit}`;
 }
 
-function DrawPile({ title, count, fxAnchor }: { title: string; count: number; fxAnchor?: string }) {
-  const layers = count <= 0 ? 0 : Math.min(MAX_DRAW_LAYERS, 1 + Math.floor(count / 8));
-  const stackLayers = Math.max(layers, 1);
-  const pileElement = (
-    <div
-      className={`card pile pile-draw${count === 0 ? " pile-empty" : ""}`}
-      data-fx={fxAnchor}
-      aria-label={`${title}, ${count} ${count === 1 ? "card" : "cards"} left`}
-    >
-      <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>{title}</div>
-      <div className="draw-stack" style={{ "--stack-layers": stackLayers } as CSSProperties}>
-        {Array.from({ length: layers }, (_, layer) => (
-          <div
-            key={layer}
-            className="playing-card face-down-card draw-layer"
-            style={{ "--layer": layer, "--layers": layers } as CSSProperties}
-            aria-hidden="true"
-          />
-        ))}
-        <span className="draw-count">{count}</span>
-      </div>
-    </div>
-  );
-
-  return (
-    <PeekWrap
-      className="pile-peek-wrap"
-      label={`Show ${title.toLowerCase()} count`}
-      toggleText="View pile"
-      pressToOpen
-      popover={<div className="peek-note">Draw pile: {count} {count === 1 ? "card" : "cards"}</div>}
-    >
-      {pileElement}
-    </PeekWrap>
-  );
+function countText(count: number) {
+  return `${count} ${count === 1 ? "card" : "cards"}`;
 }
 
-function PileContents({ cards }: { cards: Card[] }) {
+/** Discard pile contents. On phones (dialog) it is a titled dialog with a grid; on desktop a compact popover. */
+function PileContents({ title, cards, dialog }: { title: string; cards: Card[]; dialog: boolean }) {
+  const heading = `${title} · ${countText(cards.length)}`;
+  if (dialog) {
+    return (
+      <div className="pile-dialog">
+        <div className="pile-dialog-head">{heading}</div>
+        <div className="pile-dialog-body">
+          <div className="pile-dialog-grid">
+            {cards.map((card, index) => {
+              const isTop = index === cards.length - 1;
+              return (
+                <div key={index} className="pile-dialog-cell">
+                  <div className={faceClass(card, "pile-dialog-card")} aria-label={`${cardLabel(card)}${isTop ? ", top card" : ""}`}>
+                    <CardFaceContent card={card} />
+                  </div>
+                  {isTop && <span className="pile-dialog-top" aria-hidden="true">Top</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="pile-contents">
       <div className="pile-contents-title">
-        Discard pile · {cards.length} {cards.length === 1 ? "card" : "cards"}
+        {heading}
         <span>newest last</span>
       </div>
       <div className="pile-contents-cards">
@@ -65,6 +57,93 @@ function PileContents({ cards }: { cards: Card[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/** The shared box: title, card area of fixed size, and the count underneath. Both piles use it. */
+function PileBox({ variant, title, count, empty, fxAnchor, onClick, selectable = false, selected = false, disabled = false, label, children, extraClass = "" }: {
+  variant: "draw" | "discard";
+  title: string;
+  count: number;
+  empty: boolean;
+  fxAnchor?: string;
+  onClick?: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+  disabled?: boolean;
+  label?: string;
+  children: ReactNode;
+  extraClass?: string;
+}) {
+  return (
+    <div
+      className={`card pile pile-box pile-${variant}${empty ? " pile-empty" : ""}${extraClass}${selectable ? " pile-selectable" : ""}${selected ? " pile-selected" : ""}${disabled ? " pile-disabled" : ""}`}
+      data-fx={fxAnchor}
+      role={selectable ? "button" : undefined}
+      tabIndex={selectable && !disabled ? 0 : undefined}
+      aria-label={label}
+      aria-pressed={selectable ? selected : undefined}
+      aria-disabled={selectable ? disabled : undefined}
+      onClick={selectable && !disabled ? onClick : undefined}
+      onKeyDown={selectable && !disabled ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick?.();
+        }
+      } : undefined}
+    >
+      <div className="pile-title">{title}</div>
+      <div className="pile-body">{children}</div>
+      <div className="pile-count">{count}</div>
+    </div>
+  );
+}
+
+function DrawPile({ title, count, fxAnchor }: { title: string; count: number; fxAnchor?: string }) {
+  const layers = count <= 0 ? 0 : Math.min(MAX_DRAW_LAYERS, 1 + Math.floor(count / 8));
+  const stackLayers = Math.max(layers, 1);
+  const pileElement = (
+    <PileBox
+      variant="draw"
+      title={title}
+      count={count}
+      empty={count === 0}
+      fxAnchor={fxAnchor}
+      label={`${title}, ${countText(count)} left`}
+    >
+      <div className="draw-stack" style={{ "--stack-layers": stackLayers } as CSSProperties}>
+        {Array.from({ length: layers }, (_, layer) => (
+          <div
+            key={layer}
+            className="playing-card face-down-card draw-layer"
+            style={{ "--layer": layer, "--layers": layers } as CSSProperties}
+            aria-hidden="true"
+          />
+        ))}
+      </div>
+    </PileBox>
+  );
+
+  return (
+    <PeekWrap
+      className="pile-peek-wrap"
+      label={`Show ${title.toLowerCase()} count`}
+      toggleText="View pile"
+      pressToOpen
+      dialogClassName="pile-dialog-overlay"
+      popover={(dialog) => (dialog ? (
+        <div className="pile-dialog">
+          <div className="pile-dialog-head">{title} · {countText(count)}</div>
+          <div className="pile-dialog-body">
+            <p className="pile-dialog-note">{count === 0 ? "No cards left to draw." : `${countText(count)} left to draw. Their faces are hidden.`}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="peek-note">{title}: {countText(count)}</div>
+      ))}
+    >
+      {pileElement}
+    </PeekWrap>
   );
 }
 
@@ -105,23 +184,19 @@ export default function Pile({
   const beneathCard = beneathIndex >= 0 ? pileCards[beneathIndex] : undefined;
 
   const pileElement = (
-    <div
-      className={`card pile${pileCards.length === 0 ? " pile-empty" : ""}${topIsTransparent ? " pile-with-transparent" : ""}${selectable ? " pile-selectable" : ""}${selected ? " pile-selected" : ""}${disabled ? " pile-disabled" : ""}`}
-      data-fx={fxAnchor}
-      role={selectable ? "button" : undefined}
-      tabIndex={selectable && !disabled ? 0 : undefined}
-      aria-label={selectable ? `${title}, ${count} cards${disabled ? ", unavailable" : ""}` : undefined}
-      aria-pressed={selectable ? selected : undefined}
-      aria-disabled={selectable ? disabled : undefined}
-      onClick={selectable && !disabled ? onClick : undefined}
-      onKeyDown={selectable && !disabled ? (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onClick?.();
-        }
-      } : undefined}
+    <PileBox
+      variant="discard"
+      title={title}
+      count={count}
+      empty={pileCards.length === 0}
+      fxAnchor={fxAnchor}
+      selectable={selectable}
+      selected={selected}
+      disabled={disabled}
+      onClick={onClick}
+      extraClass={topIsTransparent ? " pile-with-transparent" : ""}
+      label={selectable ? `${title}, ${count} cards${disabled ? ", unavailable" : ""}` : undefined}
     >
-      <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>{title}</div>
       <div
         className="pile-visible-cards"
         aria-label={topCard ? (beneathCard ? "Transparent card and the card it covers" : "Top card") : undefined}
@@ -143,8 +218,7 @@ export default function Pile({
           </div>
         )}
       </div>
-      <div className="pile-count">{count}</div>
-    </div>
+    </PileBox>
   );
 
   // Both states use the same wrapper so the discard pile keeps its size when it is empty. The peek
@@ -156,7 +230,8 @@ export default function Pile({
       className="pile-peek-wrap"
       label={`View all ${title.toLowerCase()} cards`}
       toggleText="View pile"
-      popover={<PileContents cards={pileCards} />}
+      dialogClassName="pile-dialog-overlay"
+      popover={(dialog) => <PileContents title={title} cards={pileCards} dialog={dialog} />}
     >
       {pileElement}
     </PeekWrap>

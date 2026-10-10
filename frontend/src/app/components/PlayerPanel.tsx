@@ -3,6 +3,7 @@ import { Card, PlayerState } from "../api/game";
 import { CardFaceContent, cardRank } from "./CardFace";
 import PeekWrap from "./PeekWrap";
 import ChatBubble from "./ChatBubble";
+import SeatTableView from "./SeatTableView";
 import "../styles/player-panel.css";
 
 type Props = {
@@ -144,22 +145,6 @@ function OpponentFan({ count, name }: { count: number; name: string }) {
   );
 }
 
-function EnlargedFaceUp({ username, cards }: { username: string; cards: Card[] }) {
-  return (
-    <div className="pile-contents">
-      <div className="pile-contents-title">{username}’s face-up cards</div>
-      <div className="pile-contents-cards enlarged">
-        {cards.map((card, index) => (
-          <div key={index} className={`playing-card face-up-card pile-contents-card${card.suit === "HEARTS" || card.suit === "DIAMONDS" ? " red-card" : ""}`}
-            aria-label={`${cardRank(card.value)} of ${card.suit}`}>
-            <CardFaceContent card={card} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function PlayerPanel({ player, isCurrentTurn = false, isNext = false, compact = false, canSelectFaceUp = false, canSelectFaceDown = false,
   selectedFaceUp = [], selectedFaceDown = [], selectedHand = [], onToggleFaceUp, onToggleFaceDown, onToggleHand, chatBubble }: Props) {
   const ownHand = player.isYou ? player.hand || [] : [];
@@ -233,7 +218,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
             toggleText="Enlarge"
             placement="below"
             pressToOpen={compact}
-            popover={<EnlargedFaceUp username={player.username} cards={player.faceUp} />}
+            popover={<SeatTableView player={player} isCurrentTurn={isCurrentTurn} />}
           >
             {stacks}
           </PeekWrap>
