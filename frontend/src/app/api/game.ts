@@ -123,6 +123,15 @@ export async function leaveGame(token: string, sessionId: string) {
   await throwForError(res, "leave the game");
 }
 
+export async function raiseDecks(token: string, sessionId: string) {
+  const res = await apiFetch(`/games/${sessionId}/decks`, token, {
+    method: "POST",
+    body: JSON.stringify({ decksCount: 2 })
+  });
+  await throwForError(res, "add a second deck");
+  return res.json() as Promise<{ decksCount: number; burnCount: number }>;
+}
+
 export async function fetchState(token: string, sessionId: string) {
   const res = await apiFetch(`/state/${sessionId}`, token, { method: "GET" });
   await throwForError(res, "load game state");

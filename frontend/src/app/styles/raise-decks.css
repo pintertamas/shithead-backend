@@ -1,0 +1,22 @@
+/* Owner's "Add a second deck" control in the waiting room (screens/Room.tsx), shown under the player list. */
+
+.room-raise-decks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+}
+
+.room-raise-decks .button {
+  min-height: 44px;
+}
+
+.room-raise-decks-hint {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1.4;
+}

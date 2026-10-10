@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, startGame, leaveGame, ChatMessage, GameStateView, openGameSocket } from "../api/game";
+import { fetchState, startGame, leaveGame, raiseDecks, ChatMessage, GameStateView, openGameSocket } from "../api/game";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
@@ -8,13 +8,23 @@ import ChatPanel from "../components/ChatPanel";
 import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
 import { disconnectVoice } from "../lib/voice";
 import "../styles/room-header.css";
+import "../styles/raise-decks.css";
+
+/** decksCount is not in GameStateView yet, so it stays optional here until the state response carries it. */
+type RoomGameState = GameStateView & { decksCount?: number };
+
+/** Seats of a one-deck game with the default layout (3 face-down + 3 face-up + 3 hand = 9 cards): 52 / 9 = 5. Hardcoded because the state does not send the layout. */
+const ONE_DECK_SEATS = 5;
 
 export default function Room() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const { token } = useAuth();
-  const [state, setState] = useState<GameStateView | null>(null);
+  const [state, setState] = useState<RoomGameState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [raiseError, setRaiseError] = useState<string | null>(null);
+  const [raisingDecks, setRaisingDecks] = useState(false);
+  const raiseRequestInProgress = useRef(false);
   const [loading, setLoading] = useState<string | null>(null);
   const failCount = useRef(0);
   const startRequestInProgress = useRef(false);
@@ -121,6 +131,13 @@ export default function Room() {
     return state.isOwner && state.players.length >= 2 && !state.started;
   }, [state]);
 
+  // Only the owner of an unstarted one-deck game that is full for one deck can add the second deck.
+  const canRaiseDecks = useMemo(() => {
+    if (!state) return false;
+    return state.isOwner && !state.started && !state.starting
+      && state.decksCount === 1 && state.players.length >= ONE_DECK_SEATS;
+  }, [state]);
+
   const onStart = async () => {
     if (!sessionId) return;
     startRequestInProgress.current = true;
@@ -148,9 +165,28 @@ export default function Room() {
     }
   };
 
+  const onRaiseDecks = async () => {
+    if (!sessionId || raiseRequestInProgress.current) return;
+    raiseRequestInProgress.current = true;
+    setRaisingDecks(true);
+    setRaiseError(null);
+    try {
+      await raiseDecks(token, sessionId);
+      // Refetch now so the new decksCount and capacity show at once; a failed refetch is covered by the poll.
+      const next = await fetchState(token, sessionId).catch(() => null);
+      if (next) setState(next);
+    } catch (cause) {
+      setRaiseError(cause instanceof ApiError ? cause.message : "Couldn't add a second deck. Please try again.");
+    } finally {
+      raiseRequestInProgress.current = false;
+      setRaisingDecks(false);
+    }
+  };
+
   return (
     <div className="page fade-in room-page">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
+      <ErrorAlert message={raiseError} onDismiss={() => setRaiseError(null)} />
       <header className="room-bar">
         <div className="room-bar-title">
           <h2 className="title">Room {sessionId}</h2>
@@ -190,6 +226,14 @@ export default function Room() {
               </li>
             ))}
           </ul>
+          {canRaiseDecks && (
+            <div className="room-raise-decks">
+              <button className="button secondary" type="button" onClick={onRaiseDecks} disabled={raisingDecks}>
+                {raisingDecks ? "Adding..." : "Add a second deck"}
+              </button>
+              <p className="room-raise-decks-hint">This lets up to 10 players join.</p>
+            </div>
+          )}
         </div>
         <ChatPanel
           messages={chatMessages}
