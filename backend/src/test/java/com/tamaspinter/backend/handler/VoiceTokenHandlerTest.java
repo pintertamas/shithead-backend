@@ -207,7 +207,23 @@ class VoiceTokenHandlerTest {
     }
 
     @Test
-    void issueToken_readsCurrentUtcMonthUsageFromUsersTable() {
+    void issueToken_withNonNumericUsage_returns503AndNoToken() {
+        // Given
+        when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
+        when(dynamoClient.getItem(any(GetItemRequest.class)))
+                .thenReturn(GetItemResponse.builder().item(Map.of("minutes", AttributeValue.fromS("5000"))).build());
+
+        // When
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(PLAYER, SESSION));
+
+        // Then
+        assertEquals(503, response.getStatusCode());
+        assertEquals(VoiceTokenHandler.UNAVAILABLE_BODY, response.getBody());
+        verify(tokens, never()).createToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void issueToken_readsCurrentUtcMonthUsageFromUsersTableWithConsistentRead() {
         // Given
         when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
 
@@ -218,6 +234,7 @@ class VoiceTokenHandlerTest {
         ArgumentCaptor<GetItemRequest> captor = ArgumentCaptor.forClass(GetItemRequest.class);
         verify(dynamoClient).getItem(captor.capture());
         assertEquals(USERS_TABLE, captor.getValue().tableName());
+        assertEquals(Boolean.TRUE, captor.getValue().consistentRead());
         assertEquals(Map.of("user_id", AttributeValue.fromS("__voice_usage#" + YearMonth.now(ZoneOffset.UTC))),
                 captor.getValue().key());
     }

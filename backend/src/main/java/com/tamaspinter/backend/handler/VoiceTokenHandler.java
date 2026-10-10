@@ -111,22 +111,33 @@ public class VoiceTokenHandler {
             if (minutesUsed(usageKey) >= MONTHLY_LIMIT_MINUTES) {
                 return Optional.of(JsonResponses.text(503, PAUSED_BODY));
             }
-        } catch (SdkException e) {
+        } catch (SdkException | IllegalStateException e) {
             log.error("Could not read voice usage item {}", usageKey, e);
             return Optional.of(JsonResponses.text(503, UNAVAILABLE_BODY));
         }
         return Optional.empty();
     }
 
-    /** Minutes recorded for the usage item; an absent item or attribute counts as zero. */
+    /**
+     * Minutes recorded for the usage item; an absent item or attribute counts as zero.
+     *
+     * @throws IllegalStateException when the {@code minutes} attribute is present but not a number
+     */
     private double minutesUsed(String usageKey) {
         AttributeValue minutes = dynamoClient.getItem(GetItemRequest.builder()
                         .tableName(usersTable)
+                        .consistentRead(true)
                         .key(Map.of(USER_KEY, AttributeValue.fromS(usageKey)))
                         .build())
                 .item()
                 .get(USAGE_MINUTES);
-        return minutes == null ? 0 : Double.parseDouble(minutes.n());
+        if (minutes == null) {
+            return 0;
+        }
+        if (minutes.n() == null) {
+            throw new IllegalStateException("Voice usage minutes attribute is not a number");
+        }
+        return Double.parseDouble(minutes.n());
     }
 
     private static String usageKey() {
