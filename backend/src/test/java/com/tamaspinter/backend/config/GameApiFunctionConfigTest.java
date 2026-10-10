@@ -27,6 +27,7 @@ class GameApiFunctionConfigTest {
     private AccountManagementFunctionConfig account;
     private VoiceFunctionConfig voice;
     private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> joinGame;
+    private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> raiseDecks;
     private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> getState;
     private Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> accountManagement;
     private Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent> playCardWS;
@@ -48,10 +49,12 @@ class GameApiFunctionConfigTest {
         Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> leaderboardTop = restHandler("leaderboardTop");
         Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> leaderboardSession =
                 restHandler("leaderboardSession");
+        raiseDecks = restHandler("raiseDecks");
 
         when(game.joinGame()).thenReturn(joinGame);
         when(game.leaveGame()).thenReturn(leaveGame);
         when(game.startGame()).thenReturn(startGame);
+        when(game.raiseDecks()).thenReturn(raiseDecks);
         when(game.getState()).thenReturn(getState);
         when(game.leaderboardTop()).thenReturn(leaderboardTop);
         when(game.leaderboardSession()).thenReturn(leaderboardSession);
@@ -70,6 +73,18 @@ class GameApiFunctionConfigTest {
 
         assertEquals("joinGame", response.getBody());
         verify(joinGame).apply(any(APIGatewayProxyRequestEvent.class));
+    }
+
+    @Test
+    void restPostToGameDecksRoutesToRaiseDecks() {
+        // Given: a session id in the path
+
+        // When
+        APIGatewayProxyResponseEvent response = invoke(restEvent("POST", "/games/ABC123/decks", null));
+
+        // Then
+        assertEquals("raiseDecks", response.getBody());
+        verify(raiseDecks).apply(any(APIGatewayProxyRequestEvent.class));
     }
 
     @Test
@@ -158,6 +173,8 @@ class GameApiFunctionConfigTest {
         assertTrue(routes.findRest("GET", "/games").isPresent());
         assertTrue(routes.findRest("POST", "/games/ABC123/voice-token").isPresent());
         assertEquals(false, routes.findRest("GET", "/games/ABC123/voice-token").isPresent());
+        assertTrue(routes.findRest("POST", "/games/ABC123/decks").isPresent());
+        assertEquals(false, routes.findRest("GET", "/games/ABC123/decks").isPresent());
         assertEquals(false, routes.findRest("GET", "/admin/users/abc/block").isPresent());
         assertEquals(false, routes.findWebSocket("unknown").isPresent());
     }

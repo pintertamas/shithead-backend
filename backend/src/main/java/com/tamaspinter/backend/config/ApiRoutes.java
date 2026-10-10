@@ -48,6 +48,7 @@ public class ApiRoutes {
         rest("POST", "/admin/users/{userId}/unblock", account.accountManagement());
         rest("GET", "/games", account.accountManagement());
         rest("POST", "/games/{sessionId}/voice-token", voice.voiceToken());
+        rest("POST", "/games/{sessionId}/decks", game.raiseDecks());
 
         websocket("play", game.playCardWS());
         websocket("setup", game.playCardWS());
