@@ -137,11 +137,13 @@ function VisibleCard({ card, index, selected, onToggle }: {
 }) {
   const className = `playing-card face-up-card${selected ? " card-selected" : ""}${onToggle ? " card-selectable" : ""}`;
   const label = `${cardRank(card.value)} of ${card.suit}${selected ? ", selected" : ""}`;
+  // Card identity for the swap flights (lib/swapFlight.ts). Opponents' cards carry it too but are never queried.
+  const swapId = `${card.suit}|${card.value}|${card.rule}`;
   return onToggle ? (
-    <button type="button" className={className} onClick={() => onToggle(index)} aria-pressed={selected} aria-label={label}>
+    <button type="button" className={className} onClick={() => onToggle(index)} aria-pressed={selected} aria-label={label} data-swap-card={swapId}>
       <CardFaceContent card={card} />
     </button>
-  ) : <div className={className} aria-label={`${cardRank(card.value)} of ${card.suit}`}><CardFaceContent card={card} /></div>;
+  ) : <div className={className} aria-label={`${cardRank(card.value)} of ${card.suit}`} data-swap-card={swapId}><CardFaceContent card={card} /></div>;
 }
 
 /** The fan always takes its height, so an empty hand leaves the rows below where they were. */

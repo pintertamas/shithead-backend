@@ -6,6 +6,7 @@ import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeBut
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { playTableTransitions } from "../lib/tableAnimations";
+import { useSwapFlights } from "../lib/swapFlight";
 import { CardFaceContent, isRedSuit } from "../components/CardFace";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
@@ -107,6 +108,7 @@ export default function GameTable() {
   const boardRef = useRef<HTMLElement>(null);
   const fxLayerRef = useRef<HTMLDivElement>(null);
   const animatedStateRef = useRef<GameStateView | null>(null);
+  const captureSwapStart = useSwapFlights(boardRef, fxLayerRef, state);
 
   const you = useMemo(() => state?.players.find((p) => p.isYou), [state]);
   // Seats keep the order in which player ids were first seen, so a REVERSE (which reverses state.players) does not reshuffle them.
@@ -220,6 +222,7 @@ export default function GameTable() {
     } else if (revealRef.current && Date.now() - revealRef.current.shownAt < FAILED_FLIP_NOTICE_MS) {
       next = { ...incoming, revealedCard: revealRef.current.card };
     }
+    captureSwapStart(previous, next);
     stateRef.current = next;
     setState(next);
     if (!previous) return;
@@ -229,7 +232,7 @@ export default function GameTable() {
       setPendingAction(false);
     }
     setSelection((current) => reconcileSelection(previous, next, current, pending));
-  }, []);
+  }, [captureSwapStart]);
 
   const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
     setSelection((prev) => nextSelection(prev, { source, index }, { hand: you?.hand, faceUp: you?.faceUp }, setupStage ? "setup" : "play"));
