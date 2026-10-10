@@ -7,6 +7,8 @@ export const LOGIN_SOUND_KEY = "shithead_login_sound";
 export const MAX_FART_VOICES = 8;
 /** Most nudges kept while audio is locked. Nudges beyond this count are dropped so memory stays bounded. */
 export const MAX_QUEUED_FARTS = 50;
+/** Gap between the starts of queued nudges, so a burst stays audible instead of cutting the oldest voices. */
+export const FLUSH_SPACING_MS = 180;
 
 /** A sound that is still playing. `stop` cuts it off. */
 type Voice = { stop: () => void };
@@ -15,6 +17,8 @@ type Voice = { stop: () => void };
 const voices: Voice[] = [];
 /** Nudges waiting for unlocked audio, one count per nudge. They play on the next gesture. */
 let queued = 0;
+/** Timer of a spaced flush that is still running. While it runs, new entries wait for it to play them. */
+let flushTimer: number | null = null;
 
 /** The one AudioContext. It is created inside a user gesture, because iOS only starts audio from a gesture. */
 let context: AudioContext | null = null;
@@ -111,19 +115,32 @@ function playQueuedElements(): void {
   }
 }
 
-/** Plays everything queued once the context runs and the file is decoded. Does nothing while either is missing. */
+/**
+ * Plays queued nudges once the context runs and the file is decoded. Nothing plays while either is missing. The first
+ * queued sound starts at once; the rest start FLUSH_SPACING_MS apart, so every nudge is heard and a burst does not
+ * start all its voices together. A running flush picks up new entries itself.
+ */
 function drainQueue(): void {
-  if (queued === 0) return;
+  if (queued === 0 || flushTimer !== null) return;
   if (usesElements()) {
     playQueuedElements();
     return;
   }
   const audio = context;
   if (!audio || !decoded || audio.state !== "running") return;
-  const count = queued;
-  queued = 0;
-  for (let i = 0; i < count; i += 1) playBuffer(audio, decoded);
+  playNextQueued(audio, decoded);
+}
+
+function playNextQueued(audio: AudioContext, buffer: AudioBuffer): void {
+  queued -= 1;
+  playBuffer(audio, buffer);
   notify();
+  if (queued > 0) {
+    flushTimer = window.setTimeout(() => {
+      flushTimer = null;
+      drainQueue();
+    }, FLUSH_SPACING_MS);
+  }
 }
 
 async function fetchFart(): Promise<ArrayBuffer | null> {
