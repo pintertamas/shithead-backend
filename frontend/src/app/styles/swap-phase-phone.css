@@ -1,0 +1,120 @@
+/*
+ * Swap phase on phones (max-width: 700px; GameTable adds `setup-phase` and `phone-table`). The whole screen fits
+ * the visible height with no scrolling: a compact setup block, the own cards sized from the height left (see
+ * seat-panels.css), and the chat button moved into the top bar so it never covers a card or a button.
+ * Play-phase phone rules stay in table-mobile.css and are not changed here.
+ */
+
+@media (max-width: 700px) {
+  /* The page is exactly the visible height above the browser toolbars (svh, not dvh). */
+  .game-page.setup-phase.phone-table {
+    height: 100vh;
+    height: 100svh;
+  }
+
+  /* Chat button: top right, inside the bar's right padding so it never touches the title, chips or nudge. */
+  .game-page.setup-phase.phone-table .table-bar {
+    padding-right: 54px;
+  }
+
+  body:has(.game-page.setup-phase.phone-table) .chat-fab {
+    top: 8px;
+    right: 8px;
+    bottom: auto;
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Setup block: one compact column with fixed line heights (the own-card budget in seat-panels.css counts on them). */
+  .game-page.setup-phase.phone-table .game-middle.phone-setup {
+    padding: 0;
+  }
+
+  .game-page.setup-phase.phone-table .setup-controls {
+    gap: 5px;
+  }
+
+  .game-page.setup-phase.phone-table .setup-controls > .title {
+    font-size: 14px;
+    line-height: 18px;
+  }
+
+  .game-page.setup-phase.phone-table .setup-controls p {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  /* "How swapping works" opens as a popover over the table, so the disclosure never adds height. */
+  .game-page.setup-phase.phone-table .setup-how {
+    position: relative;
+  }
+
+  .game-page.setup-phase.phone-table .setup-how summary {
+    display: inline-block;
+    padding: 1px 0;
+    color: rgba(245, 237, 218, 0.8);
+    font-size: 12px;
+    line-height: 18px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .game-page.setup-phase.phone-table .setup-how p {
+    position: absolute;
+    z-index: 20;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin: 4px 0 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(236, 232, 205, 0.3);
+    border-radius: 10px;
+    background: #173d32;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+    color: #f5edda;
+  }
+
+  /* Swap (secondary) and Ready (primary) side by side. */
+  .game-page.setup-phase.phone-table .setup-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .game-page.setup-phase.phone-table .setup-actions .button {
+    width: 100%;
+    height: 40px;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 10px;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .game-page.setup-phase.phone-table .setup-actions .game-hint {
+    display: none;
+  }
+
+  .game-page.setup-phase.phone-table .setup-waiting {
+    min-height: 16px;
+  }
+
+  /* Swap phase: the three hand cards sit side by side (no fan overlap) so each one can be tapped and seen. */
+  .game-page.setup-phase.phone-table .game-board .game-seat-own .playing-hand .playing-card + .playing-card {
+    margin-left: 6px;
+  }
+}
+
+/* Landscape phones: the setup controls sit left and the own panel right. Its cards take the height the row leaves
+   (the board, the header and the log line take about 262px). */
+@media (max-width: 700px) and (orientation: landscape) {
+  .game-page.setup-phase.phone-table .game-board .game-seat-own {
+    --card-w: clamp(30px, calc((100svh - 262px) / 2.8), 72px);
+    --card-h: calc(var(--card-w) * 7 / 5);
+    --card-corner-fs: calc(var(--card-w) * 0.22);
+    --card-center-fs: calc(var(--card-w) * 0.46);
+  }
+}

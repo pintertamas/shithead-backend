@@ -21,3 +21,30 @@
   font-weight: 600;
   opacity: 1;
 }
+
+/* Phones: the starter chips sit in one horizontally scrollable row and the starting player is one truncated line. */
+@media (max-width: 700px) {
+  .starter-picker { gap: 5px; }
+  .starter-picker-current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 18px;
+  }
+  .starter-picker-chips {
+    flex-wrap: nowrap;
+    min-height: 28px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    padding: 1px 1px 2px;
+  }
+  .starter-picker-chips::-webkit-scrollbar { display: none; }
+  .starter-picker-chip {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    line-height: 16px;
+    padding: 4px 10px;
+  }
+}

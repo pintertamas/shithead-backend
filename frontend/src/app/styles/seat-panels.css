@@ -17,11 +17,14 @@
 }
 
 /* ---------- Swap phase, phones (portrait): the opponents are chips, so the own cards get the spare height.
-   Width: three hand cards and three stack slots must fit the panel. Height: the setup block keeps its room. ---------- */
+   Height: 100svh minus what the rest of the screen takes, 380px in all (header about 70px, the fixed-height setup
+   block about 170px, the own panel's frame about 50px, the log line and gaps about 90px; see swap-phase-phone.css).
+   Two card rows (hand and face-up) take 2.8 card widths. Width: three hand cards and three stack slots must fit
+   the panel. The 44px floor is for very narrow screens. ---------- */
 
 @media (max-width: 700px) and (orientation: portrait) {
   .game-page.setup-phase.phone-table .game-board .game-seat-own {
-    --card-w: clamp(38px, min(calc((100dvh - 390px) / 2.7), calc((100vw - 60px) / 3.1)), 92px);
+    --card-w: clamp(44px, min(calc((100svh - 380px) / 2.8), calc((100vw - 60px) / 3.1)), 104px);
     --card-h: calc(var(--card-w) * 7 / 5);
     --card-corner-fs: calc(var(--card-w) * 0.22);
     --card-center-fs: calc(var(--card-w) * 0.46);
