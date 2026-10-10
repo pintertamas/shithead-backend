@@ -6,7 +6,7 @@ import ErrorAlert from "../components/ErrorAlert";
 import { RankingRowsSkeleton } from "../components/Skeleton";
 import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
 import { invalidateGames, useLobbyTopQuery, useProfileQuery } from "../data/queries";
-import { consumeLoginSound, playFart, unlockAudio } from "../lib/fartSound";
+import { consumeLoginSound, playFart } from "../lib/fartSound";
 import Icon from "../components/Icon";
 import { startIdleChunkPrefetch, usePrefetch } from "../lib/prefetch";
 // The lobby's ranking table and "Full leaderboard" button are styled here, so this stays eager with the lobby.
@@ -41,9 +41,9 @@ export default function Lobby() {
   }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
-    // Right after a login the browser may block autoplay, so fall back to the first click or key press.
+    // Right after a login the browser blocks autoplay, so the sound waits in the queue for the first tap.
     if (!consumeLoginSound()) return;
-    void playFart().then((played) => { if (!played) unlockAudio(); });
+    void playFart();
   }, []);
 
   const handleCreate = async () => {
