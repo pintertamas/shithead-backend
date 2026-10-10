@@ -1,0 +1,30 @@
+/* Top bar title on the game table: "ROOMCODE · username · elo". The username shrinks first and gets an ellipsis;
+ * the room code, separators and Elo never shrink, so the Elo stays visible on a 360px phone. */
+
+.game-page .table-bar h2.table-bar-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.game-page .table-bar .table-bar-code,
+.game-page .table-bar .table-bar-sep,
+.game-page .table-bar .table-bar-elo {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.game-page .table-bar .table-bar-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-page .table-bar .table-bar-elo {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
