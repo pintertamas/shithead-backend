@@ -59,6 +59,22 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void listUsers_excludesVoiceBookkeepingRows() {
+        // Given
+        UserProfile alice = profile("u-alice", "Alice", 1000, null);
+        UserProfile usage = profile("__voice_usage#2026-10", null, 0, null);
+        UserProfile openMarker = profile("__voice_open#ABC123#u-alice", null, 0, null);
+        when(userRepo.scanAll()).thenReturn(List.of(usage, alice, openMarker));
+
+        // When
+        List<AdminUserService.AdminUserView> users = service.listUsers();
+
+        // Then
+        assertEquals(1, users.size());
+        assertEquals("u-alice", users.get(0).userId());
+    }
+
+    @Test
     void block_setsFlag_andCleansConnectionsAndLobbies() {
         // Given
         when(userRepo.setBlocked(TARGET, true)).thenReturn(true);
