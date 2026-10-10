@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 )
 
@@ -179,6 +180,24 @@ func intField(m map[string]any, name string, def, lo, hi int, rangeErr error) (i
 		return 0, fmt.Errorf("%s: %w", name, rangeErr)
 	}
 	return value, nil
+}
+
+// LiveKitConfig is the LiveKit server the glue verifies webhooks for and calls
+// over RoomService. Empty values disable both. The same LIVEKIT_* variables feed
+// the Java game Lambda; the glue reads them when it needs them.
+type LiveKitConfig struct {
+	URL       string
+	APIKey    string
+	APISecret string
+}
+
+// liveKitConfigFromEnv reads LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET.
+func liveKitConfigFromEnv() LiveKitConfig {
+	return LiveKitConfig{
+		URL:       os.Getenv("LIVEKIT_URL"),
+		APIKey:    os.Getenv("LIVEKIT_API_KEY"),
+		APISecret: os.Getenv("LIVEKIT_API_SECRET"),
+	}
 }
 
 // boolField reads a boolean member, returning false when it is absent.

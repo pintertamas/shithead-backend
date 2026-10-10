@@ -84,3 +84,61 @@ func TestCreateGameRejectsNonBooleanVoice(t *testing.T) {
 		t.Fatalf("non-boolean voiceEnabled should be 400 without writing, got %d", resp.StatusCode)
 	}
 }
+
+func TestCreateGameRefusesVoiceAtGuardThreshold(t *testing.T) {
+	// Given 4500 participant-minutes already used this month
+	db := newFakeDynamo()
+	seedVoiceUsage(db, testNow, 4500)
+	app := newVoiceTestApp(db)
+
+	// When an administrator creates a game with voice enabled
+	req := restCreateGameWithGroups("admin", []any{"game-admin"}, `{"config":{"voiceEnabled":true}}`)
+	resp := proxyResponse(t, mustHandle(t, app, mustRaw(t, req)))
+
+	// Then the create is refused with the pause message and nothing is written
+	if resp.StatusCode != 409 {
+		t.Fatalf("voice at the guard should be 409, got %d: %s", resp.StatusCode, resp.Body)
+	}
+	if want := `{"message":"Voice chat is paused until next month to stay within the free LiveKit allowance."}`; resp.Body != want {
+		t.Fatalf("unexpected body %s", resp.Body)
+	}
+	if n := db.writes("PutItem"); n != 0 {
+		t.Fatalf("refused game must not write, got %d puts", n)
+	}
+}
+
+func TestCreateGameAllowsVoiceJustBelowGuard(t *testing.T) {
+	// Given 4499 participant-minutes used this month
+	db := newFakeDynamo()
+	seedVoiceUsage(db, testNow, 4499)
+	app := newVoiceTestApp(db)
+
+	// When an administrator creates a game with voice enabled
+	req := restCreateGameWithGroups("admin", []any{"game-admin"}, `{"config":{"voiceEnabled":true}}`)
+	resp := proxyResponse(t, mustHandle(t, app, mustRaw(t, req)))
+
+	// Then the game is created with voice on
+	if resp.StatusCode != 200 {
+		t.Fatalf("voice below the guard should be 200, got %d: %s", resp.StatusCode, resp.Body)
+	}
+	config := db.item(testGames, "ZZZZZZ")["config"].(*types.AttributeValueMemberM).Value
+	if v, ok := config["voiceEnabled"].(*types.AttributeValueMemberBOOL); !ok || !v.Value {
+		t.Fatalf("voiceEnabled should be stored as true, got %v", config["voiceEnabled"])
+	}
+}
+
+func TestCreateGameIgnoresVoiceUsageWhenVoiceIsOff(t *testing.T) {
+	// Given the month is already past the allowance
+	db := newFakeDynamo()
+	seedVoiceUsage(db, testNow, 5000)
+	app := newVoiceTestApp(db)
+
+	// When a player creates a game without voice
+	req := restCreateGameWithGroups("owner", nil, `{"config":{}}`)
+	resp := proxyResponse(t, mustHandle(t, app, mustRaw(t, req)))
+
+	// Then the create is unaffected by the guard
+	if resp.StatusCode != 200 {
+		t.Fatalf("game without voice should be 200 at any usage, got %d: %s", resp.StatusCode, resp.Body)
+	}
+}

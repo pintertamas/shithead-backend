@@ -23,6 +23,11 @@ resource "aws_lambda_function" "glue" {
       GAME_SESSIONS_TABLE  = var.aws_dynamodb_table_games_name
       USERS_TABLE          = var.aws_dynamodb_table_users_name
       WS_CONNECTIONS_TABLE = var.aws_dynamodb_table_ws_connection_name
+      # LiveKit webhook (signature check) and room deletion at the monthly limit (voice_*.go).
+      # Empty values reject every webhook and never delete a room.
+      LIVEKIT_URL        = var.livekit_url
+      LIVEKIT_API_KEY    = var.livekit_api_key
+      LIVEKIT_API_SECRET = var.livekit_api_secret
     }
   }
 }
