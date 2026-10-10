@@ -17,6 +17,7 @@ public record GameStateView(
         String shitheadId,
         boolean isOwner,
         int deckCount,
+        int decksCount,
         boolean allowMixedHandAndFaceUpWhenDeckEmpty,
         boolean allowFailedFaceUpPlay,
         boolean voiceEnabled,

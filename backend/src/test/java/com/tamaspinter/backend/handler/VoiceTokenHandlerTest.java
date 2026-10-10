@@ -12,7 +12,15 @@ import com.tamaspinter.backend.service.BlockedUserGuard;
 import com.tamaspinter.backend.service.LiveKitAccessTokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -31,11 +40,13 @@ class VoiceTokenHandlerTest {
     private static final String SESSION = "ABC123";
     private static final String PLAYER = "player-1";
     private static final String OUTSIDER = "outsider-9";
+    private static final String USERS_TABLE = "shithead-users";
 
     private final ObjectMapper mapper = new ObjectMapper();
     private GameSessionRepository sessions;
     private BlockedUserGuard blockedUserGuard;
     private LiveKitAccessTokenService tokens;
+    private DynamoDbClient dynamoClient;
     private VoiceTokenHandler handler;
 
     @BeforeEach
@@ -43,10 +54,12 @@ class VoiceTokenHandlerTest {
         sessions = mock(GameSessionRepository.class);
         blockedUserGuard = mock(BlockedUserGuard.class);
         tokens = mock(LiveKitAccessTokenService.class);
+        dynamoClient = mock(DynamoDbClient.class);
         when(tokens.isConfigured()).thenReturn(true);
         when(tokens.serverUrl()).thenReturn("wss://example.livekit.cloud");
         when(tokens.createToken(anyString(), anyString(), anyString())).thenReturn("header.payload.sig");
-        handler = new VoiceTokenHandler(sessions, blockedUserGuard, tokens, mapper);
+        usageItemIsAbsent();
+        handler = new VoiceTokenHandler(sessions, blockedUserGuard, tokens, mapper, dynamoClient, USERS_TABLE);
     }
 
     @Test
@@ -103,6 +116,7 @@ class VoiceTokenHandlerTest {
         assertEquals(503, response.getStatusCode());
         assertEquals("{\"message\":\"Voice chat is not configured\"}", response.getBody());
         verify(tokens, never()).createToken(anyString(), anyString(), anyString());
+        verify(dynamoClient, never()).getItem(any(GetItemRequest.class));
     }
 
     @Test
@@ -131,6 +145,107 @@ class VoiceTokenHandlerTest {
 
         assertFalse(response.getBody().contains(PLAYER));
         assertNotNull(response.getHeaders().get("Access-Control-Allow-Origin"));
+    }
+
+    @Test
+    void issueToken_withUsageBelowLimit_returns200() {
+        // Given
+        when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
+        usageMinutesAre("4999");
+
+        // When
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(PLAYER, SESSION));
+
+        // Then
+        assertEquals(200, response.getStatusCode());
+        verify(tokens).createToken(SESSION, PLAYER, "Tomi");
+    }
+
+    @Test
+    void issueToken_withUsageAtLimit_returns503() {
+        // Given
+        when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
+        usageMinutesAre("5000");
+
+        // When
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(PLAYER, SESSION));
+
+        // Then
+        assertEquals(503, response.getStatusCode());
+        assertEquals(VoiceTokenHandler.PAUSED_BODY, response.getBody());
+        verify(tokens, never()).createToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void issueToken_whenUsageReadFails_returns503AndNoToken() {
+        // Given
+        when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
+        when(dynamoClient.getItem(any(GetItemRequest.class)))
+                .thenThrow(DynamoDbException.builder().message("throttled").build());
+
+        // When
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(PLAYER, SESSION));
+
+        // Then
+        assertEquals(503, response.getStatusCode());
+        assertEquals(VoiceTokenHandler.UNAVAILABLE_BODY, response.getBody());
+        verify(tokens, never()).createToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void issueToken_withAbsentUsageItem_returns200() {
+        // Given
+        when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
+        usageItemIsAbsent();
+
+        // When
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(PLAYER, SESSION));
+
+        // Then
+        assertEquals(200, response.getStatusCode());
+        verify(tokens).createToken(SESSION, PLAYER, "Tomi");
+    }
+
+    @Test
+    void issueToken_withNonNumericUsage_returns503AndNoToken() {
+        // Given
+        when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
+        when(dynamoClient.getItem(any(GetItemRequest.class)))
+                .thenReturn(GetItemResponse.builder().item(Map.of("minutes", AttributeValue.fromS("5000"))).build());
+
+        // When
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(PLAYER, SESSION));
+
+        // Then
+        assertEquals(503, response.getStatusCode());
+        assertEquals(VoiceTokenHandler.UNAVAILABLE_BODY, response.getBody());
+        verify(tokens, never()).createToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void issueToken_readsCurrentUtcMonthUsageFromUsersTableWithConsistentRead() {
+        // Given
+        when(sessions.get(SESSION)).thenReturn(game(true, PLAYER));
+
+        // When
+        handler.issueToken(request(PLAYER, SESSION));
+
+        // Then
+        ArgumentCaptor<GetItemRequest> captor = ArgumentCaptor.forClass(GetItemRequest.class);
+        verify(dynamoClient).getItem(captor.capture());
+        assertEquals(USERS_TABLE, captor.getValue().tableName());
+        assertEquals(Boolean.TRUE, captor.getValue().consistentRead());
+        assertEquals(Map.of("user_id", AttributeValue.fromS("__voice_usage#" + YearMonth.now(ZoneOffset.UTC))),
+                captor.getValue().key());
+    }
+
+    private void usageMinutesAre(String minutes) {
+        when(dynamoClient.getItem(any(GetItemRequest.class)))
+                .thenReturn(GetItemResponse.builder().item(Map.of("minutes", AttributeValue.fromN(minutes))).build());
+    }
+
+    private void usageItemIsAbsent() {
+        when(dynamoClient.getItem(any(GetItemRequest.class))).thenReturn(GetItemResponse.builder().build());
     }
 
     private static GameSessionEntity game(boolean voiceEnabled, String playerId) {
