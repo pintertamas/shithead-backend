@@ -12,9 +12,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-// janitorGracePeriod is how long a started game must have been idle (no save)
-// before the janitor may treat it as abandoned. Every save refreshes updated_at,
-// so a game that is being played is never idle this long.
+// janitorGracePeriod is how long a game (a started game or a lobby still waiting
+// for players) must have been idle, with no save, before the janitor may treat it
+// as abandoned. Every save refreshes updated_at, so a game that is being played or
+// joined is never idle this long.
 const janitorGracePeriod = 15 * time.Minute
 
 const connectionsGameIndex = "game_session_id-index"
@@ -32,20 +33,23 @@ func isScheduledEvent(probe eventProbe) bool {
 	return probe.Source == "aws.events" && probe.DetailType == "Scheduled Event"
 }
 
-// runJanitor deletes abandoned in-progress games. A game is deleted only when it
-// is started, unfinished, idle past the grace period and has no live WebSocket
-// connection registered. Lobbies and finished games are never touched.
+// runJanitor deletes abandoned games. A game is deleted only when it is unfinished,
+// either a started game or a lobby still waiting for players, idle past the grace
+// period and has no live WebSocket connection (see hasLiveConnection). A connection
+// row past its ttl is not live, so a socket open longer than an hour counts as gone;
+// games expire an hour after creation anyway. Finished games are never touched.
 func (a *App) runJanitor(ctx context.Context) (JanitorResult, error) {
 	var result JanitorResult
 	var startKey map[string]types.AttributeValue
 	now := a.now()
+	checker := newConnectionChecker(ctx)
 	for {
 		out, err := a.db.Scan(ctx, &dynamodb.ScanInput{
 			TableName:                 &a.settings.GameSessionsTable,
 			ProjectionExpression:      strPtr("#gid, #started, #finished, #updated, #created, #ttl"),
-			FilterExpression:          strPtr("#started = :true AND #finished = :false"),
+			FilterExpression:          strPtr("#finished = :false"),
 			ExpressionAttributeNames:  gameAttributeNames(),
-			ExpressionAttributeValues: map[string]types.AttributeValue{":true": boolValue(true), ":false": boolValue(false)},
+			ExpressionAttributeValues: map[string]types.AttributeValue{":false": boolValue(false)},
 			ExclusiveStartKey:         startKey,
 		})
 		if err != nil {
@@ -53,7 +57,7 @@ func (a *App) runJanitor(ctx context.Context) (JanitorResult, error) {
 		}
 		for _, item := range out.Items {
 			result.Scanned++
-			a.janitorConsider(ctx, item, now, &result)
+			a.janitorConsider(ctx, item, now, checker, &result)
 		}
 		if out.LastEvaluatedKey == nil {
 			break
@@ -67,10 +71,16 @@ func (a *App) runJanitor(ctx context.Context) (JanitorResult, error) {
 
 // janitorConsider applies every rule to one scanned game. Errors are logged and
 // the game is skipped: the janitor never deletes when it is uncertain.
-func (a *App) janitorConsider(ctx context.Context, item map[string]types.AttributeValue, now time.Time, result *JanitorResult) {
+func (a *App) janitorConsider(ctx context.Context, item map[string]types.AttributeValue, now time.Time, checker connectionChecker, result *JanitorResult) {
 	gameID := stringAttr(item, "game_id")
-	// The scan filter already checks these; re-checking keeps the rule local and safe.
-	if gameID == "" || !boolAttr(item, "started") || boolAttr(item, "finished") {
+	// The scan filter already checks finished; re-checking keeps the rule local and safe.
+	if gameID == "" || boolAttr(item, "finished") {
+		return
+	}
+	started, ok := startedFlag(item)
+	if !ok {
+		log.Printf("janitor skipped game %s: started flag is not a boolean", gameID)
+		result.Skipped++
 		return
 	}
 	lastSeen, ok := lastActivity(item)
@@ -84,7 +94,7 @@ func (a *App) janitorConsider(ctx context.Context, item map[string]types.Attribu
 		result.Kept++
 		return
 	}
-	live, err := a.hasLiveConnection(ctx, gameID, now)
+	live, err := a.hasLiveConnection(ctx, gameID, now, checker)
 	if err != nil {
 		log.Printf("janitor skipped game %s: %v", gameID, err)
 		result.Skipped++
@@ -94,7 +104,7 @@ func (a *App) janitorConsider(ctx context.Context, item map[string]types.Attribu
 		result.Kept++
 		return
 	}
-	deleted, err := a.deleteIfStillIdle(ctx, item, gameID)
+	deleted, err := a.deleteIfStillIdle(ctx, item, gameID, started)
 	if err != nil {
 		log.Printf("janitor skipped game %s: %v", gameID, err)
 		result.Skipped++
@@ -106,7 +116,21 @@ func (a *App) janitorConsider(ctx context.Context, item map[string]types.Attribu
 		return
 	}
 	result.Deleted++
-	log.Printf("janitor deleted abandoned game %s, idle %ds", gameID, int64(idle.Seconds()))
+	kind := "game"
+	if !started {
+		kind = "lobby"
+	}
+	log.Printf("janitor deleted abandoned %s %s, idle %ds", kind, gameID, int64(idle.Seconds()))
+}
+
+// startedFlag reads the started attribute. ok is false unless it is stored as a
+// BOOL, so an item with a missing or malformed flag is never treated as a lobby.
+func startedFlag(item map[string]types.AttributeValue) (started, ok bool) {
+	flag, isBool := item["started"].(*types.AttributeValueMemberBOOL)
+	if !isBool {
+		return false, false
+	}
+	return flag.Value, true
 }
 
 // lastActivity returns when the game was last saved: updated_at, else the
@@ -124,11 +148,15 @@ func lastActivity(item map[string]types.AttributeValue) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// hasLiveConnection reports whether any connection registered for the game has
-// not expired. Rows whose own ttl is already past are ignored, because DynamoDB
-// TTL deletion can lag. A row without a ttl counts as live.
-func (a *App) hasLiveConnection(ctx context.Context, gameID string, now time.Time) (bool, error) {
+// hasLiveConnection reports whether the game has a live WebSocket connection. Only
+// rows whose ttl is still in the future are candidates; a row without a ttl counts
+// as one. Every candidate is confirmed with API Gateway: an open connection keeps the
+// game, a gone one (HTTP 410) has its row deleted and does not count, and any other
+// check failure keeps the game. Every candidate is checked, so stale rows are cleaned
+// up even when another connection is open. A query failure is returned as an error.
+func (a *App) hasLiveConnection(ctx context.Context, gameID string, now time.Time, checker connectionChecker) (bool, error) {
 	var startKey map[string]types.AttributeValue
+	live := false
 	for {
 		out, err := a.db.Query(ctx, &dynamodb.QueryInput{
 			TableName:                 &a.settings.ConnectionsTable,
@@ -143,37 +171,66 @@ func (a *App) hasLiveConnection(ctx context.Context, gameID string, now time.Tim
 			return false, fmt.Errorf("query connections: %w", err)
 		}
 		for _, row := range out.Items {
-			if connectionIsLive(row, now) {
+			if !connectionIsLive(row, now) {
+				continue
+			}
+			connectionID := stringAttr(row, "connection_id")
+			state, err := checker.check(ctx, connectionID)
+			if err != nil {
+				log.Printf("janitor keeps game %s: connection check failed: %v", gameID, err)
 				return true, nil
 			}
+			if state == connectionOpen {
+				live = true
+				continue
+			}
+			a.removeStaleConnection(ctx, gameID, connectionID)
 		}
 		if out.LastEvaluatedKey == nil {
-			return false, nil
+			return live, nil
 		}
 		startKey = out.LastEvaluatedKey
 	}
 }
 
+// removeStaleConnection deletes the row of a connection API Gateway reports gone.
+// A failed delete is logged only: the connection is gone either way.
+func (a *App) removeStaleConnection(ctx context.Context, gameID, connectionID string) {
+	_, err := a.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: &a.settings.ConnectionsTable,
+		Key:       key("connection_id", connectionID),
+	})
+	if err != nil {
+		log.Printf("janitor could not delete stale connection %s of game %s: %v", connectionID, gameID, err)
+		return
+	}
+	log.Printf("janitor removed stale connection %s of game %s", connectionID, gameID)
+}
+
+// connectionIsLive reports whether a connection row's ttl is still in the future.
+// A row without a ttl is treated as live, so it is checked with API Gateway.
 func connectionIsLive(row map[string]types.AttributeValue, now time.Time) bool {
 	ttl, ok := numberAttr(row, "ttl")
 	return !ok || ttl > now.Unix()
 }
 
-// deleteIfStillIdle deletes the game only if it is still started, unfinished and
-// unchanged since the scan. It reports false when the condition failed (a save
-// happened in between).
-func (a *App) deleteIfStillIdle(ctx context.Context, item map[string]types.AttributeValue, gameID string) (bool, error) {
-	values := map[string]types.AttributeValue{":true": boolValue(true), ":false": boolValue(false)}
-	condition := "#started = :true AND #finished = :false AND attribute_not_exists(#updated)"
+// deleteIfStillIdle deletes the game only if it still has the started value it was
+// scanned with, is unfinished and is unchanged since the scan. It reports false
+// when the condition failed (a save happened in between). The request names only
+// the attributes its condition uses: DynamoDB rejects unused expression names.
+func (a *App) deleteIfStillIdle(ctx context.Context, item map[string]types.AttributeValue, gameID string, started bool) (bool, error) {
+	names := map[string]string{"#started": "started", "#finished": "finished", "#updated": "updated_at"}
+	values := map[string]types.AttributeValue{":started": boolValue(started), ":false": boolValue(false)}
+	condition := "#started = :started AND #finished = :false AND attribute_not_exists(#updated)"
 	if seen, ok := item["updated_at"]; ok {
-		condition = "#started = :true AND #finished = :false AND (attribute_not_exists(#updated) OR #updated <= :seen)"
+		condition = "#started = :started AND #finished = :false AND (attribute_not_exists(#updated) OR #updated <= :seen)"
 		values[":seen"] = seen
 	}
 	_, err := a.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName:                 &a.settings.GameSessionsTable,
 		Key:                       key("game_id", gameID),
 		ConditionExpression:       &condition,
-		ExpressionAttributeNames:  gameAttributeNames(),
+		ExpressionAttributeNames:  names,
 		ExpressionAttributeValues: values,
 	})
 	var failed *types.ConditionalCheckFailedException
