@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
@@ -23,6 +25,58 @@ func idleGame(id string, idle time.Duration) map[string]types.AttributeValue {
 		"finished":   boolValue(false),
 		"updated_at": numberValue(testNow.Add(-idle).Unix()),
 		"ttl":        numberValue(testNow.Unix() + sessionTTLSeconds),
+	}
+}
+
+// lobbyGame is an unstarted, unfinished lobby last saved `idle` ago.
+func lobbyGame(id string, idle time.Duration) map[string]types.AttributeValue {
+	lobby := idleGame(id, idle)
+	lobby["started"] = boolValue(false)
+	return lobby
+}
+
+// strictDynamo rejects expression names and values that the request's expressions
+// do not reference, as DynamoDB does with a ValidationException. The fake accepts
+// them, so this wrapper is what catches a janitor request DynamoDB would refuse.
+type strictDynamo struct {
+	*fakeDynamo
+	t *testing.T
+}
+
+func (s strictDynamo) Scan(ctx context.Context, in *dynamodb.ScanInput, opts ...func(*dynamodb.Options)) (*dynamodb.ScanOutput, error) {
+	s.requireUsed(in.ExpressionAttributeNames, in.ExpressionAttributeValues, in.ProjectionExpression, in.FilterExpression)
+	return s.fakeDynamo.Scan(ctx, in, opts...)
+}
+
+func (s strictDynamo) Query(ctx context.Context, in *dynamodb.QueryInput, opts ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	s.requireUsed(in.ExpressionAttributeNames, in.ExpressionAttributeValues, in.KeyConditionExpression, in.ProjectionExpression, in.FilterExpression)
+	return s.fakeDynamo.Query(ctx, in, opts...)
+}
+
+func (s strictDynamo) DeleteItem(ctx context.Context, in *dynamodb.DeleteItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
+	s.requireUsed(in.ExpressionAttributeNames, in.ExpressionAttributeValues, in.ConditionExpression)
+	return s.fakeDynamo.DeleteItem(ctx, in, opts...)
+}
+
+func (s strictDynamo) requireUsed(names map[string]string, values map[string]types.AttributeValue, expressions ...*string) {
+	used := map[string]bool{}
+	for _, expression := range expressions {
+		if expression == nil {
+			continue
+		}
+		for _, token := range strings.FieldsFunc(*expression, func(r rune) bool { return strings.ContainsRune(" (),=<>", r) }) {
+			used[token] = true
+		}
+	}
+	for name := range names {
+		if !used[name] {
+			s.t.Errorf("ExpressionAttributeNames %s is not used by any expression", name)
+		}
+	}
+	for value := range values {
+		if !used[value] {
+			s.t.Errorf("ExpressionAttributeValues %s is not used by any expression", value)
+		}
 	}
 }
 
@@ -100,14 +154,11 @@ func TestJanitorKeepsGameUpdatedWithinGracePeriod(t *testing.T) {
 	}
 }
 
-func TestJanitorKeepsUnstartedLobbiesAndFinishedGames(t *testing.T) {
-	// Given: an unstarted lobby and a finished game, both long idle with no connection
+func TestJanitorKeepsFinishedGames(t *testing.T) {
+	// Given: a finished game, long idle with no connection
 	db := newFakeDynamo()
-	lobby := idleGame("g-lobby", 3*time.Hour)
-	lobby["started"] = boolValue(false)
 	finished := idleGame("g-done", 3*time.Hour)
 	finished["finished"] = boolValue(true)
-	db.seed(testGames, lobby)
 	db.seed(testGames, finished)
 	app := newTestApp(db)
 
@@ -115,11 +166,116 @@ func TestJanitorKeepsUnstartedLobbiesAndFinishedGames(t *testing.T) {
 	result := runJanitorForTest(t, app)
 
 	// Then
-	if db.item(testGames, "g-lobby") == nil || db.item(testGames, "g-done") == nil {
-		t.Fatal("an unstarted lobby or a finished game was deleted")
+	if db.item(testGames, "g-done") == nil {
+		t.Fatal("a finished game was deleted")
 	}
 	if result.Deleted != 0 {
 		t.Fatalf("Deleted = %d, want 0", result.Deleted)
+	}
+}
+
+func TestJanitorLobbyCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		lobby       map[string]types.AttributeValue
+		connection  map[string]types.AttributeValue
+		queryErr    error
+		wantDeleted bool
+		wantSkipped int
+	}{
+		{
+			name:        "idle lobby with no connection is deleted",
+			lobby:       lobbyGame("g", 20*time.Minute),
+			wantDeleted: true,
+		},
+		{
+			name:       "idle lobby with a live connection is kept",
+			lobby:      lobbyGame("g", 40*time.Minute),
+			connection: connectionRow("c1", "g", time.Hour),
+		},
+		{
+			name:        "idle lobby whose only connection row has expired is deleted",
+			lobby:       lobbyGame("g", 40*time.Minute),
+			connection:  connectionRow("c1", "g", -time.Second),
+			wantDeleted: true,
+		},
+		{
+			name:  "lobby idle less than the grace period is kept",
+			lobby: lobbyGame("g", 5*time.Minute),
+		},
+		{
+			name:        "idle lobby is kept when its connections cannot be queried",
+			lobby:       lobbyGame("g", 40*time.Minute),
+			queryErr:    errors.New("throttled"),
+			wantSkipped: 1,
+		},
+		{
+			name:        "lobby without a boolean started flag is never deleted",
+			lobby:       withoutAttribute(lobbyGame("g", 40*time.Minute), "started"),
+			wantSkipped: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			db := newFakeDynamo()
+			db.seed(testGames, tt.lobby)
+			if tt.connection != nil {
+				db.seed(testConnections, tt.connection)
+			}
+			db.queryErr = tt.queryErr
+			app := newTestApp(db)
+
+			// When
+			result := runJanitorForTest(t, app)
+
+			// Then
+			deleted := db.item(testGames, "g") == nil
+			if deleted != tt.wantDeleted {
+				t.Fatalf("deleted = %v, want %v (result %+v)", deleted, tt.wantDeleted, result)
+			}
+			if result.Skipped != tt.wantSkipped {
+				t.Fatalf("Skipped = %d, want %d", result.Skipped, tt.wantSkipped)
+			}
+		})
+	}
+}
+
+func TestJanitorLobbySavedDuringRunIsKept(t *testing.T) {
+	// Given: an idle lobby, but a player joins (saves it) between the scan and the delete
+	db := newFakeDynamo()
+	db.seed(testGames, lobbyGame("g-lobby-race", 20*time.Minute))
+	db.onQuery = func() {
+		db.onQuery = nil
+		db.seed(testGames, lobbyGame("g-lobby-race", time.Minute))
+	}
+	app := newTestApp(db)
+
+	// When
+	result := runJanitorForTest(t, app)
+
+	// Then: the freshly saved lobby survives and the lost race is counted as kept
+	if db.item(testGames, "g-lobby-race") == nil {
+		t.Fatal("lobby saved during the run was deleted")
+	}
+	if result.Kept != 1 || result.Skipped != 0 || result.Deleted != 0 {
+		t.Fatalf("result = %+v, want one kept lobby and no errors", result)
+	}
+}
+
+func TestJanitorRequestsReferenceEveryExpressionName(t *testing.T) {
+	// Given: an idle started game and an idle lobby, both abandoned
+	fake := newFakeDynamo()
+	fake.seed(testGames, idleGame("g-started", 20*time.Minute))
+	fake.seed(testGames, lobbyGame("g-lobby", 20*time.Minute))
+	app := newTestApp(strictDynamo{fakeDynamo: fake, t: t})
+
+	// When
+	result := runJanitorForTest(t, app)
+
+	// Then: both are deleted, and every request passed the unused-name check
+	if result.Deleted != 2 {
+		t.Fatalf("Deleted = %d, want 2 (result %+v)", result.Deleted, result)
 	}
 }
 
