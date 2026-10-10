@@ -5,6 +5,7 @@ import PeekWrap from "./PeekWrap";
 import ChatBubble from "./ChatBubble";
 import SeatTableView from "./SeatTableView";
 import "../styles/player-panel.css";
+import "../styles/seat-panels.css";
 
 type Props = {
   player: PlayerState;
@@ -193,7 +194,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
       <header className="game-seat-header">
         <div className="game-seat-name" title={player.username}>{player.username}{player.isYou ? <span className="you-tag">You</span> : null}<span className="elo-badge">{Math.round(player.eloScore)}</span></div>
         {isCurrentTurn && <span className="seat-turn">Playing</span>}
-        {!player.isYou && <div className="seat-card-counts">{player.handCount} in hand <span>·</span> {player.faceDownCount} hidden</div>}
+        {!player.isYou && player.handCount > FAN_LIMIT && <div className="seat-card-counts">{player.handCount} in hand</div>}
       </header>
       {!player.isYou && <OpponentFan count={player.handCount} name={player.username} />}
       <div className="game-seat-content">

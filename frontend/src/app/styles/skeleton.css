@@ -58,3 +58,6 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
 }
+
+.route-skeleton-blocks { display: flex; flex-direction: column; gap: 14px; }
+.route-skeleton-bare { box-sizing: border-box; min-height: 100vh; padding: 24px 16px; }
