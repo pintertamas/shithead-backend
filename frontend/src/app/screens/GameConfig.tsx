@@ -208,7 +208,7 @@ export default function GameConfig() {
 function OnOffSwitch({ labelId, value, onChange }: { labelId: string; value: boolean; onChange: (next: boolean) => void }) {
   return (
     <div className="choice-switch" role="group" aria-labelledby={labelId}>
-      {([true, false] as const).map((option) => (
+      {([false, true] as const).map((option) => (
         <button
           key={option ? "on" : "off"}
           className={`choice-switch-option${value === option ? " active" : ""}`}
