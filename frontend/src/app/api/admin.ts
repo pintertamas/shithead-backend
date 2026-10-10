@@ -5,6 +5,8 @@ export type AdminUser = {
   username: string | null;
   eloScore: number;
   blocked: boolean;
+  /** Missing until the backend sends it; a missing value is shown the same as null (no email on record). */
+  email?: string | null;
 };
 
 export async function fetchAdminUsers(token: string): Promise<AdminUser[]> {

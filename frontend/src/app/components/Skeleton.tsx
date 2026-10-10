@@ -62,8 +62,6 @@ export function AdminRowsSkeleton({ rows = 5 }: { rows?: number }) {
           <thead>
             <tr>
               <th scope="col">User</th>
-              <th scope="col">ELO</th>
-              <th scope="col">Status</th>
               <th scope="col"><span className="visually-hidden">Actions</span></th>
             </tr>
           </thead>
@@ -72,10 +70,10 @@ export function AdminRowsSkeleton({ rows = 5 }: { rows?: number }) {
               <tr className="admin-row" key={index}>
                 <td data-label="User">
                   <span className="admin-username"><Skeleton height={16} width="60%" /></span>
+                  <span className="admin-email"><Skeleton height={14} width="75%" /></span>
                   <span className="admin-userid"><Skeleton height={12} width="85%" /></span>
+                  <span className="admin-meta"><Skeleton height={16} width={110} /></span>
                 </td>
-                <td data-label="ELO" className="admin-elo"><Skeleton height={16} width={40} /></td>
-                <td data-label="Status"><Skeleton height={22} width={64} /></td>
                 <td data-label="Action" className="admin-action-cell"><Skeleton height={32} width={72} /></td>
               </tr>
             ))}

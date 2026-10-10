@@ -7,6 +7,7 @@ import { AdminRowsSkeleton } from "../components/Skeleton";
 import { invalidateGames, useAdminUsersQuery, useSetUserBlockedMutation } from "../data/queries";
 import "../styles/admin.css";
 import "../styles/admin-mobile.css";
+import "../styles/admin-user-email.css";
 
 type PendingChange = { user: AdminUser; blocked: boolean };
 
@@ -142,8 +143,6 @@ export default function Admin() {
             <thead>
               <tr>
                 <th scope="col">User</th>
-                <th scope="col">ELO</th>
-                <th scope="col">Status</th>
                 <th scope="col"><span className="visually-hidden">Actions</span></th>
               </tr>
             </thead>
@@ -151,20 +150,25 @@ export default function Admin() {
               {pagedUsers.map((user) => {
                 const isSelf = user.userId === ownId;
                 const busy = busyUserId === user.userId;
+                const email = user.email || null;
                 return (
                   <tr key={user.userId} className={user.blocked ? "admin-row blocked" : "admin-row"}>
+                    {/* One cell for the user: name, email, id, then ELO and status on one line. */}
                     <td data-label="User">
                       <span className="admin-username">{user.username || "(no nickname)"}</span>
+                      {email
+                        ? <span className="admin-email">{email}</span>
+                        : <span className="admin-email admin-email-empty" role="img" aria-label="No email on record">—</span>}
                       <span className="admin-userid">
                         {user.userId}
                         {isSelf && <span className="admin-you">This is you</span>}
                       </span>
-                    </td>
-                    <td data-label="ELO" className="admin-elo">{Math.round(user.eloScore)}</td>
-                    <td data-label="Status">
-                      {user.blocked
-                        ? <span className="badge admin-blocked-badge">Blocked</span>
-                        : <span className="admin-active">Active</span>}
+                      <span className="admin-meta">
+                        <span className="admin-meta-elo">{Math.round(user.eloScore)} Elo</span>
+                        {user.blocked
+                          ? <span className="badge admin-blocked-badge">Blocked</span>
+                          : <span className="admin-active">Active</span>}
+                      </span>
                     </td>
                     <td data-label="Action" className="admin-action-cell">
                       {user.blocked ? (
