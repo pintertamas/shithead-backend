@@ -22,11 +22,18 @@ let flushTimer: number | null = null;
 
 /** The one AudioContext. It is created inside a user gesture, because iOS only starts audio from a gesture. */
 let context: AudioContext | null = null;
-/** The decoded fart. Every nudge starts its own buffer source from it. */
+/** The decoded fart for `context`. Every nudge starts its own buffer source from it. */
 let decoded: AudioBuffer | null = null;
-let decoding = false;
-/** Set when Web Audio cannot be used (no constructor, construction failed, or the file did not load). */
+/** The context a download is running for, or null. A download that settles or times out clears it. */
+let decoding: AudioContext | null = null;
+/** Set when Web Audio cannot be used: no constructor, a refused construction, or a file that fails while running. */
 let webAudioFailed = false;
+
+/** Longest a download or decode may take. A phone that locks mid-request can leave it pending forever. */
+const FETCH_TIMEOUT_MS = 8000;
+
+/** A download or decode ran past FETCH_TIMEOUT_MS. That says nothing about the file, so it is never final. */
+class FartTimeout extends Error {}
 
 const stateListeners = new Set<() => void>();
 
@@ -143,38 +150,71 @@ function playNextQueued(audio: AudioContext, buffer: AudioBuffer): void {
   }
 }
 
-async function fetchFart(): Promise<ArrayBuffer | null> {
-  const response = await fetch(FART_SRC);
+/**
+ * Runs `work` and rejects with FartTimeout when it has not settled within FETCH_TIMEOUT_MS. The abort cancels a
+ * download where the browser supports it. The deadline does not depend on the abort, so a request that ignores it
+ * still frees the download slot.
+ */
+function withTimeout<T>(work: (signal: AbortSignal | undefined) => Promise<T>): Promise<T> {
+  const controller = typeof AbortController === "undefined" ? undefined : new AbortController();
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      controller?.abort();
+      reject(new FartTimeout("fart sound timed out"));
+    }, FETCH_TIMEOUT_MS);
+    Promise.resolve()
+      .then(() => work(controller?.signal))
+      .then(
+        (value) => {
+          window.clearTimeout(timer);
+          resolve(value);
+        },
+        (error: unknown) => {
+          window.clearTimeout(timer);
+          reject(error);
+        },
+      );
+  });
+}
+
+async function downloadFart(signal: AbortSignal | undefined): Promise<ArrayBuffer | null> {
+  const response = await fetch(FART_SRC, signal ? { signal } : undefined);
   return response.ok ? response.arrayBuffer() : null;
 }
 
 /**
- * Fetches and decodes the fart once. Decoding needs the AudioContext, so it starts after the first gesture. A failed
- * download is not final: the next gesture or nudge tries again. Only a file that cannot be decoded switches the
- * module to HTMLAudioElement for good.
+ * Downloads and decodes the fart for one context. The result is kept only while that context is still the current one.
+ * A failed or timed-out download is not final: the next gesture, nudge or return to the page tries again. A decode
+ * failure is final only when the context is running, because a suspended or interrupted context may be why it failed.
  */
+async function loadFart(audio: AudioContext): Promise<void> {
+  try {
+    const bytes = await withTimeout(downloadFart).catch(() => null);
+    if (!bytes) return;
+    let buffer: AudioBuffer;
+    try {
+      buffer = await withTimeout(() => audio.decodeAudioData(bytes));
+    } catch (error) {
+      if (!(error instanceof FartTimeout) && audio === context && audio.state === "running") webAudioFailed = true;
+      return;
+    }
+    if (audio === context) decoded = buffer;
+  } finally {
+    if (decoding === audio) decoding = null;
+    drainQueue();
+  }
+}
+
+/** Starts the download and decode for the current context, unless one is already running for it or it is done. */
 function ensureDecoded(): void {
   const audio = context;
-  if (!audio || decoded || decoding || webAudioFailed) return;
+  if (!audio || decoded || decoding === audio || webAudioFailed) return;
   if (typeof fetch === "undefined") {
     webAudioFailed = true;
     return;
   }
-  decoding = true;
-  fetchFart()
-    .then(async (bytes) => {
-      if (!bytes) return;
-      try {
-        decoded = await audio.decodeAudioData(bytes);
-      } catch {
-        webAudioFailed = true;
-      }
-    })
-    .catch(() => undefined)
-    .finally(() => {
-      decoding = false;
-      drainQueue();
-    });
+  decoding = audio;
+  void loadFart(audio).catch(() => undefined);
 }
 
 /** Runs whenever the context may have started running: after resume() and on statechange. */
@@ -186,8 +226,37 @@ function handleContextState(): void {
   notify();
 }
 
-function resumeContext(audio: AudioContext): void {
-  audio.resume().then(handleContextState, () => undefined);
+/**
+ * Closes the current context and forgets its decoded file and sounds. The next gesture creates a new context inside the
+ * gesture, because only a gesture can start one on iOS.
+ */
+function retireContext(): void {
+  const old = context;
+  context = null;
+  decoded = null;
+  voices.splice(0);
+  if (old) {
+    old.onstatechange = null;
+    if (old.state !== "closed") {
+      try {
+        void old.close().catch(() => undefined);
+      } catch {
+        /* Already closing or closed: nothing else to release. */
+      }
+    }
+  }
+  notify();
+}
+
+/**
+ * Resumes the context. A resume refused inside a gesture means the context cannot run, so it is retired and the next
+ * gesture makes a new one. A resume refused outside a gesture (returning to the page) is normal on iOS and changes
+ * nothing: the next gesture resumes the same context.
+ */
+function resumeContext(audio: AudioContext, inGesture: boolean): void {
+  audio.resume().then(handleContextState, () => {
+    if (inGesture && audio === context && audio.state !== "running") retireContext();
+  });
 }
 
 /** One silent sample. Older iOS versions only unlock Web Audio when a sound starts inside a gesture. */
@@ -198,18 +267,23 @@ function playSilence(audio: AudioContext): void {
   source.start(0);
 }
 
-/** Runs inside a user gesture: creates the context on the first call, otherwise resumes it when it is suspended. */
+/**
+ * Runs inside a user gesture: creates the context on the first call, replaces it when the browser has closed it, and
+ * otherwise resumes it when it is not running.
+ */
 function unlockInGesture(): void {
   const Ctor = audioContextConstructor();
   if (!Ctor) return;
   try {
+    if (context?.state === "closed") retireContext();
     if (!context) {
       context = new Ctor();
       context.onstatechange = handleContextState;
     }
-    if (context.state === "running") return;
-    playSilence(context);
-    resumeContext(context);
+    const audio = context;
+    if (audio.state === "running") return;
+    playSilence(audio);
+    resumeContext(audio, true);
   } catch {
     // Web Audio refused: the element path takes over, so nothing waits on a context that will never run.
     webAudioFailed = true;
@@ -225,10 +299,19 @@ function onGesture(): void {
   drainQueue();
 }
 
-/** Coming back to the page may leave the context suspended, so resume it. The next gesture does the same if needed. */
+/**
+ * Coming back to the page: a suspended context is resumed (refused on iOS without a gesture, and the next tap resumes
+ * it). A context that is already running gets the same recovery as a gesture, minus the silent sample: the download is
+ * retried and the queue drains.
+ */
 function onVisible(): void {
-  if (document.visibilityState !== "visible" || !context || context.state === "running") return;
-  resumeContext(context);
+  if (document.visibilityState !== "visible" || !context) return;
+  if (context.state === "running") {
+    ensureDecoded();
+    drainQueue();
+    return;
+  }
+  resumeContext(context, false);
 }
 
 /**
