@@ -3,21 +3,46 @@ const FART_SRC = `${import.meta.env.BASE_URL}sounds/fart.mp3`;
 /** sessionStorage flag set by the auth callback and consumed by the lobby. */
 export const LOGIN_SOUND_KEY = "shithead_login_sound";
 
-const audio: HTMLAudioElement | null = typeof Audio === "undefined" ? null : new Audio(FART_SRC);
-if (audio) audio.preload = "auto";
+/** Most fart sounds that may play at the same time. The oldest one is cut off when a new nudge needs a slot. */
+export const MAX_FART_VOICES = 8;
+
+/** Elements that are still playing. Each finished element is removed, so nothing accumulates. */
+const voices: HTMLAudioElement[] = [];
+
+function releaseVoice(voice: HTMLAudioElement) {
+  const index = voices.indexOf(voice);
+  if (index !== -1) voices.splice(index, 1);
+}
 
 /**
- * Plays the fart. Resolves true when playback started and false when the browser blocked it (autoplay policy
- * or no user gesture yet). The rejection is swallowed on purpose: a blocked fart is not an error.
+ * Plays the fart. Every call gets its own audio element, so two nudges sound at the same time instead of one
+ * restarting the other. The browser cache keeps the file to one download. Resolves true when playback started
+ * and false when the browser blocked it (autoplay policy or no user gesture yet). The rejection is swallowed on
+ * purpose: a blocked fart is not an error.
  */
 export function playFart(): Promise<boolean> {
-  if (!audio) return Promise.resolve(false);
+  if (typeof Audio === "undefined") return Promise.resolve(false);
+  let voice: HTMLAudioElement | null = null;
   try {
-    audio.currentTime = 0;
-    const attempt = audio.play();
+    if (voices.length >= MAX_FART_VOICES) {
+      const oldest = voices.shift();
+      oldest?.pause();
+    }
+    voice = new Audio(FART_SRC);
+    voice.preload = "auto";
+    voices.push(voice);
+    const finished = voice;
+    const finish = () => releaseVoice(finished);
+    finished.addEventListener("ended", finish, { once: true });
+    finished.addEventListener("error", finish, { once: true });
+    const attempt = finished.play();
     if (!attempt || typeof attempt.then !== "function") return Promise.resolve(true);
-    return attempt.then(() => true, () => false);
+    return attempt.then(() => true, () => {
+      releaseVoice(finished);
+      return false;
+    });
   } catch {
+    if (voice) releaseVoice(voice);
     return Promise.resolve(false);
   }
 }

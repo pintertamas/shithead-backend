@@ -21,6 +21,7 @@ import { SeatChip, SeatPeek } from "../components/SeatChip";
 import { describeEvent } from "../lib/gameFeed";
 import "../styles/table-mobile.css";
 import "../styles/companion-width.css";
+import "../styles/table-bar.css";
 
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
@@ -382,7 +383,17 @@ export default function GameTable() {
       <div className="game-main">
       <header className="table-bar">
         <span className="badge">SHITHEAD</span>
-        <h2 className="title table-bar-title">{state.sessionId} <span className="header-player-name">· {you.username}</span></h2>
+        <h2 className="title table-bar-title">
+          <span className="table-bar-code">{state.sessionId}</span>
+          <span className="table-bar-sep" aria-hidden="true">·</span>
+          <span className="header-player-name table-bar-name">{you.username}</span>
+          {Number.isFinite(you.eloScore) && (
+            <>
+              <span className="table-bar-sep" aria-hidden="true">·</span>
+              <span className="table-bar-elo" title="Your Elo">{Math.round(you.eloScore)}</span>
+            </>
+          )}
+        </h2>
         {phone && phoneSeats && phoneSeats.chips.length > 0 && (
           <div className="phone-chips" ref={phoneChipsRef} role="group" aria-label="Other players">
             {phoneSeats.chips.map((player) => (
