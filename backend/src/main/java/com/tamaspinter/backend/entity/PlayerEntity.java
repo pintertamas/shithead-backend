@@ -25,6 +25,8 @@ public class PlayerEntity {
     private boolean out;
     @Builder.Default
     private boolean ready = true;
+    /** Bot type name for a computer-controlled seat, null for humans. Items written before bots existed have none. */
+    private String botType;
 
     @DynamoDbAttribute("playerId")
     public String getPlayerId() {

@@ -1,5 +1,6 @@
 package com.tamaspinter.backend.mapper;
 
+import com.tamaspinter.backend.bot.BotType;
 import com.tamaspinter.backend.entity.CardEntity;
 import com.tamaspinter.backend.entity.GameEventEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
@@ -70,6 +71,7 @@ public class SessionMapper {
                     .playerId(playerEntity.getPlayerId())
                     .username(playerEntity.getUsername())
                     .ready(playerEntity.isReady())
+                    .botType(BotType.fromName(playerEntity.getBotType()))
                     .build();
             entitiesToCards(playerEntity.getHand()).forEach(player.getHand()::addLast);
             entitiesToCards(playerEntity.getFaceUp()).forEach(player.getFaceUp()::addLast);
@@ -162,6 +164,7 @@ public class SessionMapper {
                         .username(player.getUsername())
                         .out(player.isOut())
                         .ready(player.isReady())
+                        .botType(player.isBot() ? player.getBotType().name() : null)
                         .hand(cardsToEntities(player.getHand()))
                         .faceUp(cardsToEntities(player.getFaceUp()))
                         .faceDown(cardsToEntities(player.getFaceDown()))
