@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Plays the bot seats of a game in memory, inside the invocation that changed the state, so callers save and
@@ -60,9 +61,16 @@ public final class BotTurnRunner {
      * @return the number of bot moves made
      */
     public static int playBotTurns(GameSession session) {
+        return playBotTurns(session, new Random());
+    }
+
+    /**
+     * As {@link #playBotTurns(GameSession)}, with the strategies' randomness taken from {@code random}.
+     */
+    public static int playBotTurns(GameSession session, Random random) {
         int moves = 0;
         while (isBotTurn(session) && moves < MAX_BOT_MOVES) {
-            if (!playOneMove(session)) {
+            if (!playOneMove(session, random)) {
                 log.error("Bot could not move in game {}; stopping the bot loop", session.getSessionId());
                 break;
             }
@@ -82,10 +90,10 @@ public final class BotTurnRunner {
     }
 
     /** Makes the strategy's move, or a guaranteed legal fallback. False only if not even the fallback worked. */
-    private static boolean playOneMove(GameSession session) {
+    private static boolean playOneMove(GameSession session, Random random) {
         Player bot = session.getCurrentPlayer();
         List<List<CardSelection>> legalPlays = session.legalPlays();
-        List<CardSelection> choice = choosePlay(session, bot, legalPlays);
+        List<CardSelection> choice = choosePlay(session, bot, legalPlays, random);
         PlayResult result;
         if (choice != null && legalPlays.contains(choice)) {
             result = session.playSelections(choice);
@@ -104,9 +112,10 @@ public final class BotTurnRunner {
 
     /** A failing strategy must never block the game, so any runtime error falls back to the first legal play. */
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private static List<CardSelection> choosePlay(GameSession session, Player bot, List<List<CardSelection>> legalPlays) {
+    private static List<CardSelection> choosePlay(
+            GameSession session, Player bot, List<List<CardSelection>> legalPlays, Random random) {
         try {
-            return BotStrategies.forType(bot.getBotType()).choosePlay(BotView.of(session, bot), legalPlays);
+            return BotStrategies.forType(bot.getBotType()).choosePlay(BotView.of(session, bot), legalPlays, random);
         } catch (RuntimeException e) {
             log.error("Bot strategy failed in game {}", session.getSessionId(), e);
             return legalPlays.isEmpty() ? null : legalPlays.get(0);

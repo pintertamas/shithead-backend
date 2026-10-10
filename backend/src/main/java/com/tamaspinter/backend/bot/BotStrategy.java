@@ -5,6 +5,7 @@ import com.tamaspinter.backend.game.GameConfig;
 import com.tamaspinter.backend.model.Card;
 
 import java.util.List;
+import java.util.Random;
 
 /**
  * How one kind of bot decides. Strategies only choose; legality always comes from {@code GameSession}, which
@@ -17,7 +18,8 @@ public interface BotStrategy {
 
     /**
      * One entry of {@code legalPlays}, or null to pick up the pile. {@code legalPlays} is never empty when the pile
-     * is empty. A choice that is not one of the legal plays is replaced by a safe fallback.
+     * is empty. A choice that is not one of the legal plays is replaced by a safe fallback. {@code random} is the
+     * only source of randomness a strategy may use, so tests and simulations can seed it.
      */
-    List<CardSelection> choosePlay(BotView view, List<List<CardSelection>> legalPlays);
+    List<CardSelection> choosePlay(BotView view, List<List<CardSelection>> legalPlays, Random random);
 }

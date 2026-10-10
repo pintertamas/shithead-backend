@@ -9,6 +9,7 @@ import com.tamaspinter.backend.model.CardRule;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.IntStream;
 
 /**
@@ -18,10 +19,15 @@ import java.util.stream.IntStream;
  *   <li>Play: plays the lowest ordinary value it can, all copies of it at once; special cards only when nothing
  *       ordinary fits, one at a time and the least valuable first. It never picks up while it can play.</li>
  *   <li>Face-down: flips the first card.</li>
+ *   <li>When its plays no longer draw cards (the draw pile is empty, or its hand is above the hand size after a
+ *       pickup) it sometimes plays a random legal play instead. Two fully predictable players can otherwise trade
+ *       the same pile back and forth forever.</li>
  * </ul>
  */
 public class BeginnerBotStrategy implements BotStrategy {
     private static final int SPECIAL_BASE = 100;
+    /** One in this many plays is random while plays do not draw cards. */
+    private static final int RANDOM_PLAY_ODDS = 5;
 
     @Override
     public SetupSwap chooseSetupSwap(List<Card> hand, List<Card> faceUp, GameConfig config) {
@@ -52,7 +58,11 @@ public class BeginnerBotStrategy implements BotStrategy {
     }
 
     @Override
-    public List<CardSelection> choosePlay(BotView view, List<List<CardSelection>> legalPlays) {
+    public List<CardSelection> choosePlay(BotView view, List<List<CardSelection>> legalPlays, Random random) {
+        boolean drawsNoCards = view.deckCount() == 0 || view.hand().size() > view.config().getHandCount();
+        if (drawsNoCards && !legalPlays.isEmpty() && random.nextInt(RANDOM_PLAY_ODDS) == 0) {
+            return legalPlays.get(random.nextInt(legalPlays.size()));
+        }
         List<List<CardSelection>> singleZone = legalPlays.stream()
                 .filter(play -> play.stream().map(CardSelection::source).distinct().count() == 1)
                 .toList();
