@@ -38,16 +38,11 @@
 
 .skeleton-cta { margin-top: auto; align-self: flex-end; }
 
-.skeleton-admin { min-height: 280px; }
+/* Admin pager placeholders: same footprint as the real Previous/Next buttons (sizes measured in the browser). */
+.skeleton-pager-button { display: block; width: 96px; height: 43px; border-radius: 12px; }
 
-.skeleton-admin-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  height: 56px;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(183, 204, 178, .1);
+@media (max-width: 700px) {
+  .skeleton-pager-button { height: 40px; }
 }
 
 @keyframes skeleton-shimmer {

@@ -8,10 +8,11 @@
   .admin-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .admin-table,
   .admin-table tbody { display: block; width: 100%; }
-  .admin-table tbody { display: flex; flex-direction: column; gap: 6px; }
+  .admin-table tbody { display: flex; flex-direction: column; gap: 6px; --admin-row-height: 80px; }
 
   /* Two-line card: name, ELO and status on the first line; id and button on the second. */
   .admin-table tr {
+    box-sizing: border-box;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas:

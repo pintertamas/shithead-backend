@@ -23,7 +23,7 @@ export default function SeatTableView({ player, isCurrentTurn = false }: { playe
       <div className="seat-table-head">
         <strong>{player.username}</strong>
         <span className="elo-badge">{Math.round(player.eloScore)}</span>
-        {isCurrentTurn && <span className="seat-turn">Playing</span>}
+        {isCurrentTurn && <span className="seat-sr-only">Current turn</span>}
       </div>
       <div className="seat-table-counts">{player.handCount} in hand · {backs} face-down · {faceUp.length} face-up</div>
 

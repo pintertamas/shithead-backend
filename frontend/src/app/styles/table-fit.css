@@ -250,33 +250,4 @@ body:has(.game-page) {
   }
 }
 
-/* ---------- Next player: a cool teal accent, distinct from the gold PLAYING outline ---------- */
-
-.game-page .game-seat.seat-next {
-  border-color: #5fd3e6;
-  box-shadow: 0 0 0 2px rgba(95, 211, 230, 0.22);
-}
-
-.game-page .game-seat.seat-next.game-seat-active {
-  border-color: rgba(255, 210, 120, 0.9);
-  box-shadow: 0 0 0 2px rgba(255, 210, 120, 0.16);
-}
-
-.game-page .game-seat.seat-next .game-seat-name::after {
-  content: "NEXT";
-  flex: 0 0 auto;
-  align-self: center;
-  margin-left: 2px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #5fd3e6;
-  color: #06202a;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  line-height: 1.5;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .game-page .game-seat.seat-next { transition: none; }
-}
+/* Turn and next-player highlights: see seat-indicators.css. */
