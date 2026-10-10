@@ -20,6 +20,7 @@ import StarterPicker from "../components/StarterPicker";
 import PeekWrap from "../components/PeekWrap";
 import { SeatChip, SeatPeek } from "../components/SeatChip";
 import { describeEvent } from "../lib/gameFeed";
+import { GameSocket } from "../lib/gameSocket";
 import "../styles/table-mobile.css";
 import "../styles/companion-width.css";
 import "../styles/table-bar.css";
@@ -72,6 +73,8 @@ export default function GameTable() {
   const setSelected = useCallback((next: CardSelection[]) => setSelection((prev) => ({ ...prev, selected: next })), []);
   const setPickupSelected = useCallback((next: boolean) => setSelection((prev) => ({ ...prev, pickupSelected: next })), []);
   const [error, setError] = useState<string | null>(null);
+  // Reconnect status ("Reconnecting...", or the failure notice). Kept apart from error: the state poll clears error.
+  const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
   const pendingRef = useRef(false);
   const phoneChipsRef = useRef<HTMLDivElement>(null);
@@ -84,7 +87,7 @@ export default function GameTable() {
   // Phone only: the opponent whose cards are open in the centred peek dialog.
   const [peekId, setPeekId] = useState<string | null>(null);
   const closePeek = useCallback(() => setPeekId(null), []);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<GameSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
   const boardRef = useRef<HTMLElement>(null);
   const fxLayerRef = useRef<HTMLDivElement>(null);
@@ -210,14 +213,9 @@ export default function GameTable() {
   }, [you, setupStage]);
 
   const sendWs = useCallback((payload: object) => {
-    const ws = wsRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(payload));
-      return true;
-    }
-    setError(ws?.readyState === WebSocket.CONNECTING
-      ? "The game connection is still opening. Please try again in a moment."
-      : "The live game connection is closed. Refresh the page to reconnect.");
+    if (socketRef.current?.send(JSON.stringify(payload))) return true;
+    // Not open: a reconnect has been started. Nothing is queued, so the player sends the action again once it is back.
+    setConnectionNotice("Reconnecting...");
     return false;
   }, []);
 
@@ -253,11 +251,11 @@ export default function GameTable() {
   }, [sessionId, pendingAction, canSwapStartingCards, selectedStartingHand, selectedStartingUp, sendWs]);
 
   const sendChat = useCallback((text: string) => {
-    return sessionId ? sendChatMessage(wsRef.current, sessionId, text) : false;
+    return sessionId ? sendChatMessage(socketRef.current?.currentSocket() ?? null, sessionId, text) : false;
   }, [sessionId]);
 
   const sendNudgeToTable = useCallback(() => {
-    return sessionId ? sendNudge(wsRef.current, sessionId) : false;
+    return sessionId ? sendNudge(socketRef.current?.currentSocket() ?? null, sessionId) : false;
   }, [sessionId]);
 
   useEffect(() => {
@@ -281,67 +279,70 @@ export default function GameTable() {
 
   useEffect(() => {
     if (!sessionId || !token) return;
-    let ws: WebSocket;
+    const socket = new GameSocket(() => openGameSocket(sessionId, token), {
+      onOpen: (reconnected) => {
+        setSocketOpen(true);
+        setConnectionNotice(null);
+        if (!reconnected) return;
+        // Updates sent while the socket was down are lost, so the table is read again over REST.
+        fetchState(token, sessionId).then((next) => { applyState(next); setError(null); }).catch((cause: unknown) => {
+          if (redirectIfGameMissing(cause)) return;
+          setError(cause instanceof Error ? cause.message : "Couldn't refresh the game state.");
+        });
+      },
+      onClose: () => {
+        setSocketOpen(false);
+        // A play or pickup sent on the dropped socket never gets its answer, so the buttons must not stay disabled.
+        setPendingAction(false);
+      },
+      onMessage: (evt) => {
+        try {
+          const data = JSON.parse(evt.data) as GameStateView;
+          if ((data as unknown as { type?: string }).type === "chat") {
+            const message = data as unknown as ChatMessage;
+            setChatMessages((prev) => appendChatMessage(prev, message));
+            setLatestChatByPlayer((prev) => ({ ...prev, [message.userId]: { text: message.text, ts: Date.now() } }));
+            return;
+          }
+          if ((data as unknown as { type?: string }).type === "nudge") {
+            showNudge((data as unknown as NudgeMessage).username);
+            return;
+          }
+          if ((data as unknown as { type?: string }).type === "error") {
+            const errorData = data as unknown as { message?: string; status?: number };
+            if (errorData.status === 404) {
+              navigate("/lobby", {
+                replace: true,
+                state: { error: "This game is no longer available. It may have been cleared or already ended." }
+              });
+              return;
+            }
+            const message = errorData.message;
+            setError(message || "The game rejected that action.");
+            setPendingAction(false);
+            return;
+          }
+          applyState(data);
+        } catch {
+          setError("Received an unreadable update from the game server.");
+          return;
+        }
+      },
+      onUnreachable: () => setConnectionNotice("Still can't reach the game server. We'll keep trying to reconnect.")
+    });
     try {
-      ws = openGameSocket(sessionId, token);
+      socket.start();
     } catch {
       setError("The live game URL is invalid. Check the WebSocket endpoint configuration.");
       return;
     }
-    wsRef.current = ws;
-
-    ws.onopen = () => setSocketOpen(true);
-
-    ws.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data) as GameStateView;
-        if ((data as unknown as { type?: string }).type === "chat") {
-          const message = data as unknown as ChatMessage;
-          setChatMessages((prev) => appendChatMessage(prev, message));
-          setLatestChatByPlayer((prev) => ({ ...prev, [message.userId]: { text: message.text, ts: Date.now() } }));
-          return;
-        }
-        if ((data as unknown as { type?: string }).type === "nudge") {
-          showNudge((data as unknown as NudgeMessage).username);
-          return;
-        }
-        if ((data as unknown as { type?: string }).type === "error") {
-          const errorData = data as unknown as { message?: string; status?: number };
-          if (errorData.status === 404) {
-            navigate("/lobby", {
-              replace: true,
-              state: { error: "This game is no longer available. It may have been cleared or already ended." }
-            });
-            return;
-          }
-          const message = errorData.message;
-          setError(message || "The game rejected that action.");
-          setPendingAction(false);
-          return;
-        }
-        applyState(data);
-      } catch {
-        setError("Received an unreadable update from the game server.");
-        return;
-      }
-    };
-
-    ws.onerror = () => {
-      setError("The live game connection failed. Reload the page to reconnect.");
-    };
-
-    ws.onclose = (event) => {
-      setSocketOpen(false);
-      if (wsRef.current === ws && event.code !== 1000) {
-        setError("The live game connection closed unexpectedly. Reload the page to reconnect.");
-      }
-    };
+    socketRef.current = socket;
 
     return () => {
-      ws.close();
-      wsRef.current = null;
+      socket.dispose();
+      if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [sessionId, token, applyState, navigate, showNudge]);
+  }, [sessionId, token, applyState, navigate, showNudge, redirectIfGameMissing]);
 
   useEffect(() => {
     if (state?.finished && state.shitheadId) {
@@ -424,7 +425,7 @@ export default function GameTable() {
 
   return (
     <div className={`page fade-in game-page${phone ? " phone-table" : ""}${setupStage ? " setup-phase" : ""}`}>
-      <ErrorAlert message={error} onDismiss={() => setError(null)} />
+      <ErrorAlert message={error ?? connectionNotice} onDismiss={() => { setError(null); setConnectionNotice(null); }} />
       <NudgeBanner username={nudgeFrom} />
 
       <div className="game-stage">
