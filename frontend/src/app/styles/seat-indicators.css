@@ -1,0 +1,70 @@
+/*
+ * Turn and next-player highlights on every seat: desktop panels (opponents and own), compact phone panels
+ * (previous and next player) and the phone chip strip. No words are shown on the table.
+ *
+ *   - Current turn: gold, solid, with a soft inner glow.
+ *   - Next player: teal, dashed.
+ *
+ * Both are drawn inside the seat's own box (inset box-shadow, or an outline with a negative offset), not outside
+ * it. The scroll containers (.game-opponents, .phone-chips) clip whatever sits outside their boxes, so an outer
+ * ring was cut off at the first, last and top seats. Screen readers get the state from visually hidden text
+ * (.seat-sr-only) and from the chip's aria-label.
+ */
+
+/* Visually hidden, still read by screen readers. */
+.seat-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Desktop and compact panels ---------- */
+
+.game-page .game-seat.game-seat-active {
+  border-color: rgba(255, 210, 120, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 120, 0.95), inset 0 0 16px rgba(255, 210, 120, 0.22);
+}
+
+.game-page .game-seat.seat-next {
+  border-color: #5fd3e6;
+  outline: 2px dashed #5fd3e6;
+  outline-offset: -4px;
+}
+
+/* A seat that is both turn and next (only with two players, or during a transition) shows the turn only. */
+.game-page .game-seat.seat-next.game-seat-active {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-page .game-seat.seat-next { transition: none; }
+}
+
+/* ---------- Phone chip strip ---------- */
+
+.game-page.phone-table .seat-chip-wrap.seat-chip-playing .seat-chip {
+  border-color: rgba(255, 210, 120, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 120, 0.95), inset 0 0 10px rgba(255, 210, 120, 0.22);
+}
+
+.game-page.phone-table .seat-chip-wrap.seat-next .seat-chip {
+  border-color: #5fd3e6;
+  outline: 2px dashed #5fd3e6;
+  outline-offset: -4px;
+}
+
+.game-page.phone-table .seat-chip-wrap.seat-chip-playing.seat-next .seat-chip {
+  outline: none;
+}
+
+/* Keyboard focus stays inside the chip as well, so the strip never clips it. */
+.game-page.phone-table .seat-chip-wrap .seat-chip:focus-visible {
+  outline: 2px solid #f0d99e;
+  outline-offset: -4px;
+}
