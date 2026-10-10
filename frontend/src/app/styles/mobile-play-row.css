@@ -1,0 +1,56 @@
+/*
+ * Phones, play phase (GameTable adds `phone-table`, and `setup-phase` during setup). The board becomes a grid so the
+ * Play button and the Log button share the band where the play row was:
+ *   - Play sits in the middle column, so it is centred on the screen (both side columns are the same width);
+ *   - Log takes the left end of that band, where Play used to sit, and so stays directly above the log line;
+ *   - the log line stays in the last row, at the bottom.
+ * Setup and desktop keep their own layouts (their selectors do not match).
+ */
+
+@media (max-width: 700px) {
+  .game-page.phone-table:not(.setup-phase) .game-board {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    /* The middle row takes the height the others leave, as the flex layout did. */
+    grid-template-rows: 1fr auto auto auto;
+  }
+
+  .game-page.phone-table:not(.setup-phase) .game-board > .game-middle {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .game-page.phone-table:not(.setup-phase) .game-board > .game-seat-own {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* Play row: centred. Its right margin (kept for the chat button) would shift it off the centre, so it goes. */
+  .game-page.phone-table:not(.setup-phase) .game-board > .game-actions-play {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: center;
+    width: auto;
+    margin: 0;
+  }
+
+  /* The log wrapper only groups the log line and the Log button; its two parts go into the grid rows instead. */
+  .game-page.phone-table:not(.setup-phase) .game-board > .phone-log-wrap {
+    display: contents;
+  }
+
+  .game-page.phone-table:not(.setup-phase) .game-board > .phone-log-wrap > .peek-toggle {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: start;
+    align-self: center;
+  }
+
+  /* The log line keeps clear of the chat button at the bottom right. contain keeps its long text out of the column sizes. */
+  .game-page.phone-table:not(.setup-phase) .game-board > .phone-log-wrap > .phone-log-line {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    margin-right: 66px;
+    contain: inline-size;
+  }
+}
