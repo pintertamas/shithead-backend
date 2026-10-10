@@ -10,9 +10,7 @@ import "../styles/admin-mobile.css";
 
 type PendingChange = { user: AdminUser; blocked: boolean };
 
-const PHONE_QUERY = "(max-width: 700px)";
-const PHONE_PAGE_SIZE = 5;
-const DESKTOP_PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export default function Admin() {
   const { token } = useAuth();
@@ -21,8 +19,6 @@ export default function Admin() {
   const blockMutation = useSetUserBlockedMutation(token);
   const users: AdminUser[] = usersQuery.data ?? [];
   const loading = usersQuery.isPending;
-  const phone = usePhoneViewport();
-  const pageSize = phone ? PHONE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -55,15 +51,15 @@ export default function Admin() {
   }, [users, query]);
 
   // Filtering happens over all users first; the page is then clamped so it never points past the last page.
-  const totalPages = Math.max(1, Math.ceil(visibleUsers.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(visibleUsers.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   useEffect(() => {
     if (page !== currentPage) setPage(currentPage);
   }, [page, currentPage]);
-  const pageStart = (currentPage - 1) * pageSize;
-  const pagedUsers = visibleUsers.slice(pageStart, pageStart + pageSize);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pagedUsers = visibleUsers.slice(pageStart, pageStart + PAGE_SIZE);
   const rangeStart = visibleUsers.length === 0 ? 0 : pageStart + 1;
-  const rangeEnd = Math.min(pageStart + pageSize, visibleUsers.length);
+  const rangeEnd = Math.min(pageStart + PAGE_SIZE, visibleUsers.length);
 
   const goToPage = (next: number) => {
     setPage(next);
@@ -131,11 +127,12 @@ export default function Admin() {
             setPage(1);
           }}
         />
-        {!loading && <p className="admin-count">{visibleUsers.length} of {users.length} users</p>}
+        {/* Always rendered so the toolbar keeps its height while loading (on phones the count sits on its own line). */}
+        <p className="admin-count">{loading ? " " : `${visibleUsers.length} of ${users.length} users`}</p>
       </div>
 
       {loading ? (
-        <AdminRowsSkeleton rows={5} />
+        <AdminRowsSkeleton rows={PAGE_SIZE} />
       ) : visibleUsers.length === 0 ? (
         <p className="lobby-rankings-message">No users match your search.</p>
       ) : (
@@ -288,20 +285,6 @@ export default function Admin() {
       )}
     </div>
   );
-}
-
-// Tracks the phone breakpoint so the page size follows the viewport.
-function usePhoneViewport(): boolean {
-  const [phone, setPhone] = useState(() =>
-    typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(PHONE_QUERY).matches);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const media = window.matchMedia(PHONE_QUERY);
-    const onChange = () => setPhone(media.matches);
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
-  }, []);
-  return phone;
 }
 
 // Cognito subject (user id) from the ID token payload, used to stop admins blocking themselves.
