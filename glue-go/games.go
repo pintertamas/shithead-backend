@@ -42,6 +42,15 @@ func (a *App) createGame(ctx context.Context, raw json.RawMessage) (any, error) 
 	if config.VoiceEnabled && !isGameAdmin(asMap(req.RequestContext.Authorizer)) {
 		return jsonResponse(403, map[string]string{"message": "Only administrators can enable voice chat."})
 	}
+	if config.VoiceEnabled {
+		paused, err := a.voiceCreationPaused(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if paused {
+			return jsonResponse(409, map[string]string{"message": voicePausedMessage})
+		}
+	}
 
 	if err := a.cleanupOldSessions(ctx, userID); err != nil {
 		return nil, err

@@ -118,6 +118,29 @@
   line-height: 1.4;
 }
 
+/* Collapsed on narrow screens (outside the phone popover). `display: grid` above would win over the UA `hidden` rule. */
+.game-feed-list[hidden] {
+  display: none;
+}
+
+/* The log popover (GameTable phone layout, portalled by PeekWrap) always shows the list. CSS does this from the
+   first render, so the list already has its final size when PeekWrap places the popover. */
+.phone-log-popover .game-feed-list[hidden] {
+  display: grid;
+}
+
+/* The popover's first render is the collapsed header, which has a chevron. Hiding it keeps that header the same
+   size as the static heading that replaces it, so the popover is not resized after it is placed. */
+.phone-log-popover .game-feed-chevron {
+  display: none;
+}
+
+/* Hover preview of the log: the pointer must reach the panel to wheel-scroll the list and drag its scrollbar.
+   PeekWrap makes hover previews pointer-events: none, so this panel opts back in. Pinned and dialog modes are unchanged. */
+.peek-overlay.peek-overlay-passive:has(> .phone-log-popover) {
+  pointer-events: auto;
+}
+
 .game-feed-item {
   padding: 4px 8px;
   border-radius: 8px;

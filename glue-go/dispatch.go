@@ -41,6 +41,8 @@ type eventProbe struct {
 	Type           string `json:"type"`
 	MethodArn      string `json:"methodArn"`
 	HTTPMethod     string `json:"httpMethod"`
+	Path           string `json:"path"`
+	Resource       string `json:"resource"`
 	Source         string `json:"source"`
 	DetailType     string `json:"detail-type"`
 	RequestContext struct {
@@ -53,6 +55,7 @@ type eventProbe struct {
 //   - Cognito trigger (triggerSource present)     -> init user
 //   - WebSocket REQUEST authorizer (type REQUEST) -> verify the ID token
 //   - WebSocket route (routeKey / eventType)      -> $connect, $disconnect, $default
+//   - REST proxy event, path /livekit/webhook     -> LiveKit webhook (voice usage)
 //   - REST proxy event (httpMethod)               -> create-game
 //   - EventBridge schedule (glue function only)   -> abandoned game janitor
 func (a *App) Handle(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -69,6 +72,8 @@ func (a *App) Handle(ctx context.Context, raw json.RawMessage) (any, error) {
 		return a.runJanitor(ctx)
 	case probe.RequestContext.RouteKey != "" || probe.RequestContext.EventType != "":
 		return a.handleWebSocket(ctx, raw)
+	case probe.HTTPMethod != "" && isLiveKitWebhook(probe):
+		return a.handleLiveKitWebhook(ctx, raw)
 	case probe.HTTPMethod != "":
 		return a.createGame(ctx, raw)
 	default:

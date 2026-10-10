@@ -31,7 +31,8 @@ export default function GameFeed({ events }: Props) {
   const sectionRef = useRef<HTMLElement>(null);
   const [wide, setWide] = useState(isWideScreen);
   const [expanded, setExpanded] = useState(false);
-  // Inside the phone log dialog (PeekWrap) the list is always shown: opening the dialog is the one step.
+  // Inside the phone log popover (PeekWrap) the list is shown by CSS from the very first render (feed.css), so the
+  // popover is measured at its final size. This state only swaps the heading and hides the banner there.
   const [inDialog, setInDialog] = useState(false);
   const open = wide || inDialog || expanded;
   const staticHeading = wide || inDialog;
@@ -39,7 +40,7 @@ export default function GameFeed({ events }: Props) {
   // Start from the newest event already loaded so existing history does not replay as a banner.
   const announcedSeq = useRef(newestSeq);
 
-  // Runs before paint, so the dialog never shows the collapsed state. The dialog is portalled, so the check is
+  // Runs before paint, so the popover never shows the collapsed heading. The popover is portalled, so the check is
   // made on the DOM the section is mounted in.
   useLayoutEffect(() => {
     setInDialog(sectionRef.current?.closest(".phone-log-popover") != null);
@@ -95,17 +96,17 @@ export default function GameFeed({ events }: Props) {
             {describeEvent(banner)}
           </div>
         )}
-        {open && (
-          <ol className="game-feed-list themed-scroll">
-            {list.length === 0
-              ? <li className="game-feed-empty">Moves and events will show up here.</li>
-              : [...list].reverse().map((event) => (
-                <li key={event.seq} className="game-feed-item" data-type={event.type}>
-                  {describeEvent(event)}
-                </li>
-              ))}
-          </ol>
-        )}
+        {/* Always in the DOM: `hidden` only collapses it outside the phone popover. A hover popover (PeekWrap) measures
+            its size when it first shows, so the list must already be laid out then, or the popover is placed too small. */}
+        <ol className="game-feed-list themed-scroll" hidden={!open}>
+          {list.length === 0
+            ? <li className="game-feed-empty">Moves and events will show up here.</li>
+            : [...list].reverse().map((event) => (
+              <li key={event.seq} className="game-feed-item" data-type={event.type}>
+                {describeEvent(event)}
+              </li>
+            ))}
+        </ol>
       </div>
     </section>
   );

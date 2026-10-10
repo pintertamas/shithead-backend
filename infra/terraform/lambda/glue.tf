@@ -24,6 +24,11 @@ resource "aws_lambda_function" "glue" {
       USERS_TABLE            = var.aws_dynamodb_table_users_name
       WS_CONNECTIONS_TABLE   = var.aws_dynamodb_table_ws_connection_name
       WS_MANAGEMENT_ENDPOINT = format("%s/$default", replace(var.websocket_api_endpoint, "wss://", "https://"))
+      # LiveKit webhook (signature check) and room deletion at the monthly limit (voice_*.go).
+      # Empty values reject every webhook and never delete a room.
+      LIVEKIT_URL        = var.livekit_url
+      LIVEKIT_API_KEY    = var.livekit_api_key
+      LIVEKIT_API_SECRET = var.livekit_api_secret
     }
   }
 }

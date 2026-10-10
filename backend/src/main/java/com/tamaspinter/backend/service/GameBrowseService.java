@@ -21,8 +21,6 @@ import java.util.Objects;
 public class GameBrowseService {
 
     static final int MAX_RESULTS = 50;
-    static final int MAX_PLAYERS_CAP = GameSession.MAX_PLAYERS;
-    static final int DECK_CARD_COUNT = GameSession.DECK_CARD_COUNT;
     static final String STATUS_WAITING = "waiting";
     static final String STATUS_IN_PROGRESS = "in_progress";
     static final String UNKNOWN_OWNER = "Unknown";
@@ -52,18 +50,6 @@ public class GameBrowseService {
     }
 
     /**
-     * Seats that fit in the deck-set when every player is dealt their full layout, capped at {@link GameSession#MAX_PLAYERS}.
-     */
-    static int maxPlayers(GameConfigEntity config) {
-        int cardsPerPlayer = config.getFaceDownCount() + config.getFaceUpCount() + config.getHandCount();
-        if (cardsPerPlayer <= 0) {
-            return MAX_PLAYERS_CAP;
-        }
-        int bySize = config.getDecksCount() * DECK_CARD_COUNT / cardsPerPlayer;
-        return Math.min(MAX_PLAYERS_CAP, bySize);
-    }
-
-    /**
      * A game whose TTL has passed is gone or about to be: DynamoDB deletes expired items
      * lazily, sometimes hours late, so it must not be listed as joinable.
      */
@@ -79,7 +65,8 @@ public class GameBrowseService {
                 game.getSessionId(),
                 ownerName(game, players),
                 players.size(),
-                maxPlayers(config),
+                GameSession.seatCapacity(config.getDecksCount(), config.getFaceDownCount(), config.getFaceUpCount(),
+                        config.getHandCount()),
                 game.isStarted() ? STATUS_IN_PROGRESS : STATUS_WAITING,
                 config.getDecksCount(),
                 game.getCreatedAt());
