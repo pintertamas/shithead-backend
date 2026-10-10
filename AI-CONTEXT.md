@@ -332,10 +332,24 @@ Cards whose rank is in `alwaysPlayable` (JOKER/TRANSPARENT ranks) bypass `canPla
 - **Data** (`src/app/data/`): TanStack Query; keys namespaced per user `['u', sub, ...]` (`keys.ts`); only profile, games and leaderboards are persisted to localStorage (`isPersistedQueryKey`; admin lists and game state stay in memory), 7-day max age, busted by `APP_VERSION`; `AppDataProvider` clears the cache on user switch and via `onAuthCleared`.
 - **Auth** (`src/app/auth/`): `authStore.ts` keeps the session in localStorage `shithead_auth`; a timer refreshes 2 minutes before the ID token expires and `getFreshToken()` refreshes first when less than 1 minute remains; `api/client.ts` `apiFetch` retries once after a 401 (`refreshAfterUnauthorized`). `claims.ts` decodes the ID token (`getUserId`, `isAdmin`). `accountBlocked.ts` (403 with the blocked message → full-screen `AccountBlockedGate`), `accountDeleted.ts` (notice on `/login` after deletion).
 - **API clients** (`src/app/api/`): `client.ts` (`apiFetch`, `throwForError`, `ApiError`), `game.ts` (REST calls and `openGameSocket` with `?game_session_id=&token=`), `games.ts`, `leaderboard.ts`, `profile.ts`, `admin.ts`, `voice.ts`. REST calls go to `VITE_API_BASE_URL`; create-game is just another REST path.
-- **Screens**: `Login`, `Lobby` (create/join, top players), `Room` (lobby/wait room, start), `GameTable` (+ `GameTableRoute`), `Games` (browse), `Leaderboard`, `Profile` (nickname, game maintenance for admins, delete account via `DeleteAccountDialog`), `GameConfig` (two-column layout, rules picker, `RulesModal`, settings in localStorage `shithead_game_config`), `Admin` (users, block/unblock).
-- **Table components**: `PlayerPanel`, `Pile`, `Hand`, `FaceUp`, `FaceDownCount`, `CardFace`, `PeekWrap`, `SeatTableView`, `TurnBadge`, `StarterPicker`, `ShitheadModal`, `GameFeed`, `ChatPanel` (feed + chat + `VoicePanel`), `ChatBubble`, `NudgeButton`. Phones (`(max-width: 700px)`) use a compact mode with `SeatChip`/`SeatPeek`; desktop fitting lives in `table-fit.css`, `table-desktop-fix.css`, `many-players.css` (up to 10 seats).
-- **Shared UI**: `Icon` (single Lucide-style SVG icon set so every device shows the same glyphs; add new icons there), `ErrorAlert` (auto-dismissing toasts, 3 s), `Skeleton`, `Tabs`, `MenuLayout`.
-- **lib/**: `voice.ts` (module-level LiveKit connection, lazy `livekit-client`), `fartSound.ts`, `gameFeed.ts` (event sentences), `sessionChat.ts` (300-char limit, 200 in-memory messages), `selection.ts`, `tableAnimations.ts` (state-diff animations, respects reduced motion), `prefetch.ts`, `chunkReload.ts`.
+- **Screens**: `Login`, `Lobby` (create/join, top players), `Room` (lobby/wait room, start), `GameTable` (+ `GameTableRoute`), `Games` (browse), `Leaderboard` (full list paginated 10 per page with `Pager`; ranks stay global, so the top-3 styling only appears on page 1), `Profile` (nickname, game maintenance for admins, delete account via `DeleteAccountDialog`), `GameConfig` (two-column layout, On/Off switches ordered Off then On, Card Rules description as a bullet list in `styles/rule-list.css`, rules picker, `RulesModal`, settings in localStorage `shithead_game_config`), `Admin` (users, block/unblock; 5 users per page on every screen size, loading skeleton renders the same rows with the pinned `--admin-row-height`).
+- **Table components**: `PlayerPanel`, `Pile`, `Hand`, `FaceUp`, `FaceDownCount`, `CardFace`, `PeekWrap`, `SeatTableView`, `StarterPicker`, `ShitheadModal`, `GameFeed`, `ChatPanel` (feed + chat + `VoicePanel`), `ChatBubble`, `NudgeButton` (`TurnBadge` still exists but is no longer used). Phones (`(max-width: 700px)`) use a compact mode with `SeatChip`/`SeatPeek`; desktop fitting lives in `table-fit.css`, `table-desktop-fix.css`, `many-players.css` (up to 10 seats).
+- **Table behaviour**:
+  - The top bar reads `ROOMCODE · username · own Elo` (`styles/table-bar.css`). The username truncates first so the Elo stays visible on phones.
+  - Seats show no PLAYING/NEXT text. The current turn is a gold solid inset ring and the next player a teal dashed inset outline, drawn inside the seat so scroll containers do not clip them. Screen readers get visually hidden labels (`.seat-sr-only`). Styles live in `styles/seat-indicators.css`.
+  - `PeekWrap` hover previews are portalled, `position: fixed`, and placed above the element (else below or beside). They are `pointer-events: none` until pinned, so they never block clicks on the pile. Touch devices get a centred dialog instead.
+  - When the current player has no legal move (`lib/rules.ts` `mustPickUp`), `GameTable` auto-selects the discard pile for pick-up. This runs from an effect keyed on `moveSignature`, so it fires once per position.
+- **Shared UI**: `Icon` (single Lucide-style SVG icon set so every device shows the same glyphs; add new icons there), `ErrorAlert` (auto-dismissing toasts, 3 s), `Pager` (`styles/pagination.css`), `Skeleton`, `Tabs`, `MenuLayout`.
+- **lib/**:
+  - `voice.ts`: module-level LiveKit connection; `livekit-client` loads lazily.
+  - `fartSound.ts`: each nudge plays its own `Audio` element, capped at `MAX_FART_VOICES` = 8 simultaneous voices.
+  - `rules.ts`: pure mirror of the backend `canPlay` rules (`canPlayOn`, `mustPickUp`). The server stays authoritative, so change it together with `rules/` in Java.
+  - `gameFeed.ts`: event sentences.
+  - `sessionChat.ts`: 300-character limit, 200 messages kept in memory.
+  - `selection.ts`.
+  - `tableAnimations.ts`: state-diff animations; respects reduced motion.
+  - `prefetch.ts`.
+  - `chunkReload.ts`.
 - **LiveKit free-tier safeguards** (`lib/voice.ts`): leave after the tab is hidden 5 min, after being alone 3 min, after 90 min connected, on game end and on page close; `VoicePanel` tells users audio goes through LiveKit and uses the free allowance.
 - **CSS conventions**: plain CSS, tokens in `styles/theme.css`; global sheets imported in `src/main.tsx`; **new styles go in a new CSS file** imported by the component/screen that needs it rather than growing existing sheets; scrollable areas use the `themed-scroll` class (`styles/scrollbars.css`).
 - **Size budget**: `scripts/size-check.mjs` (gzip budgets for the entry JS and main CSS; lazy chunks informational). Vendor (`react*`) and `@tanstack` are manual chunks.
@@ -409,7 +423,7 @@ Touch all of: Go `GameConfig` + `buildGameConfig` (validation) in `glue-go/confi
 ### Adding a Card Rule
 
 1. Add a `CardRule` value and `XxxRuleStrategy implements RuleStrategy` (optionally `AfterEffect`).
-2. Register it in `RuleEngine.STRATEGIES`.
+2. Register it in `RuleEngine.STRATEGIES`, and mirror its `canPlay` logic in `frontend/src/app/lib/rules.ts`.
 3. Allow it in Go `validCardRuleValues` (and `rankValues` mapping if it affects `alwaysPlayable`/`canPlayAgain`).
 4. Expose it in the frontend rules picker and `RulesModal`.
 5. Tests in `rules/` and `glue-go/config_test.go`.
@@ -591,4 +605,4 @@ Add a change log row (date, change, model) for every update. Keep facts verified
 | 2026-10-09 | Added game activity feed (`events` attribute) and session chat (`chat` WebSocket route) | Claude Sonnet 5.5 |
 | 2026-10-09 | Added nudge (`nudge` WebSocket route, fart sound) and login sound | Claude Sonnet 5.5 |
 | 2026-10-10 | Added `DELETE /profile` account deletion (AccountDeletionService, Cognito AdminDeleteUser via `cognitoidentityprovider` SDK module) | Claude Haiku 5.5 |
-| 2026-10-10 | Full refresh to match the Go glue + single Java Lambda architecture and the features added since | Claude Opus 5.5 |
+| 2026-10-10 | Full refresh to match the Go glue + single Java Lambda architecture and the features added since (incl. PRs #84-#91: pagination, seat indicators, table bar, PeekWrap, `lib/rules.ts` auto pick-up) | Claude Opus 5.5 |
