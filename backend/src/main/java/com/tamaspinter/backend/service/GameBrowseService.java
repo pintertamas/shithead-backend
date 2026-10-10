@@ -3,6 +3,7 @@ package com.tamaspinter.backend.service;
 import com.tamaspinter.backend.entity.GameConfigEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
+import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,8 @@ import java.util.Objects;
 public class GameBrowseService {
 
     static final int MAX_RESULTS = 50;
-    static final int MAX_PLAYERS_CAP = 6;
-    static final int DECK_CARD_COUNT = 52;
+    static final int MAX_PLAYERS_CAP = GameSession.MAX_PLAYERS;
+    static final int DECK_CARD_COUNT = GameSession.DECK_CARD_COUNT;
     static final String STATUS_WAITING = "waiting";
     static final String STATUS_IN_PROGRESS = "in_progress";
     static final String UNKNOWN_OWNER = "Unknown";
@@ -51,7 +52,7 @@ public class GameBrowseService {
     }
 
     /**
-     * Seats that fit in one deck-set when every player is dealt their full layout, capped at six.
+     * Seats that fit in the deck-set when every player is dealt their full layout, capped at {@link GameSession#MAX_PLAYERS}.
      */
     static int maxPlayers(GameConfigEntity config) {
         int cardsPerPlayer = config.getFaceDownCount() + config.getFaceUpCount() + config.getHandCount();

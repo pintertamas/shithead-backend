@@ -7,6 +7,7 @@ import "./app/styles/layout.css";
 import "./app/styles/table.css";
 import "./app/styles/table-fit.css";
 import "./app/styles/table-desktop-fix.css";
+import "./app/styles/many-players.css";
 
 const basename = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL;
 

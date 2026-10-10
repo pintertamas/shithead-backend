@@ -77,6 +77,11 @@ public class GameFunctionConfig {
         return new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withHeaders(CORS_HEADERS).withBody(body);
     }
 
+    /** A 409 whose JSON body carries a message the client shows to the player. Messages must not contain quotes. */
+    private static APIGatewayProxyResponseEvent conflictResponse(String message) {
+        return corsResponse(409, "{\"message\":\"" + message + "\"}");
+    }
+
     private void cleanupOldSessions(String userId, String excludeSessionId) {
         for (GameSessionEntity owned : sessionRepo.findByOwnerId(userId)) {
             if (owned.isStarted() || owned.getSessionId().equals(excludeSessionId)) {
@@ -130,7 +135,7 @@ public class GameFunctionConfig {
             try {
                 session.addPlayer(userId, username);
             } catch (IllegalStateException e) {
-                return corsResponse(409);
+                return conflictResponse(e.getMessage());
             }
             sessionRepo.save(session.toEntity());
             return corsResponse(200);
@@ -185,7 +190,7 @@ public class GameFunctionConfig {
                     entity.setStarting(false);
                     sessionRepo.save(entity);
                 }
-                return corsResponse(409);
+                return conflictResponse(e.getMessage());
             }
             sessionRepo.save(session.toEntity());
             return corsResponse(200);

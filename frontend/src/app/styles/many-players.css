@@ -1,0 +1,71 @@
+/*
+ * Up to 10 players (9 opponents plus the viewer). Loaded last (main.tsx) so it wins over table.css,
+ * table-fit.css, table-desktop-fix.css and table-mobile.css for the rules it repeats.
+ *
+ * Desktop (701px and wider): the opponent seats stay on one row. When they do not fit, the row scrolls
+ * sideways with snap points instead of wrapping, so the piles, the viewer's panel and the Play row keep
+ * their place and the page does not scroll. Each seat keeps a readable minimum width.
+ *
+ * Phone (700px and narrower): the header chip strip scrolls sideways with snap points, and the chip whose
+ * turn it is is scrolled into view (GameTable.tsx).
+ */
+
+@media (min-width: 701px) {
+  .game-page .game-opponents {
+    display: flex;
+    flex-wrap: nowrap;
+    /* "safe" keeps the first seat reachable when the row overflows (plain center would clip the left edge). */
+    justify-content: safe center;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    padding: 2px 2px 6px;
+    box-sizing: border-box;
+    overscroll-behavior-x: contain;
+  }
+
+  /* A seat never shrinks below its readable width. Narrower than that, the row scrolls. The 124px floor only
+     bites when the count-based cap (table-desktop-fix.css) would make the seat narrower, so small tables are unchanged. */
+  .game-page .game-opponents > .game-seat {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    max-width: max(
+      calc((var(--board-inner-w) - (var(--opponent-count, 1) - 1) * 10px) / var(--opponent-count, 1)),
+      124px
+    );
+  }
+}
+
+/* Phone: the header chip strip for the other players scrolls sideways. */
+.game-page.phone-table .phone-chips {
+  flex-wrap: nowrap;
+  justify-content: safe center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  padding-bottom: 2px;
+}
+
+.game-page.phone-table .phone-chips > * {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+}
+
+/* Room screen: the player list scrolls inside its card when there are many players (below the two-column layout). */
+@media (max-width: 899px) {
+  .room-players .player-list {
+    max-height: min(60dvh, 520px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
