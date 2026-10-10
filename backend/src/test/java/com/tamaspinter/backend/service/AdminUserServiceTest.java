@@ -11,6 +11,7 @@ import software.amazon.awssdk.core.exception.SdkException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -72,6 +73,33 @@ class AdminUserServiceTest {
         // Then
         assertEquals(1, users.size());
         assertEquals("u-alice", users.get(0).userId());
+    }
+
+    @Test
+    void listUsers_includesEmail_whenStored() {
+        // Given
+        UserProfile alice = profile("u-alice", "Alice", 1000, null);
+        alice.setEmail("user@example.test");
+        when(userRepo.scanAll()).thenReturn(List.of(alice));
+
+        // When
+        List<AdminUserService.AdminUserView> users = service.listUsers();
+
+        // Then
+        assertEquals("user@example.test", users.get(0).email());
+    }
+
+    @Test
+    void listUsers_hasNullEmail_whenNotStored() {
+        // Given: a profile written before emails were stored
+        UserProfile bob = profile("u-bob", "Bob", 1000, null);
+        when(userRepo.scanAll()).thenReturn(List.of(bob));
+
+        // When
+        List<AdminUserService.AdminUserView> users = service.listUsers();
+
+        // Then
+        assertNull(users.get(0).email());
     }
 
     @Test

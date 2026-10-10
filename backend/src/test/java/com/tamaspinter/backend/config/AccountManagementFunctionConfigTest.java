@@ -87,7 +87,7 @@ class AccountManagementFunctionConfigTest {
     @Test
     void admin_listsUsers() {
         // Given
-        when(adminUsers.listUsers()).thenReturn(List.of(new AdminUserService.AdminUserView("u1", "Alice", 1010, true)));
+        when(adminUsers.listUsers()).thenReturn(List.of(new AdminUserService.AdminUserView("u1", "Alice", null, 1010, true)));
         APIGatewayProxyRequestEvent request = request("GET", "/prod/admin/users", ADMIN_SUB, List.of(ADMIN_GROUP));
 
         // When

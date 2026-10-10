@@ -21,6 +21,11 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecon
 public class UserProfile {
     private String userId;
     private String username;
+    /**
+     * Email from the Cognito token's {@code email} claim. Null until a token carrying the claim has
+     * written the row. Read by the admin user list only.
+     */
+    private String email;
     private String avatarUrl;
     @Getter(AccessLevel.NONE)
     private double eloScore;
@@ -64,6 +69,7 @@ public class UserProfile {
         return UserProfile.builder()
                 .userId(userId)
                 .username(username)
+                .email(email)
                 .avatarUrl(avatarUrl)
                 .eloScore(eloScore)
                 .leaderboardPk(leaderboardPk)

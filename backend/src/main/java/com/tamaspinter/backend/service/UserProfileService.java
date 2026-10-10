@@ -19,14 +19,30 @@ public class UserProfileService {
         }
         if (profile == null) {
             profile = UserProfile.builder().userId(userId).eloScore(1000).build();
-            userRepo.save(profile);
         }
+        saveProfile(profile, claims);
         reserveDefaultNickname(profile, userId, defaultNickname(claims));
         return profile;
     }
 
     private boolean hasNickname(UserProfile profile) {
         return profile != null && profile.getUsername() != null && !profile.getUsername().isBlank();
+    }
+
+    /**
+     * Sets the email from the claim and saves the row before the nickname is reserved. Without an
+     * email claim the stored email is kept, because the save skips null attributes.
+     */
+    private void saveProfile(UserProfile profile, Map<String, Object> claims) {
+        String email = claimEmail(claims);
+        if (email != null) {
+            profile.setEmail(email);
+        }
+        userRepo.save(profile);
+    }
+
+    private static String claimEmail(Map<String, Object> claims) {
+        return claims.get("email") instanceof String email && !email.isBlank() ? email : null;
     }
 
     private String defaultNickname(Map<String, Object> claims) {
