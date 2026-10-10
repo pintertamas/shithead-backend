@@ -34,7 +34,11 @@ public class AdminUserService {
         }
     }
 
-    public record AdminUserView(String userId, String username, double eloScore, boolean blocked) {
+    /**
+     * One row of the admin user list. {@code email} is null until the profile has been written
+     * with an email claim.
+     */
+    public record AdminUserView(String userId, String username, String email, double eloScore, boolean blocked) {
     }
 
     public List<AdminUserView> listUsers() {
@@ -87,6 +91,7 @@ public class AdminUserService {
         return new AdminUserView(
                 profile.getUserId(),
                 profile.getUsername(),
+                profile.getEmail(),
                 profile.getEloScore(),
                 Boolean.TRUE.equals(profile.getBlocked()));
     }

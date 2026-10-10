@@ -27,8 +27,9 @@ type cognitoTrigger struct {
 	} `json:"request"`
 }
 
-// initUser seeds a user profile on first sign-in. Every attribute is written
+// initUser seeds a user profile on sign-in. The seed attributes are written
 // with if_not_exists so a display name the user has edited is never overwritten.
+// The email is set whenever the event carries one, and kept otherwise.
 // The Cognito event is returned unchanged, as the trigger contract requires.
 func (a *App) initUser(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 	var trigger cognitoTrigger
@@ -44,33 +45,42 @@ func (a *App) initUser(ctx context.Context, raw json.RawMessage) (json.RawMessag
 	if username == "" {
 		username = attrs["email"]
 	}
+	email := attrs["email"]
 	log.Printf("init_user triggered for user_id=%s, trigger=%s", userID, trigger.TriggerSource)
 
-	if err := a.seedUser(ctx, userID, username); err != nil {
+	if err := a.seedUser(ctx, userID, username, email); err != nil {
 		log.Printf("init_user failed for user_id=%s: %v", userID, err)
 		return nil, err
 	}
 	return raw, nil
 }
 
-func (a *App) seedUser(ctx context.Context, userID, username string) error {
+// seedUser writes the profile row. The email clause is added only when the
+// token carries an email, so a row keeps its stored email when the claim is absent.
+func (a *App) seedUser(ctx context.Context, userID, username, email string) error {
 	usernameValue := types.AttributeValue(&types.AttributeValueMemberNULL{Value: true})
 	if username != "" {
 		usernameValue = s(username)
 	}
+	values := map[string]types.AttributeValue{
+		":u":   usernameValue,
+		":lpk": s(defaultLeaderboardPartition),
+		":elo": &types.AttributeValueMemberN{Value: defaultEloScore},
+		":ca":  s(a.now().UTC().Format(pythonISOFormat)),
+	}
+	updateExpression := "SET username = if_not_exists(username, :u), " +
+		"leaderboard_pk = if_not_exists(leaderboard_pk, :lpk), " +
+		"elo_score = if_not_exists(elo_score, :elo), " +
+		"created_at = if_not_exists(created_at, :ca)"
+	if email != "" {
+		updateExpression += ", email = :email"
+		values[":email"] = s(email)
+	}
 	_, err := a.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-		TableName: &a.settings.UsersTable,
-		Key:       key("user_id", userID),
-		UpdateExpression: strPtr("SET username = if_not_exists(username, :u), " +
-			"leaderboard_pk = if_not_exists(leaderboard_pk, :lpk), " +
-			"elo_score = if_not_exists(elo_score, :elo), " +
-			"created_at = if_not_exists(created_at, :ca)"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":u":   usernameValue,
-			":lpk": s(defaultLeaderboardPartition),
-			":elo": &types.AttributeValueMemberN{Value: defaultEloScore},
-			":ca":  s(a.now().UTC().Format(pythonISOFormat)),
-		},
+		TableName:                 &a.settings.UsersTable,
+		Key:                       key("user_id", userID),
+		UpdateExpression:          strPtr(updateExpression),
+		ExpressionAttributeValues: values,
 	})
 	if err != nil {
 		return fmt.Errorf("seed user %s: %w", userID, err)
