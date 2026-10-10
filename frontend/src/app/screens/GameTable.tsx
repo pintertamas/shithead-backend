@@ -1,8 +1,7 @@
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
-import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
-import { sendNudge } from "../lib/fartSound";
+import { appendChatMessage } from "../lib/sessionChat";
 import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
@@ -250,13 +249,15 @@ export default function GameTable() {
     if (sendWs(payload)) setPendingAction(true);
   }, [sessionId, pendingAction, canSwapStartingCards, selectedStartingHand, selectedStartingUp, sendWs]);
 
+  // Chat and nudge take the same path as play: a dropped socket starts a reconnect and shows "Reconnecting...".
+  // The payloads are the ones lib/sessionChat.ts and lib/fartSound.ts used to send.
   const sendChat = useCallback((text: string) => {
-    return sessionId ? sendChatMessage(socketRef.current?.currentSocket() ?? null, sessionId, text) : false;
-  }, [sessionId]);
+    return sessionId ? sendWs({ action: "chat", sessionId, text }) : false;
+  }, [sessionId, sendWs]);
 
   const sendNudgeToTable = useCallback(() => {
-    return sessionId ? sendNudge(socketRef.current?.currentSocket() ?? null, sessionId) : false;
-  }, [sessionId]);
+    return sessionId ? sendWs({ action: "nudge", sessionId }) : false;
+  }, [sessionId, sendWs]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -425,7 +426,8 @@ export default function GameTable() {
 
   return (
     <div className={`page fade-in game-page${phone ? " phone-table" : ""}${setupStage ? " setup-phase" : ""}`}>
-      <ErrorAlert message={error ?? connectionNotice} onDismiss={() => { setError(null); setConnectionNotice(null); }} />
+      {/* The notice stays in state until the socket opens: the toast hides itself after 3 s, but the status does not. */}
+      <ErrorAlert message={error ?? connectionNotice} onDismiss={() => setError(null)} />
       <NudgeBanner username={nudgeFrom} />
 
       <div className="game-stage">

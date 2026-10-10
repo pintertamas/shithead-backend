@@ -3,9 +3,11 @@
  *
  * - A drop, or an attempt that fails before it opens, schedules a new attempt with backoff: 1 s, 2 s, 4 s, ... capped
  *   at 15 s. Attempts that never open within CONNECT_TIMEOUT_MS count as failed.
- * - Resuming the page (visibilitychange to visible, pageshow from the back/forward cache) and regaining the network
- *   (online) always replace the socket. A phone that was suspended can keep reporting OPEN for a dead socket, so
- *   readyState is not trusted there.
+ * - After RECONNECT_GIVE_UP_MS of continuous failed attempts, automatic retries stop. The listener keeps its
+ *   "unreachable" state until the socket opens.
+ * - Resuming the page (visibilitychange to visible, pageshow from the back/forward cache), regaining the network
+ *   (online) and send() always start attempts again, even after automatic retries stopped. A phone that was suspended
+ *   can keep reporting OPEN for a dead socket, so readyState is not trusted there.
  * - send() never queues. When the socket is not open it starts a fresh connection and returns false; the caller
  *   tells the player to send the action again.
  */
@@ -18,6 +20,11 @@ export const RECONNECT_MAX_DELAY_MS = 15000;
 export const CONNECT_TIMEOUT_MS = 10000;
 /** Failed attempts in a row before the listener is told the server cannot be reached. */
 export const UNREACHABLE_AFTER_FAILURES = 3;
+/**
+ * Automatic retries stop once failed attempts have run this long without an open, measured from the first failed
+ * attempt of the streak. Stops the authorizer being hit every 15 s for as long as the table stays open.
+ */
+export const RECONNECT_GIVE_UP_MS = 10 * 60 * 1000;
 
 export type GameSocketListener = {
   /** Every open. `reconnected` is false only for the first open. */
@@ -42,6 +49,8 @@ export class GameSocket {
   private established = false;
   private hasOpened = false;
   private failedAttempts = 0;
+  /** When the current streak of failed attempts began (the first failure after the last open or manual start). */
+  private failureStreakStartedAt: number | null = null;
   private retryTimer: number | null = null;
   private connectTimer: number | null = null;
   private disposed = false;
@@ -81,9 +90,13 @@ export class GameSocket {
     return false;
   }
 
-  /** Closes the current socket, if any, and opens a fresh one now. */
+  /**
+   * Closes the current socket, if any, and opens a fresh one now. Used on resume, on network return and on a send while
+   * disconnected. A manual start also begins a new failure streak, so it works after automatic retries stopped.
+   */
   reopen(): void {
     if (this.disposed) return;
+    this.resetFailures();
     this.clearRetryTimer();
     this.closeCurrent();
     this.attempt();
@@ -146,7 +159,7 @@ export class GameSocket {
     const reconnected = this.hasOpened;
     this.hasOpened = true;
     this.established = true;
-    this.failedAttempts = 0;
+    this.resetFailures();
     this.listener.onOpen(reconnected);
   }
 
@@ -162,17 +175,26 @@ export class GameSocket {
   }
 
   private recordFailure(): void {
+    if (this.failedAttempts === 0) this.failureStreakStartedAt = Date.now();
     this.failedAttempts += 1;
     if (this.failedAttempts >= UNREACHABLE_AFTER_FAILURES) this.listener.onUnreachable();
   }
 
+  /** Schedules the next automatic attempt, unless the failure streak has run for RECONNECT_GIVE_UP_MS. */
   private scheduleRetry(): void {
     if (this.disposed) return;
     this.clearRetryTimer();
+    const streakStart = this.failureStreakStartedAt;
+    if (streakStart !== null && Date.now() - streakStart >= RECONNECT_GIVE_UP_MS) return;
     this.retryTimer = window.setTimeout(() => {
       this.retryTimer = null;
       this.attempt();
     }, retryDelayMs(this.failedAttempts));
+  }
+
+  private resetFailures(): void {
+    this.failedAttempts = 0;
+    this.failureStreakStartedAt = null;
   }
 
   /** Detaches the handlers first, so a socket that is being replaced cannot report back into the new one. */
