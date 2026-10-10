@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CARD_RULES,
   CARD_VALUES,
@@ -13,13 +13,23 @@ import "../styles/config-layout.css";
 import "../styles/select-fix.css";
 import "../styles/rule-list.css";
 
+const SAVED_TEXT = "Saved on this device for games you create.";
+const UNSAVED_CHANGES_TEXT = "You have unsaved changes. Save the configuration to keep them.";
+const LEAVE_WITHOUT_SAVING_TEXT = "You have unsaved changes to the game configuration. Leave without saving?";
+
 export default function GameConfig() {
   const { token } = useAuth();
-  const [config, setConfig] = useState<GameConfigType>(() => loadGameConfig());
+  // What is stored on this device: read at mount and again after every save. `config` is compared with it.
+  const [savedConfig, setSavedConfig] = useState<GameConfigType>(() => loadGameConfig());
+  const [config, setConfig] = useState<GameConfigType>(() => savedConfig);
   const [saved, setSaved] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   // null while the profile is loading; only administrators see the voice switch.
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  // Set while a click that was already confirmed is replayed, so the link guard lets it through.
+  const leaveConfirmed = useRef(false);
+
+  const hasUnsavedChanges = configSignature(config) !== configSignature(savedConfig);
 
   useEffect(() => {
     let active = true;
@@ -32,15 +42,54 @@ export default function GameConfig() {
           setConfig((current) => ({ ...current, voiceEnabled: false }));
           const stored = loadGameConfig();
           if (stored.voiceEnabled) saveGameConfig({ ...stored, voiceEnabled: false });
+          // The correction is in storage now, so it must not count as an unsaved change.
+          setSavedConfig(loadGameConfig());
         }
       })
       .catch(() => { if (active) setIsAdmin(false); });
     return () => { active = false; };
   }, [token]);
 
+  // Closing or reloading the tab: the listener is installed only while there are unsaved changes.
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Leaving by a link: the app uses BrowserRouter, so useBlocker is not available. Confirm on clicks that would
+  // change the page (menu links and other in-app links). Browser back/forward is not covered.
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const confirmLeaveOnLinkClick = (event: MouseEvent) => {
+      if (leaveConfirmed.current || event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(link instanceof HTMLAnchorElement)) return;
+      if (link.origin !== window.location.origin || link.hasAttribute("download")) return;
+      if (link.target && link.target !== "_self") return;
+      if (link.pathname === window.location.pathname && link.search === window.location.search) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!window.confirm(LEAVE_WITHOUT_SAVING_TEXT)) return;
+      // Replay the click without this guard so the router performs the navigation as usual.
+      leaveConfirmed.current = true;
+      try {
+        link.click();
+      } finally {
+        leaveConfirmed.current = false;
+      }
+    };
+    document.addEventListener("click", confirmLeaveOnLinkClick, true);
+    return () => document.removeEventListener("click", confirmLeaveOnLinkClick, true);
+  }, [hasUnsavedChanges]);
+
   const updateConfig = (patch: Partial<GameConfigType>) => {
     setConfig((current) => ({ ...current, ...patch }));
-    setSaved(false);
   };
 
   const selectDeckCount = (decksCount: 1 | 2) => {
@@ -49,6 +98,10 @@ export default function GameConfig() {
 
   const save = () => {
     saveGameConfig({ ...config, voiceEnabled: isAdmin === true && config.voiceEnabled });
+    // Show exactly what was stored, so the screen and the snapshot agree after a save.
+    const stored = loadGameConfig();
+    setSavedConfig(stored);
+    setConfig(stored);
     setSaved(true);
   };
 
@@ -196,8 +249,10 @@ export default function GameConfig() {
         </section>
 
         <div className="config-actions">
-          {saved && <span className="config-saved" role="status">Saved on this device for games you create.</span>}
-          <button className="button" type="button" onClick={save}>Save Configuration</button>
+          <button className="button config-save-button" type="button" onClick={save}>Save Configuration</button>
+          <p className={`config-status${hasUnsavedChanges ? " is-unsaved" : ""}`} role="status">
+            {hasUnsavedChanges ? UNSAVED_CHANGES_TEXT : saved ? SAVED_TEXT : ""}
+          </p>
         </div>
       </div>
 
@@ -210,6 +265,18 @@ export default function GameConfig() {
       )}
     </div>
   );
+}
+
+/** Canonical form of a configuration, so equal settings always produce the same string. */
+function configSignature(config: GameConfigType): string {
+  return JSON.stringify({
+    allowMixedHandAndFaceUpWhenDeckEmpty: Boolean(config.allowMixedHandAndFaceUpWhenDeckEmpty),
+    allowFailedFaceUpPlay: Boolean(config.allowFailedFaceUpPlay),
+    decksCount: config.decksCount,
+    burnCount: config.burnCount,
+    voiceEnabled: Boolean(config.voiceEnabled),
+    cardRules: CARD_VALUES.map((value) => config.cardRules[String(value)] ?? "DEFAULT")
+  });
 }
 
 function OnOffSwitch({ labelId, value, onChange }: { labelId: string; value: boolean; onChange: (next: boolean) => void }) {

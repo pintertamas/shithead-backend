@@ -44,3 +44,33 @@
   .menu-content .config-layout.has-voice .config-rules-card { grid-row: 1 / span 4; }
   .menu-content .config-layout.has-voice .config-actions { grid-row: 5; }
 }
+
+/*
+ * Save row: the button sits on its own line and never wraps its label. The status message (saved or unsaved
+ * changes) is a single role="status" paragraph under the button, so it never shares the button's row.
+ */
+.menu-content .config-actions {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
+.menu-content .config-save-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.menu-content .config-status {
+  margin: 0;
+  max-width: 100%;
+  text-align: right;
+  color: var(--accent-2);
+}
+
+.menu-content .config-status:not(:empty) {
+  margin-top: 8px;
+}
+
+.menu-content .config-status.is-unsaved {
+  color: var(--accent);
+}
