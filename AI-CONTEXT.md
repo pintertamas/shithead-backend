@@ -1,9 +1,9 @@
 # AI-CONTEXT.md — shithead-backend
 
-> **SINGLE SOURCE OF TRUTH** for AI models working with this codebase.
+> **SINGLE SOURCE OF TRUTH** for AI models working with this codebase. `CLAUDE.md` and `AGENTS.md` only point here.
 > Update this file when patterns change, new components are added, or architectural decisions are made.
 >
-> Last Updated: 2026-10-09
+> Last Updated: 2026-10-10
 
 ---
 
@@ -17,125 +17,135 @@
 6. Repository Conventions
 7. Clean Code Guidelines
 8. Design Patterns in Use
-9. Error Handling Best Practices
+9. Error Handling
 10. Testing Guidelines
 11. Logging
-12. Security Best Practices
-13. AI Model-Specific Guidelines
+12. Security
+13. AI Model-Specific Guidelines (incl. Gotchas)
 14. Documentation Update Protocol
 
 ---
 
 ## 1. Repository Overview
 
-A serverless Java backend for the card game *Shithead*. Players join sessions; the game is dealt and managed entirely server-side; real-time state is broadcast to clients over WebSocket.
+The card game *Shithead* as a serverless app: a React SPA on GitHub Pages, AWS API Gateway (REST + WebSocket), one Java game Lambda, one Go "glue" binary, DynamoDB and Cognito. All game logic runs server-side; state is pushed to clients over WebSocket.
+
+### Owner Priorities (do not change without asking)
+
+- **Cost is the number one priority.** Stay inside the AWS free tier: on-demand DynamoDB, no provisioned concurrency, no NAT/ECS/always-on compute, no paid add-ons.
+- **Hosting stays on GitHub Pages** for the frontend.
+- **SnapStart stays enabled** on the Java Lambda (`snap_start { apply_on = "PublishedVersions" }`, invoked through alias `LIVE`).
+- **Game logic stays in Java; small glue stays in Go.** Do not reintroduce Python Lambdas or per-route Java functions.
 
 ### Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Language | Java 17 |
-| Framework | Spring Boot 3.4.5 + Spring Cloud Function 4.1.2 |
-| Compute | AWS Lambda: one Java game API function (`spring-cloud-function-adapter-aws`, `gameApi`) plus one Go glue binary (`glue-go/`, `provided.al2023`, arm64) |
-| API | AWS API Gateway — REST (lobby) + WebSocket (gameplay) |
-| Persistence | AWS DynamoDB (Enhanced Client 2.x) |
-| Auth | AWS Cognito / OAuth2 JWT (`spring-boot-starter-oauth2-resource-server`) |
-| Build | Maven — always use `./mvnw`, not `mvn` |
-| Infra | Terraform (`infra/`) |
-| Boilerplate | Lombok 1.18.x |
-| Testing | JUnit 5 (junit-bom 5.12.2), Mockito 5.17.0 |
+| Game API | Java 17, Spring Boot 3.4.5 (non-web context in Lambda), Lombok 1.18.38, AWS SDK v2 (DynamoDB Enhanced Client, API Gateway Management API, Cognito Identity Provider) |
+| Glue | Go 1.24, `aws-lambda-go`, `aws-sdk-go-v2` (DynamoDB), `provided.al2023` on arm64 |
+| API | API Gateway REST API (stage `prod`, Cognito user pool authorizer) + WebSocket API (stage `$default`, Lambda REQUEST authorizer) |
+| Persistence | DynamoDB, `PAY_PER_REQUEST` |
+| Auth | Cognito user pool with Google identity provider, hosted UI, ID tokens (1 h) and refresh tokens (30 d) |
+| Voice | LiveKit Cloud (free plan); the backend only mints access tokens |
+| Frontend | Vite 5, React 18, react-router-dom v6, TanStack Query v5 (persisted), `livekit-client` (lazy chunk), TypeScript |
+| Infra | Terraform (AWS provider ~> 5.0, state in S3) |
+| CI/CD | GitHub Actions `.github/workflows/ci-cd.yaml` |
+| Tests | JUnit 5 (junit-bom 5.12.2), Mockito 5.17.0 (`mockito-core` only); Go `testing` |
 
 ### Directory Structure
 
 ```
 shithead-backend/
-├── backend/
+├── backend/                         # Java game API (Maven module of the root pom.xml)
 │   ├── src/main/java/com/tamaspinter/backend/
-│   │   ├── config/          # Spring @Configuration — Lambda functions, SecurityConfig
-│   │   ├── controller/      # REST controllers (HealthController)
-│   │   ├── entity/          # DynamoDB entity POJOs
-│   │   ├── exception/       # Custom exception hierarchy
-│   │   ├── game/            # Core game logic (GameSession, GameConfig, PlayResult)
-│   │   ├── handler/         # Scheduled/event handlers
-│   │   ├── mapper/          # SessionMapper (domain ↔ entity)
-│   │   ├── model/           # Domain types (Card, Player, Deck, Suit, CardRule)
-│   │   │   └── websocket/   # WebSocket message DTOs (Records)
-│   │   ├── repository/      # DynamoDB repositories
-│   │   ├── rules/           # Rule engine + strategy implementations
-│   │   └── service/         # Stateless services (EloService)
-│   └── src/test/java/com/tamaspinter/backend/
-│       └── <mirrors source package structure exactly>
-├── glue-go/                 # Go glue Lambda (create-game, WS connect/disconnect/default, authorizer, init-user)
-├── infra/                   # Terraform
-├── frontend/
-│   └── src/app/
-│       ├── components/       # Shared UI, including persistent menu navigation
-│       ├── config/           # Browser-local next-game settings
-│       └── screens/          # Lobby, profile, game configuration, leaderboard, and game UI
+│   │   ├── LambdaHandler.java       # Lambda entry point (RequestStreamHandler)
+│   │   ├── BackendApplication.java
+│   │   ├── config/                  # Dispatcher, route table, handler beans, error texts, Cognito client
+│   │   ├── controller/              # HealthController (local Spring web only)
+│   │   ├── entity/                  # DynamoDB beans (game item and nested maps)
+│   │   ├── game/                    # GameSession state machine, GameConfig, events, chat/nudge helpers
+│   │   ├── handler/                 # HTTP mapping for admin users, browse games, voice token
+│   │   ├── mapper/                  # SessionMapper (domain <-> entity)
+│   │   ├── model/                   # Card, Player, Deck, Suit, CardRule, UserProfile; api/ views; websocket/ DTOs
+│   │   ├── repository/              # Game sessions, user profiles, nickname claims
+│   │   ├── rules/                   # RuleEngine + per-rule strategies
+│   │   └── service/                 # Elo, admin users, blocking, browse, LiveKit, lobby/connection cleanup, account deletion
+│   ├── src/main/resources/          # application.properties, checkstyle/, pmd/, spotbugs/
+│   └── local/                       # LEGACY SAM template / docker-compose / notes; not used by CI
+├── glue-go/                         # Go glue binary (create-game, WS lifecycle, authorizer, init-user, janitor)
+├── infra/
+│   ├── state_bucket_init/           # One-off S3 state bucket
+│   └── terraform/                   # Root module: cognito, lambda, dynamodb, api_gateway, cloudwatch
+│       └── ecr/, ecs/               # LEGACY modules, not referenced from main.tf
+├── frontend/                        # Vite + React SPA (GitHub Pages)
+├── scripts/test-ws.sh               # Manual wscat WebSocket test
+├── Dockerfile, deploy.sh, deploy.ps1  # LEGACY (container build / local apply); do not use for deploys
+├── pom.xml                          # Root aggregator (parent spring-boot-starter-parent 3.4.5)
 └── AI-CONTEXT.md
 ```
 
-### Package Reference
+### Backend Package Reference
 
-| Package | Responsibility |
+| Package | Contents |
 |---|---|
-| `game` | `GameSession` state machine, `GameConfig`, `PlayResult` enum |
-| `rules` | `RuleEngine`, `RuleStrategy`, per-rule strategies, `AfterEffect` |
-| `model` | Value types: `Card`, `Player`, `Deck`, `Suit`, `CardRule` |
-| `model.websocket` | Immutable message Records: `PlayMessage`, `PickupMessage`, `GameEnded` |
-| `entity` | DynamoDB-annotated POJOs |
-| `mapper` | `SessionMapper` — domain ↔ entity conversion |
-| `config` | `GameApiFunctionConfig` (the `gameApi` dispatcher bean), `ApiRoutes` (the route table), `GameFunctionConfig` and `AccountManagementFunctionConfig` (the handler `@Bean`s the table points at) |
-| `repository` | `GameSessionRepository`, `UserProfileRepository` |
-| `service` | `EloService` — pure stateless computations |
-| `exception` | Custom exception hierarchy |
+| (root) | `LambdaHandler` (boots Spring once, calls `GameApiFunctionConfig.dispatch`, writes the response as-is), `BackendApplication` |
+| `config` | `GameApiFunctionConfig` (event-shape dispatcher), `ApiRoutes` (route table), `GameFunctionConfig` (join/leave/start/state/leaderboards, `playCardWS`, `pickupPileWS`), `AccountManagementFunctionConfig` (profile, admin, browse, delete account), `VoiceFunctionConfig`, `PlayErrorMessages`, `CognitoClientConfig`, `SecurityConfig` |
+| `game` | `GameSession`, `GameConfig`, `PlayResult`, `CardSelection`, `CardSource`, `GameEvent`, `GameEventType`, `ChatMessageValidator`, `NudgeMessage`, `GameManager` |
+| `rules` | `RuleEngine` (static), `RuleStrategy`, `AfterEffect`, `Default/Joker/Smaller/Transparent/Reverse/BurnerRuleStrategy` |
+| `model` | `Card`, `Player`, `Deck`, `Suit`, `CardRule`, `UserProfile` (users-table bean); `model.api`: `GameStateView`, `PlayerStateView`, `LeaderboardEntry`; `model.websocket`: `PlayMessage`, `PickupMessage`, `GameEnded` |
+| `entity` | `GameSessionEntity`, `PlayerEntity`, `CardEntity`, `GameConfigEntity`, `GameEventEntity`, `EloChangeEntity` |
+| `mapper` | `SessionMapper` (static): `toEntity`, `fromEntity`, `carryEloState`, event/card conversions |
+| `repository` | `GameSessionRepository`, `UserProfileRepository`, `UsernameReservationRepository`, `DynamoDbClientProvider` |
+| `service` | `EloService` (static), `AdminUserService`, `BlockedUserGuard`, `GameBrowseService`, `LiveKitAccessTokenService`, `LobbyMembershipService`, `UserConnectionService`, `UserProfileService`, `AccountDeletionService` |
+| `handler` | `AdminUserHandler`, `GameBrowseHandler`, `VoiceTokenHandler`, `JsonResponses` (CORS JSON helper) |
+
+There is no `exception/` package and no custom exception hierarchy (see §9).
 
 ---
 
 ## 2. Essential Commands
 
+Maven: `backend/mvnw` is **not** tracked (only `backend/.mvn/wrapper/maven-wrapper.properties` is) and Maven may not be on `PATH`. CI runs plain `mvn` from the repository root with `-f backend/pom.xml`. Locally use any Maven 3.9 install (or the `maven:3.9-amazoncorretto-17` Docker image) with JDK 17.
+
 ```bash
-# Run all tests  (Maven wrapper lives in backend/)
-cd backend && ./mvnw test
+# Backend: tests + Checkstyle/PMD/SpotBugs (exactly what CI runs)
+mvn -q -f backend/pom.xml verify -P codeQuality
 
-# Build fat JAR for Lambda
-cd backend && ./mvnw package
+# Backend: tests only / fat JAR for Lambda (backend/target/backend-0.0.1-SNAPSHOT.jar)
+mvn -q -f backend/pom.xml test
+mvn -q -f backend/pom.xml package -DskipTests
 
-# Run static analysis (PMD + Checkstyle + SpotBugs)
-cd backend && ./mvnw verify -P codeQuality
-
-# Deploy infrastructure
-cd infra && terraform apply
-
-# Deploy Lambda code
-./deploy.sh
-
-# Glue Lambda (Go): vet and test, then build the arm64 zip that Terraform deploys
+# Glue (Go): what CI runs
 cd glue-go && go vet ./... && go test ./...
-cd glue-go && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o build/bootstrap . \
-  && cd build && zip -q glue.zip bootstrap
+# Glue build that Terraform deploys (glue-go/build/glue.zip, gitignored)
+cd glue-go && mkdir -p build && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o build/bootstrap . \
+  && (cd build && zip -q glue.zip bootstrap)
 
-# Terraform validation (no AWS calls; needs the two build artifacts above)
+# Frontend
+cd frontend && npm ci
+npm run dev        # Vite dev server on :5173 (needs frontend/.env, see .env.example)
+npm run build      # production build into frontend/dist (no separate tsc step)
+npm run size       # gzip budget check of dist/ (run after build; CI fails over budget)
+
+# Terraform: offline validation only (no AWS calls). The lambda module hashes the two
+# artifacts, so create placeholders if they were not built, and delete them afterwards.
+mkdir -p backend/target glue-go/build && touch backend/target/backend-0.0.1-SNAPSHOT.jar glue-go/build/glue.zip
 cd infra/terraform && terraform init -backend=false && terraform validate
 ```
 
+Never run `terraform plan/apply` locally: applies happen only in CI (§6).
+
 ### Static Analysis (`-P codeQuality`)
 
-The three tools are **skipped by default** and only enabled via the `codeQuality` Maven profile.
+Skipped by default (profile `build` sets `*.skip=true`); CI always enables `codeQuality`. All three fail the build on violations.
 
-| Tool | Config file | Maven phase | What it checks |
+| Tool | Config file | Phase | Checks |
 |---|---|---|---|
-| Checkstyle | `src/main/resources/checkstyle/checkstyle.xml` | `validate` | Formatting, naming, whitespace, line length (max 150) |
-| PMD | `src/main/resources/pmd/ruleset.xml` | `process-test-classes` | Best practices, code style, design, error-prone patterns |
-| SpotBugs | `src/main/resources/spotbugs/excludes.xml` | `process-test-classes` | Bytecode-level bug patterns |
+| Checkstyle | `backend/src/main/resources/checkstyle/checkstyle.xml` | `validate` | Formatting, naming, line length (max 150) |
+| PMD | `backend/src/main/resources/pmd/ruleset.xml` | `process-test-classes` | Best practices, design, error-prone |
+| SpotBugs | `backend/src/main/resources/spotbugs/excludes.xml` | `process-test-classes` | Bytecode bug patterns |
 
-All three fail the build on violations. To suppress a specific violation inline:
-
-```java
-@SuppressWarnings("checkstyle:MagicNumber")   // Checkstyle
-@SuppressWarnings("PMD.CyclomaticComplexity") // PMD
-@SuppressFBWarnings("NP_NULL_ON_SOME_PATH")   // SpotBugs (requires spotbugs-annotations dep)
-```
+Suppress narrowly and only with a reason, e.g. `@SuppressWarnings("PMD.CognitiveComplexity")` (used on large handler beans) or `@SuppressWarnings("checkstyle:MagicNumber")`.
 
 ---
 
@@ -144,85 +154,100 @@ All three fail the build on violations. To suppress a specific violation inline:
 ### Request Flow
 
 ```
-Client
-  ├── REST (HTTP)  → API Gateway → game-api Lambda (gameApi dispatcher)
-  │                                  ├── join/leave/start-game, state, leaderboard
-  │                                  ├── Profile API (/profile)
-  │                                  ├── Admin cleanup (/admin/doomsday; Cognito game-admin only)
-  │                                  ├── Admin users (GET /admin/users, POST /admin/users/{id}/block|unblock; game-admin only)
-  │                                  ├── Lobby browser (GET /games; any signed-in user)
-  │                                  └── Voice token (POST /games/{sessionId}/voice-token; players of voice-enabled games)
-  │                → API Gateway → glue Lambda (create-game, Go)
-  └── WebSocket    → API Gateway → authorizer Lambda (Go, $connect only)
-                   → API Gateway → glue Lambda ($connect, $disconnect, $default; Go)
-                   → API Gateway → game-api Lambda (play, setup, pickup)
-                                         ↓
-                                   GameSession (state machine)
-                                         ↓
-                                   DynamoDB (save entity)
-                                        ↓
-                                   broadcastState() → WebSocket clients
+Browser (GitHub Pages SPA)
+  ├── REST  → API Gateway REST (Cognito authorizer, stage prod)
+  │            ├── POST /create-game ─────────────────────────────→ glue (Go)
+  │            └── every other route ─────────────────────────────→ game-api:LIVE (Java)
+  └── WSS   → API Gateway WebSocket (route selection $request.body.action)
+               ├── $connect  → authorizer (Go, ?token=) → glue: store connection
+               ├── $disconnect / $default ────────────────────────→ glue ($default is a no-op)
+               └── play, setup, chat, nudge, pickup ──────────────→ game-api:LIVE (Java)
+                        → GameSession → DynamoDB → postToConnection to every connection of the game
+EventBridge rate(5 minutes) → glue: abandoned-game janitor
+Cognito post-confirmation / post-authentication → glue: init-user
 ```
 
-### Lambda Layout
+### Lambda Functions
 
 | Function | Runtime | Built from | Serves |
 |---|---|---|---|
-| `${project}-game-api` | java17, 1024 MB, SnapStart, alias `LIVE` | `backend/` fat JAR, `SPRING_CLOUD_FUNCTION_DEFINITION=gameApi` | Every game/profile/admin REST route and the `play`, `setup`, `pickup` WebSocket routes |
-| `${project}-glue` | provided.al2023, arm64 | `glue-go/` (`bootstrap` in `glue-go/build/glue.zip`) | REST `create-game`, WS `$connect`, `$disconnect`, `$default`, Cognito post-confirmation/post-authentication (init user), EventBridge abandoned-game janitor (every 5 minutes) |
-| `${project}-authorizer` | provided.al2023, arm64 | same zip as glue | WebSocket REQUEST authorizer (Cognito ID token, denies `blocked` users) |
+| `${project}-game-api` | java17, 1024 MB, 60 s, SnapStart, alias `LIVE` | `backend/` fat JAR; handler `com.tamaspinter.backend.LambdaHandler::handleRequest` | All REST routes except create-game; WS `play`, `setup`, `chat`, `nudge`, `pickup` |
+| `${project}-glue` | provided.al2023, arm64, 256 MB, 10 s | `glue-go/build/glue.zip` | REST `create-game`, WS `$connect`/`$disconnect`/`$default`, Cognito init-user trigger, EventBridge janitor |
+| `${project}-authorizer` | provided.al2023, arm64, 256 MB, 10 s | same zip | WebSocket REQUEST authorizer |
 
-The glue zip is deployed twice on purpose: the Cognito user pool references the init-user trigger, and the authorizer needs the pool id, so a single function would create a Terraform dependency cycle. The glue function gets no pool id.
+`project_name` defaults to `shithead`. The glue zip is deployed twice on purpose: the Cognito pool references the init-user trigger and the authorizer needs the pool id, so one function would create a Terraform cycle. The glue function gets no pool id; `verifierFromEnv()` returns nil there, which is also how the dispatcher knows it may run the janitor.
 
-### One Game API Lambda (`gameApi`)
+### Game API Lambda (Java)
 
-`config/GameApiFunctionConfig` receives the raw event as `Map<String,Object>` and decides by shape:
+- `LambdaHandler` is a `RequestStreamHandler`: it reads the raw event as a map, calls `GameApiFunctionConfig.dispatch`, and writes the returned API Gateway response object **unwrapped**. Do not switch back to the generic Spring Cloud Function adapter (it wraps the response in a second envelope without CORS headers; browsers report "Failed to fetch"). `SPRING_CLOUD_FUNCTION_DEFINITION=gameApi` is still set in Terraform and the `gameApi` bean still exists, but the entry point does not use them.
+- `GameApiFunctionConfig.dispatch` decides by shape: `requestContext.routeKey`/`eventType` present → WebSocket (route key, or body `action` when the route key is missing); `httpMethod` present → REST (path or resource + method; path parameters are filled from the template when API Gateway did not supply them); anything else or an unknown route → `404 {"message":"Not found"}` with CORS headers.
+- `ApiRoutes` is the route table; handlers are existing `Function` beans.
 
-- WebSocket event (`requestContext.routeKey` or `eventType` present): the route key, or the body `action` when the route key is missing, selects the handler.
-- REST proxy event (`httpMethod` present): `resource`/`path` plus the method select the handler. Path parameters from API Gateway are kept; for events without them they are read from the template.
-- Anything else, and any route not in the table, returns `404` JSON with CORS headers.
+| Method | Path / WS action | Handler bean |
+|---|---|---|
+| POST | `/join-game` | `GameFunctionConfig.joinGame` |
+| POST | `/leave-game` | `GameFunctionConfig.leaveGame` |
+| POST | `/start-game` | `GameFunctionConfig.startGame` |
+| GET | `/state/{sessionId}` | `GameFunctionConfig.getState` |
+| GET | `/leaderboard/top` | `GameFunctionConfig.leaderboardTop` |
+| GET | `/leaderboard/session/{sessionId}` | `GameFunctionConfig.leaderboardSession` |
+| GET, PUT, DELETE | `/profile` | `AccountManagementFunctionConfig.accountManagement` |
+| POST | `/admin/doomsday` | `accountManagement` (game-admin) |
+| GET | `/admin/users` | `accountManagement` (game-admin) |
+| POST | `/admin/users/{userId}/block`, `/unblock` | `accountManagement` (game-admin) |
+| GET | `/games` | `accountManagement` (any signed-in user) |
+| POST | `/games/{sessionId}/voice-token` | `VoiceFunctionConfig.voiceToken` |
+| WS | `play`, `setup`, `chat`, `nudge` | `GameFunctionConfig.playCardWS` (branches on body `action`) |
+| WS | `pickup` | `GameFunctionConfig.pickupPileWS` |
 
-The event is converted with `ObjectMapper` to `APIGatewayProxyRequestEvent` or `APIGatewayV2WebSocketEvent` and passed to the existing handler `Function` beans. Handler logic is not duplicated in the dispatcher.
-
-### Adding a Route to the Game API
-
-1. Open `backend/src/main/java/com/tamaspinter/backend/config/ApiRoutes.java`.
-2. Add one line to the constructor:
-   - REST: `rest("GET", "/games/{gameId}", game.someHandler());` (the handler is a `Function` bean on a `*FunctionConfig`).
-   - WebSocket: `websocket("chat", game.playCardWS());` (the route key is the `action` the client sends; `chat` is routed inside `playCardWS` by action).
-3. Add a test case to `GameApiFunctionConfigTest` if the route has its own behaviour.
-4. Terraform needs no change for routes that stay within the existing REST resources. A new REST resource or WebSocket route also needs its API Gateway resource, method, integration and `aws_lambda_permission` in `infra/terraform/api_gateway/`, pointed at `game_api_alias_arn` / `game_api_function_name` from `infra/terraform/main.tf`.
+Env vars of the game API: `GAME_SESSIONS_TABLE`, `USERS_TABLE`, `WS_CONNECTIONS_TABLE`, `WS_MANAGEMENT_ENDPOINT`, `SPRING_CLOUD_FUNCTION_DEFINITION`, `COGNITO_USER_POOL_ID`, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (`AWS_REGION` is provided by Lambda). One IAM role `game_api_exec`: DynamoDB on the three tables and their GSIs (incl. Scan and TransactWriteItems on users), `execute-api:ManageConnections`, and `cognito-idp:AdminDeleteUser` on the pool only.
 
 ### Glue Lambda (Go, `glue-go/`)
 
-One binary, dispatched by event shape in `dispatch.go`:
+`dispatch.go` routes by event shape, in this order:
 
-- Cognito trigger (`triggerSource`): `init-user` seeds `username`, `leaderboard_pk`, `elo_score` and `created_at` with `if_not_exists`, so a user-edited name survives later logins. The event is returned unchanged.
-- WebSocket REQUEST authorizer (`type` = `REQUEST`, `methodArn`): verifies the RS256 Cognito ID token from `?token=` or a bearer header (issuer, audience = app client id, `token_use` = `id`, expiry). The JWKS is cached and refetched when a `kid` is unknown, with a one-minute cooldown. A user whose users-table item has `blocked` = true gets a `Deny` policy.
-- REST `create-game`: requires the Cognito `sub`; validates `config` strictly (`decksCount` 1 or 2, `burnCount` derived, face/hand counts integers 0..10, `cardRules` values from `DEFAULT|JOKER|SMALLER|TRANSPARENT|REVERSE|BURNER`, boolean options must be booleans, unknown keys ignored). Invalid config returns 400 and writes nothing. It also hands over or deletes the caller's unstarted lobbies first. `voiceEnabled` (boolean, default false) is stored inside `config`; enabling it requires `cognito:groups` to contain `game-admin` (array or string form), otherwise 403 `{"message":"Only administrators can enable voice chat."}` and nothing is written.
-- WebSocket `$connect` / `$disconnect` record and remove connections. `$default` is a deliberate no-op returning 200, so clients cannot broadcast to other players.
-- Abandoned-game janitor (`janitor.go`): an EventBridge rule (`rate(5 minutes)`, `janitor.tf`) invokes the glue function; the dispatcher routes `aws.events` "Scheduled Event" to it (glue only, not the authorizer). It deletes a game only when all hold: `started` true, `finished` false, last activity (`updated_at`, else `created_at`, else `ttl` - 3600) older than 15 minutes, and no connection row for the game in the `game_session_id-index` GSI with a `ttl` still in the future. The delete is conditional (`started`/`finished` unchanged and `updated_at` not newer than the scanned value), so a game saved during the run survives. A failed connection query skips that game. Lobbies and finished games are never touched; the 1-hour game TTL is unchanged. Cost: about 8,640 invocations a month and a small table scan, all inside the free tier; no call to the Java Lambda.
-- Games carry `updated_at` (epoch seconds). `GameSessionRepository.save` stamps it on every write, and `create-game` sets it too. Items written before this lack it and fall back to `created_at`.
+| Event | Handler | Notes |
+|---|---|---|
+| `triggerSource` present | `init_user.go` | Seeds `username` (preferred_username, else email), `leaderboard_pk`=`global`, `elo_score`=1000, `created_at` with `if_not_exists`, so an edited name survives later logins. Returns the event unchanged. |
+| `type`=`REQUEST` + `methodArn` | `auth.go` | Verifies the RS256 Cognito **ID** token (issuer, audience = app client id, `token_use`=`id`, expiry) from `?token=` (or a Bearer header; API Gateway's identity source is the query string). JWKS cached, refetched on unknown `kid` with a 1-minute cooldown. Users with `blocked`=true get a `Deny` policy. Context: `sub`, `username`. |
+| `aws.events` + `Scheduled Event`, glue only | `janitor.go` | See "Abandoned-game janitor". |
+| WS `routeKey`/`eventType` | `websocket.go` | `$connect` stores `connection_id`, `game_session_id` (query), `user_id` (authorizer `sub`), `ttl` = now + 3600. `$disconnect` deletes the row. `$default` returns 200 and does nothing (clients must not broadcast). |
+| `httpMethod` | `games.go` | `POST /create-game` (see below). |
 
-Tests use an in-memory fake of the DynamoDB interface (`fake_dynamo_test.go`) and an httptest JWKS server with a generated RSA key (`auth_test.go`).
+**create-game**: requires the Cognito `sub` (401 otherwise). `config.go` validates `config` strictly: `decksCount` 1 or 2 (burn count derived: 4 or 6), `faceDownCount`/`faceUpCount`/`handCount` integers 0..10 (default 3), booleans `allowMixedHandAndFaceUpWhenDeckEmpty`, `allowFailedFaceUpPlay`, `voiceEnabled` must be real booleans, `cardRules` values from `DEFAULT|JOKER|SMALLER|TRANSPARENT|REVERSE|BURNER` for ranks 2..14 (unset ranks = `DEFAULT`; `alwaysPlayable` = JOKER/TRANSPARENT ranks, `canPlayAgain` = BURNER ranks); unknown keys ignored. Invalid → 400 and nothing written. `voiceEnabled` requires `cognito:groups` to contain `game-admin` (array or bracketed string), else 403 `{"message":"Only administrators can enable voice chat."}`. Then the caller's unstarted owned lobbies are handed to the next player or deleted, a random 6-character code is chosen, and the item is written with `created_at` (ISO string), `updated_at` (epoch s) and `ttl` = now + 3600. Response `{"sessionId": "..."}` with CORS headers.
 
-User nicknames are stored in the users DynamoDB table. `UserProfileService` creates profiles and reserves unique default nicknames; `UsernameReservationRepository` normalizes nickname comparisons case-insensitively, checks legacy profile rows, and transactionally reserves a nickname with a hidden same-table claim record. The game API Lambda needs Scan, UpdateItem, DeleteItem, and TransactWriteItems permissions on that table. Starting a game is a two-phase flow: the owner persists `starting=true`, then sends a `setup` WebSocket action to broadcast that state immediately (one-second lobby polling remains a fallback), and finalizes the deal after a short transition. Once dealt, the game enters a persisted card-swap/readiness phase; play is blocked until every player is ready.
+**Abandoned-game janitor** (`janitor.go`, rule in `infra/terraform/lambda/janitor.tf`, `rate(5 minutes)`): scans for `started`=true and `finished`=false; deletes a game only if its last activity (`updated_at`, else `created_at`, else `ttl` - 3600) is older than `janitorGracePeriod` = 15 minutes **and** no row in the connection registry's `game_session_id-index` has a `ttl` in the future (a row without `ttl` counts as live). The delete is conditional (still started/unfinished and `updated_at` not newer than scanned), so a game saved meanwhile survives; any query error skips the game. Lobbies and finished games are never touched. About 8,640 invocations a month, inside the free tier, and it never calls the Java Lambda.
+
+Glue env vars: glue gets `GAME_SESSIONS_TABLE`, `USERS_TABLE`, `WS_CONNECTIONS_TABLE`; authorizer gets `COGNITO_USER_POOL_ID`, `COGNITO_APP_CLIENT_ID`, `REGION`, `USERS_TABLE`. Both share role `lambda_exec`.
+
+### Game Lifecycle
+
+1. **Create**: glue `create-game` (owner = `user_id`, owner is the only player).
+2. **Join / leave** (`/join-game`, `/leave-game`): only before start. Join first removes the user from other unstarted lobbies they own (`cleanupOldSessions`); join of a full game returns 409 with a message (`GameSession.MAX_PLAYERS` = 10). Leaving hands ownership to the next player or deletes an empty lobby.
+3. **Start** (owner only, at least 2 players): `POST /start-game {"phase":"prepare"}` persists `starting=true`; the owner's client sends WS `setup` with `setupAction:"announce"` so everyone sees the transition immediately (the room also polls state every second as a fallback); then `POST /start-game` (no phase) deals. Dealing checks deck feasibility: if players × (faceDown + faceUp + hand) > decks × 52, it returns 409 `Not enough cards: this setup supports at most N players with D deck(s)` and resets `starting`.
+4. **Setup phase** (`started` true, `setupComplete` false): hand and face-up are sorted by rank and suit, face-down order is kept. WS `setup` actions:
+   - `swap`: `handIndices` + `faceUpIndices` (i-th pairs with i-th; non-empty, equal size, no duplicates, in range, player not ready); legacy `handIndex`/`faceUpIndex` still accepted. No event is recorded.
+   - `ready`: marks the player ready; when all are ready `setupComplete` becomes true and play is allowed.
+   - `starter` + `starterId`: owner override of who starts (`GameSession.setStarter`), only during setup, only for a player in the game. By default the **lowest Elo** player starts (`start(ratings)`, missing rating = 1000, ties → first in list).
+   - `announce`: see step 3.
+5. **Play**: WS `play` (with `selections` `[{source: hand|faceUp|faceDown, index}]`, or legacy `cards`) and `pickup`. The not-your-turn check happens in `GameFunctionConfig` before the session is touched.
+6. **Finish**: when at most one player is not out, the game is `finished` and the remaining player is `shitheadId`; Elo is updated once (see Elo).
 
 ### Game State Machine (`GameSession`)
 
-`GameSession.playCards(List<Card>)` returns one of three outcomes:
+`playCards(List<Card>)` / `playSelections(List<CardSelection>)` / `pickupPile()` return `PlayResult`:
 
 | Result | Meaning |
 |---|---|
-| `SUCCESS` | Cards played; after-effects applied; turn advances unless the card or a pile burn grants a replay |
-| `PICKUP` | Player picks up the pile (explicit or blind flip failure) |
-| `INVALID` | Move rejected — see the reason below |
+| `SUCCESS` | Cards played; after-effects applied; turn advances unless a BURNER card or a 4/6-card burn grants another turn (also when the rank reverses order) |
+| `PICKUP` | Player picked up the pile (explicit pickup, failed blind flip, or failed face-up play when allowed) |
+| `INVALID` | Rejected; `getLastInvalidReason()` says why |
 
-`GameSession.getLastInvalidReason()` (an `InvalidReason` enum, cleared at the start of every `playCards` / `playSelections` / `pickupPile` call) says why an `INVALID` happened. `getLastRequiredPileValue()` gives the pile-top value for `TOO_LOW` / `TOO_HIGH`. The not-your-turn check runs in `GameFunctionConfig` before the session is touched. `config/PlayErrorMessages.forReason()` turns the reason into the player-facing WebSocket error text. Messages never reveal face-down values.
+`InvalidReason` (cleared at the start of each call) → `PlayErrorMessages.forReason()` text sent as WS error. Messages never reveal face-down values.
 
 | Reason | Message |
 |---|---|
-| (not your turn, `GameFunctionConfig`) | It's not your turn yet. |
+| (not your turn, checked in `GameFunctionConfig`) | It's not your turn yet. |
 | `SETUP_NOT_COMPLETE` | Wait until everyone is ready. |
 | `GAME_FINISHED` | This game has already ended. |
 | `EMPTY_SELECTION` | Select a card to play first. |
@@ -230,304 +255,226 @@ User nicknames are stored in the users DynamoDB table. `UserProfileService` crea
 | `WRONG_ZONE` | You can't play those cards right now: use your hand first, then your face-up cards, then the face-down ones. |
 | `FACE_DOWN_ONE_AT_A_TIME` | Flip your face-down cards one at a time. |
 | `MIXED_VALUES` | Cards played together must have the same value. |
-| `TOO_LOW` | That card is too low: play {rank} or higher. |
-| `TOO_HIGH` | That card is too high: play {rank} or lower. |
+| `TOO_LOW` / `TOO_HIGH` | That card is too low/high: play {rank} or higher/lower. (`getLastRequiredPileValue()`; 11-14 named Jack..Ace; decided by the effective top, transparent cards looked through; a `SMALLER` top needs equal or lower) |
 | `MIXED_HAND_FACEUP_NOT_ALLOWED` | Hand and face-up cards can only be played together when the draw pile is empty and that option is on. |
 | `PILE_EMPTY` | There is nothing to pick up. |
 
-`TOO_LOW` / `TOO_HIGH` are decided by the effective pile top (transparent cards are looked through): a `SMALLER` top needs an equal or lower card (`TOO_HIGH`), any other top needs an equal or higher one (`TOO_LOW`). `{rank}` is the top value, with 11-14 named Jack, Queen, King, Ace.
-
-Card source priority: **hand → faceUp → faceDown** (blind flip). The game client sends an explicit source and index for a selected card; face-down cards stay hidden from the client and are revealed by the server after the blind flip. `allowMixedHandAndFaceUpWhenDeckEmpty` is stored per game, and permits a same-value hand/face-up combination only when that game's draw pile is empty. `allowFailedFaceUpPlay` (default `false`, missing attribute reads as `false`) applies when a player with an empty hand plays an illegal face-up selection: the selected card(s) go onto the pile and the player immediately picks up the whole pile, including them (`PlayResult.PICKUP`, same as a failed blind flip). When off, that play is `INVALID`. The option is exposed to clients as `allowFailedFaceUpPlay` on `GameStateView`; the `/config` screen groups it with the mixed hand/face-up toggle under "Face-up cards".
-
-After dealing, `GameSession` sorts each player's hand and face-up cards by rank and suit, but preserves face-down order. Players may swap several cards before marking themselves ready: `swapStartingCards(playerId, handIndices, faceUpIndices)` pairs the i-th hand index with the i-th face-up index. The two lists must be non-empty, the same size, duplicate-free and in range, otherwise nothing changes. The single-index overload delegates to it. The `swap` setup message carries `handIndices`/`faceUpIndices` and, for older clients, `handIndex`/`faceUpIndex` (the first pair). A swap records no game event. A ready player cannot alter cards. Starting player: `start(Map<String, Double> ratings)` makes the lowest-rated player start (missing rating = 1000, ties go to the first player in the list); `start()` delegates with no ratings, so the first player starts. `startGame` loads ratings with `loadRatings`. During setup the owner can override the starter with the `setup` action `setupAction:"starter"` + `starterId`, handled by `GameSession.setStarter(requesterId, starterId)`, which only works for the owner, before `setupComplete`, and for a player in the game. It only changes the current player. `setupComplete` gates every play action until all players are ready. Four/six-card burns also grant the player another turn, even when the played rank reverses player order.
-
-The WebSocket `playSelections` path must run `finishSuccessfulPlay` after a successful hand, face-up, face-down, or mixed selection so after-effects execute and turn ownership advances. `setup` actions use the same WebSocket Lambda route for readiness and card swaps. Failed blind flips include a transient revealed card in the broadcast; the browser hides that notice after about one second. Keep these behaviors in sync if adding another selection source.
-
-**Activity feed and session chat.** `GameSession` keeps the 30 most recent `GameEvent`s (`seq`, `type`, `playerId`, `username`, `cards`, `count`, `ts`) and persists them as the optional `events` list on the game item (`GameEventEntity`). Items written before the feed existed read as an empty list. The list is returned as `events` on `GameStateView`, so REST `/state` and WebSocket broadcasts both carry it. Events are recorded inside `GameSession` through `recordEvent`/`commitPlay`/`pickUpPile`; new move paths must go through those helpers. Session chat is the `chat` WebSocket action on the `play_card` integration, so it needs no extra Lambda. The handler checks membership, validates text with `ChatMessageValidator` (1–300 characters after trimming; empty is dropped silently), and relays `{type:"chat", userId, username, text, ts}` to every connection of the game. Chat is never written to DynamoDB or logged. Rate limiting relies on the stage's API Gateway throttling, because an in-memory counter is not reliable across Lambda instances.
-
-**Nudge (fart sound).** The `nudge` WebSocket action, also routed to `playCardWS` (route in `websocket.tf`, permission in `permissions.tf`), checks membership and relays `{type:"nudge", userId, username, ts}` to every connection of the game via `NudgeMessage`. Nothing is stored or logged. The frontend plays `frontend/public/sounds/fart.mp3` (`lib/fartSound.ts`) for a nudge received from anyone (the sender hears its own echo); the button (`components/NudgeButton.tsx`) has a 3-second client cooldown. After login, the auth callback sets the sessionStorage flag `shithead_login_sound` and the lobby plays the sound once; if autoplay is blocked it plays on the first click or key press (`unlockAudio`).
-
-**Voice chat (LiveKit).** Optional per game: `voiceEnabled` is part of the game config and is exposed as `GameStateView.voiceEnabled`. Only a game-admin (Cognito group `game-admin`) can enable it, at create time. `POST /games/{sessionId}/voice-token` (`VoiceFunctionConfig` -> `VoiceTokenHandler` -> `LiveKitAccessTokenService`) returns `{url, token, room}` to a player of a voice-enabled game. It answers 404 for an unknown game, 403 for a non-player or when voice is off, and 503 `{"message":"Voice chat is not configured"}` when the settings are empty. The token is an HS256 JWT signed with the API secret using only the JDK (no SDK), valid for 2 hours, with a `video` grant for that game's room and microphone publishing only. Settings are env vars on the game API Lambda, `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`, fed from Terraform variables `livekit_url`, `livekit_api_key` and `livekit_api_secret`. CI reads GitHub variable `LIVEKIT_URL` and secrets `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET`; empty values keep the feature off. LiveKit Cloud's free plan includes 5,000 participant-minutes per month, and audio runs through LiveKit, not this backend. Never log the secret or a token.
-
-The frontend keeps `/lobby`, `/config`, `/profile`, and leaderboard routes inside a shared `MenuLayout` with persistent desktop sidebar and mobile top navigation. The `/config` screen saves next-game preferences in browser `localStorage` (`shithead_game_config`). It also has a "How to play" popup (`components/RulesModal.tsx`, styles in `styles/rules.css`) whose special-card list is generated from the current, unsaved selections. Lobby game creation sends those settings to the Go `create-game` handler in the glue Lambda (`glue-go/games.go`). Each game stores its own config in DynamoDB. Deck count is fixed to the selected 1 or 2 decks; the burn threshold follows it (4 or 6 cards). Selected card rules use the existing `CardRule` strategies and are stored on the game/cards.
+Rules worth knowing:
+- Source priority: **hand → faceUp → faceDown** (blind flip, one card at a time). The client sends explicit source + index; face-down values stay hidden until the server reveals them. A failed blind flip (and a failed single face-up play) attaches a transient `revealedCard` to the broadcast; the client hides it after about a second.
+- `allowMixedHandAndFaceUpWhenDeckEmpty`: same-value hand + face-up combination only when the draw pile is empty.
+- `allowFailedFaceUpPlay` (default false; missing attribute = false): a player with an empty hand who plays an illegal face-up selection puts it on the pile and picks up the whole pile (`PICKUP`), instead of `INVALID`.
+- `playSelections` must end in `finishSuccessfulPlay` so after-effects run and the turn advances; new selection sources must keep that, and must record events through `recordEvent`/`commitPlay`/`pickUpPile`.
+- `postPlayCleanup`: burn check → refill hand from the deck → out check. `nextPlayer()` skips players who are out.
 
 ### Card Rule Engine
 
-`RuleEngine` is a static dispatcher. Each `CardRule` maps to a `RuleStrategy`:
+`RuleEngine` is static; each `CardRule` maps to a `RuleStrategy`. Default mapping (`GameConfig.defaultGameConfig()` and Go `defaultCardRules()`), overridable per game from the `/config` screen:
 
-| Card Value | Rule | Behaviour |
+| Value | Rule | Behaviour |
 |---|---|---|
-| 2 | `JOKER` | Playable on anything; next card can be any value |
+| 2 | `JOKER` | Always playable; any card may follow it |
 | 6 | `SMALLER` | Next card must be ≤ 6 |
-| 8 | `TRANSPARENT` | See-through; delegates to rule below |
+| 8 | `TRANSPARENT` | Always playable; see-through (next card judged against the card below) |
 | 9 | `REVERSE` | After-effect: reverses player order |
-| 10 | `BURNER` | After-effect: clears pile; player plays again |
-| other | `DEFAULT` | Standard ≥ rule |
+| 10 | `BURNER` | After-effect: burns the pile; player plays again |
+| other | `DEFAULT` | Next card must be ≥ |
 
-Cards with `alwaysPlayable = true` (values 2 and 8) bypass all `canPlay` checks.
+Cards whose rank is in `alwaysPlayable` (JOKER/TRANSPARENT ranks) bypass `canPlay`. A pile burns when the top `burnCount` cards (4 with one deck, 6 with two) share a value.
+
+### Activity Feed, Chat, Nudge
+
+- **Events**: `GameSession` keeps the last `MAX_EVENTS` = 30 `GameEvent`s (`seq`, `type`, `playerId`, `username`, `cards`, `count`, `ts`; types `PLAYED`, `PLAYED_AGAIN`, `REVERSED`, `BURNED`, `PICKED_UP`, `FAILED_FLIP`, `FAILED_PLAY`, `READY`, `OUT`, `FINISHED`), persisted as `events` and returned in `GameStateView.events`. Missing on old items = empty list.
+- **Chat** (`chat` action): membership check, `ChatMessageValidator` (1–300 chars after trim; empty dropped silently, too long → error), relays `{type:"chat", userId, username, text, ts}` to every connection of the game. Never stored or logged. Rate limiting relies on the WS stage throttling (burst 100, rate 50/s); in-memory counters do not work across Lambda instances.
+- **Nudge** (`nudge` action): relays `{type:"nudge", userId, username, ts}` (`NudgeMessage`); nothing stored. The frontend plays `public/sounds/fart.mp3` (`lib/fartSound.ts`); `NudgeButton` has a 3 s cooldown. After login the callback sets sessionStorage `shithead_login_sound` and the lobby plays the sound once (on first click/key if autoplay is blocked).
+- **Broadcast**: `broadcastState` posts a per-viewer `GameStateView` (own hand only) to every connection found via `game_session_id-index`; `GoneException` rows are deleted. WS errors go only to the sender as `{type:"error", status, message}`.
+
+### Elo
+
+- `EloService` (static, K = 32): multi-player expected score averaged over opponents; the shithead scores 0, everyone else 1. `calculateChanges` returns `before`/`after` per player.
+- On finish, `GameFunctionConfig.updateElo` writes new ratings to the users table and stores `eloChanges` (playerId → `EloChangeEntity{before, after}`) plus `eloUpdated=true` on the game. Nothing is stored when skipped (fewer than two profiles) or failed, so it can be retried. `SessionMapper.carryEloState` keeps both fields on saves that rebuild the entity from a `GameSession`.
+- `GET /leaderboard/session/{id}` adds `eloBefore`/`eloAfter` when recorded; `/leaderboard/top` rows omit them. The session leaderboard shows the delta (`styles/elo-change.css`).
+- `PlayerStateView.eloScore` carries the current rating to the table.
+
+### Profiles, Admin, Browse, Voice, Account Deletion
+
+- **Profile**: `GET /profile` (includes `canClearGames` = caller is in `game-admin`), `PUT /profile` changes the nickname. `UserProfileService` reserves unique nicknames through `UsernameReservationRepository` (case-insensitive; a hidden claim row `__username__#<normalized>` with `owner_user_id`, written transactionally). Taken → 409. A rename is copied into every game item that contains the player.
+- **Blocking**: users item `blocked` (missing = false), written only by `UserProfileRepository.setBlocked`; profile saves use `withoutBlockedFlag()` + ignore-nulls so they never reset it. `BlockedUserGuard.isBlocked` is checked at the top of `accountManagement` (except `DELETE /profile`) and in join/leave/start/state and the WS handlers (play, setup, chat, nudge, pickup); response 403 `{"message":"Your account has been blocked."}`. Leaderboards are not guarded. The authorizer denies blocked users at `$connect`.
+- **Admin** (`game-admin` group from `cognito:groups`): `GET /admin/users` (scan, skips claim rows); `POST /admin/users/{userId}/block|unblock` (self-block refused; then best-effort closes the user's connections via `UserConnectionService` and removes them from unstarted lobbies via `LobbyMembershipService`); `POST /admin/doomsday` closes every WS connection and deletes **every** game item (profiles and Elo untouched).
+- **Browse** (`GET /games`): unfinished games whose `ttl` has not passed, newest first, max 50, with `status` `waiting`/`in_progress`, `playerCount`, `maxPlayers` = `min(10, decksCount*52 / cardsPerPlayer)`.
+- **Voice** (LiveKit): `voiceEnabled` is part of the game config (only game-admins can enable it at create time) and exposed as `GameStateView.voiceEnabled`. `POST /games/{sessionId}/voice-token` → `{url, token, room}` (room = session id) for players of a voice-enabled game; 404 unknown game, 403 non-player or voice off, 503 `{"message":"Voice chat is not configured"}` when any `LIVEKIT_*` value is empty. The token is an HS256 JWT built with the JDK only, valid 2 h, `video` grant for that room, microphone publishing only. Never log the secret or tokens.
+- **Delete account** (`DELETE /profile`, `AccountDeletionService`): uses only the authorizer `sub` and `cognito:username`; allowed for blocked users. Order: remove from unstarted lobbies → close and delete WS connection rows → delete profile row (Elo) and own nickname claim → Cognito `AdminDeleteUser` (pool from `COGNITO_USER_POOL_ID` / `cognito.user-pool-id`). Earlier steps are best-effort; a Cognito failure returns 500 (no automatic retry). Success `{"deleted":true}`. Finished games keep the name until their TTL.
+
+### DynamoDB Tables
+
+| Table | Key | GSIs | TTL | Notes |
+|---|---|---|---|---|
+| `${project}-game-sessions` | `game_id` (S) | `user_id-index` (owner), `created_at-index` | `ttl` | One item per game |
+| `${project}-users` | `user_id` (S) | `username-index`, `leaderboard-index` (`leaderboard_pk` + `elo_score`) | — | Profiles plus nickname claim rows |
+| `${project}-connection-registry` | `connection_id` (S) | `game_session_id-index` | `ttl` | One row per WS connection |
+
+**Game item** (`GameSessionEntity`): `game_id`, `user_id` (owner), `players` (list of `playerId`, `username`, `hand`, `faceUp`, `faceDown`, `out`, `ready`), `discardPile`, `deck`, `currentPlayerId`, `started`, `starting`, `setupComplete`, `finished`, `shitheadId`, `eloUpdated`, `eloChanges`, `events`, `config` (`decksCount`, `burnCount`, `faceDownCount`, `faceUpCount`, `handCount`, `allowMixedHandAndFaceUpWhenDeckEmpty`, `allowFailedFaceUpPlay`, `voiceEnabled`, `cardRules` map rank→rule, `alwaysPlayable`, `canPlayAgain`), `created_at` (ISO string), `updated_at` (epoch s, stamped by every `GameSessionRepository.save` and by create-game), `ttl` (epoch s, set once at creation to +1 hour and never refreshed; every game expires about an hour after creation). Cards: `suit`, `value`, `rule`, `alwaysPlayable`.
+
+**User item** (`UserProfile`): `user_id`, `username`, `avatarUrl`, `elo_score` (default 1000), `leaderboard_pk` (`global`), `blocked` (optional), `created_at` (seeded by init-user). Claim rows: `user_id` = `__username__#<normalized>`, `owner_user_id`.
+
+**Connection item**: `connection_id`, `game_session_id`, `user_id`, `ttl` (connect time + 1 hour).
+
+### Terraform (`infra/terraform`)
+
+- Root `main.tf` wires modules `cognito`, `lambda`, `dynamodb`, `api_gateway`, `cloudwatch`. State: S3 bucket `shithead-game-state-bucket`, key `shithead/terraform.tfstate`, **no lock table**. `ecr/` and `ecs/` are leftovers not referenced by `main.tf` (but root variables `vpc_id`/`subnets` are still required).
+- `lambda/`: `java_lambda_functions.tf` (game API, alias, role), `glue.tf` (glue + authorizer), `janitor.tf` (EventBridge rule, target, permission), `iam.tf` (`lambda_exec`).
+- `api_gateway/`: `api_gateway.tf` (REST resources, methods, MOCK `OPTIONS` integrations for CORS, gateway responses `cors_4xx`/`cors_5xx`, deployment, stage `prod`, and the WebSocket REQUEST authorizer with identity source `route.request.querystring.token`), `admin_games.tf` (`/admin/users...`, `/games`), `profile_delete.tf`, `voice.tf`, `websocket.tf` (API, routes, integrations, `$default` stage with throttling and access logs), `permissions.tf` (`aws_lambda_permission` per WS route and for REST `/*/*` on the `LIVE` qualifier). The `main.tf` still passes many legacy per-route variables (`join_game_invoke_arn`, ...); they all point to the game API alias.
+- `cognito/`: user pool (Google IdP, callback `${app_url}/auth/callback` and `http://localhost:5173/auth/callback`, ID/access token 1 h, refresh 30 d), triggers `post_confirmation` and `post_authentication` → glue, group `game-admin` (no members), REST Cognito authorizer.
+- `cloudwatch/`: WebSocket access log group (14-day retention).
+
+### Frontend (`frontend/`)
+
+- **Routing** (`src/app/routes.tsx`, BrowserRouter with `VITE_BASE_PATH` basename; `public/404.html` and the CI copy of `index.html` to `404.html` make deep links work on Pages): `/login`, `/auth/callback`, inside `MenuLayout` (desktop sidebar / phone navigation): `/lobby`, `/profile`, `/config`, `/leaderboard`, `/leaderboard/:sessionId`, `/games`, `/admin`; bare: `/room/:sessionId`, `/game/:sessionId`. Everything except Login and Lobby is lazy (`routeModules.ts` loaders + `components/LazyRoute.tsx` skeleton fallback); `components/PrefetchNavLink.tsx` and `lib/prefetch.ts` prefetch chunks and data on hover/focus/touch/visibility; `lib/chunkReload.ts` reloads once when a stale chunk fails after a deploy.
+- **Data** (`src/app/data/`): TanStack Query; keys namespaced per user `['u', sub, ...]` (`keys.ts`); only profile, games and leaderboards are persisted to localStorage (`isPersistedQueryKey`; admin lists and game state stay in memory), 7-day max age, busted by `APP_VERSION`; `AppDataProvider` clears the cache on user switch and via `onAuthCleared`.
+- **Auth** (`src/app/auth/`): `authStore.ts` keeps the session in localStorage `shithead_auth`; a timer refreshes 2 minutes before the ID token expires and `getFreshToken()` refreshes first when less than 1 minute remains; `api/client.ts` `apiFetch` retries once after a 401 (`refreshAfterUnauthorized`). `claims.ts` decodes the ID token (`getUserId`, `isAdmin`). `accountBlocked.ts` (403 with the blocked message → full-screen `AccountBlockedGate`), `accountDeleted.ts` (notice on `/login` after deletion).
+- **API clients** (`src/app/api/`): `client.ts` (`apiFetch`, `throwForError`, `ApiError`), `game.ts` (REST calls and `openGameSocket` with `?game_session_id=&token=`), `games.ts`, `leaderboard.ts`, `profile.ts`, `admin.ts`, `voice.ts`. REST calls go to `VITE_API_BASE_URL`; create-game is just another REST path.
+- **Screens**: `Login`, `Lobby` (create/join, top players), `Room` (lobby/wait room, start), `GameTable` (+ `GameTableRoute`), `Games` (browse), `Leaderboard` (full list paginated 10 per page with `Pager`; ranks stay global, so the top-3 styling only appears on page 1), `Profile` (nickname, game maintenance for admins, delete account via `DeleteAccountDialog`), `GameConfig` (two-column layout, On/Off switches ordered Off then On, Card Rules description as a bullet list in `styles/rule-list.css`, rules picker, `RulesModal`, settings in localStorage `shithead_game_config`), `Admin` (users, block/unblock; 5 users per page on every screen size, loading skeleton renders the same rows with the pinned `--admin-row-height`).
+- **Table components**: `PlayerPanel`, `Pile`, `Hand`, `FaceUp`, `FaceDownCount`, `CardFace`, `PeekWrap`, `SeatTableView`, `StarterPicker`, `ShitheadModal`, `GameFeed`, `ChatPanel` (feed + chat + `VoicePanel`), `ChatBubble`, `NudgeButton` (`TurnBadge` still exists but is no longer used). Phones (`(max-width: 700px)`) use a compact mode with `SeatChip`/`SeatPeek`; desktop fitting lives in `table-fit.css`, `table-desktop-fix.css`, `many-players.css` (up to 10 seats).
+- **Table behaviour**:
+  - The top bar reads `ROOMCODE · username · own Elo` (`styles/table-bar.css`). The username truncates first so the Elo stays visible on phones.
+  - Seats show no PLAYING/NEXT text. The current turn is a gold solid inset ring and the next player a teal dashed inset outline, drawn inside the seat so scroll containers do not clip them. Screen readers get visually hidden labels (`.seat-sr-only`). Styles live in `styles/seat-indicators.css`.
+  - `PeekWrap` hover previews are portalled, `position: fixed`, and placed above the element (else below or beside). They are `pointer-events: none` until pinned, so they never block clicks on the pile. Touch devices get a centred dialog instead.
+  - When the current player has no legal move (`lib/rules.ts` `mustPickUp`), `GameTable` auto-selects the discard pile for pick-up. This runs from an effect keyed on `moveSignature`, so it fires once per position.
+- **Shared UI**: `Icon` (single Lucide-style SVG icon set so every device shows the same glyphs; add new icons there), `ErrorAlert` (auto-dismissing toasts, 3 s), `Pager` (`styles/pagination.css`), `Skeleton`, `Tabs`, `MenuLayout`.
+- **lib/**:
+  - `voice.ts`: module-level LiveKit connection; `livekit-client` loads lazily.
+  - `fartSound.ts`: each nudge plays its own `Audio` element, capped at `MAX_FART_VOICES` = 8 simultaneous voices.
+  - `rules.ts`: pure mirror of the backend `canPlay` rules (`canPlayOn`, `mustPickUp`). The server stays authoritative, so change it together with `rules/` in Java.
+  - `gameFeed.ts`: event sentences.
+  - `sessionChat.ts`: 300-character limit, 200 messages kept in memory.
+  - `selection.ts`.
+  - `tableAnimations.ts`: state-diff animations; respects reduced motion.
+  - `prefetch.ts`.
+  - `chunkReload.ts`.
+- **LiveKit free-tier safeguards** (`lib/voice.ts`): leave after the tab is hidden 5 min, after being alone 3 min, after 90 min connected, on game end and on page close; `VoicePanel` tells users audio goes through LiveKit and uses the free allowance.
+- **CSS conventions**: plain CSS, tokens in `styles/theme.css`; global sheets imported in `src/main.tsx`; **new styles go in a new CSS file** imported by the component/screen that needs it rather than growing existing sheets; scrollable areas use the `themed-scroll` class (`styles/scrollbars.css`).
+- **Size budget**: `scripts/size-check.mjs` (gzip budgets for the entry JS and main CSS; lazy chunks informational). Vendor (`react*`) and `@tanstack` are manual chunks.
 
 ---
 
 ## 4. Code Patterns
 
-### Lombok — Full Usage
+### Lombok
 
-Use the full set of Lombok annotations consistently. Do not write manual getters, setters, constructors, or `equals`/`hashCode`.
-
-```java
-// Mutable class with all boilerplate
-@Data
-@Builder
-@Slf4j
-public class Player {
-    private final String playerId;
-    private final String username;
-
-    @Builder.Default
-    private List<Card> hand = new ArrayList<>();
-
-    @Builder.Default
-    private List<Card> faceUp = new ArrayList<>();
-
-    @Builder.Default
-    private List<Card> faceDown = new ArrayList<>();
-
-    private boolean out;
-}
-```
-
-| Annotation | When to use |
-|---|---|
-| `@Data` | Mutable classes — generates `@Getter`, `@Setter`, `@EqualsAndHashCode`, `@ToString`, `@RequiredArgsConstructor` |
-| `@Builder` | Any class where callers benefit from named, optional parameters |
-| `@Builder.Default` | Collection fields and fields with non-null defaults inside `@Builder` classes |
-| `@RequiredArgsConstructor` | Spring beans injected via constructor (use with `final` fields) |
-| `@Getter` / `@Setter` | When `@Data` is too broad (e.g., entities, immutable-ish classes) |
-| `@Slf4j` | All service and handler classes |
-| `@Value` (Lombok) | Truly immutable classes — all fields `final`, no setters |
-
-### Builder Pattern
-
-Use `@Builder` everywhere that constructors or factory methods would take more than 2 arguments, or where callers need to set only a subset of fields.
+Use Lombok rather than handwritten boilerplate: `@Data`/`@Getter`/`@Setter` on mutable beans, `@Builder` (+ `@Builder.Default` for collections and non-null defaults) for multi-field types, `@RequiredArgsConstructor` with `final` fields for Spring beans, `@Slf4j` for logging. DynamoDB beans (`entity/`, `UserProfile`) need `@DynamoDbBean` and a no-args constructor.
 
 ```java
-// Defining a builder class
-@Builder
-@Getter
-public class GameConfig {
-    private final int faceDownCount;
-    private final int faceUpCount;
-    private final int handCount;
-    private final int burnCount;
-
-    @Builder.Default
-    private final Map<Integer, CardRule> cardRuleMap = new HashMap<>();
-}
-
-// Calling the builder
-GameConfig config = GameConfig.builder()
-        .faceDownCount(3)
-        .faceUpCount(3)
-        .handCount(3)
-        .burnCount(4)
-        .build();
-```
-
-Static factory methods can wrap the builder for named presets:
-
-```java
-public static GameConfig defaultGameConfig() {
-    return GameConfig.builder()
-            .faceDownCount(3)
-            .faceUpCount(3)
-            .handCount(3)
-            .burnCount(4)
-            .build();
-}
-```
-
-### Records for Immutable DTOs
-
-Use Java `record` for immutable message types and response DTOs. Combine with `@Builder` when callers need optional fields.
-
-```java
-@Builder
-public record PlayMessage(String sessionId, List<Card> cards) { }
-
-@Builder
-public record ErrorResponse(String type, String message) { }
-```
-
-### Constructor Injection (Preferred)
-
-Always inject dependencies via constructor, not field injection. Use `@RequiredArgsConstructor` with `final` fields — do not write the constructor manually.
-
-```java
-// Good — constructor injection via Lombok
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-public class GameFunctionConfig {
+public class AccountManagementFunctionConfig {
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
-    private final ObjectMapper mapper;
+    ...
 }
-
-// Bad — field injection
-@Autowired
-private GameSessionRepository sessionRepo;
 ```
+
+### Records for DTOs
+
+Immutable messages and API views are records: `PlayMessage`, `GameStateView`, `PlayerStateView`, `EloService.EloChange`, `ApiRoutes.RestRoute`. Add `@Builder` when callers need optional fields.
+
+### Handler Beans
+
+Handlers are `@Bean` methods returning `Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>` (REST) or `Function<APIGatewayV2WebSocketEvent, APIGatewayProxyResponseEvent>` (WebSocket) on a `*FunctionConfig`. The bean name is not a deployed function. Claims: `req.getRequestContext().getAuthorizer().get("claims")` (REST, Cognito authorizer); WS user id comes from the Lambda authorizer context (`sub`). Every REST response is built with the class's `corsResponse(...)` helper or `handler/JsonResponses`.
 
 ### Naming Conventions
 
 | Element | Convention | Example |
 |---|---|---|
-| Services | `XxxService` | `EloService` |
+| Services | `XxxService` | `EloService`, `AccountDeletionService` |
 | Repositories | `XxxRepository` | `GameSessionRepository` |
-| Controllers | `XxxController` | `HealthController` |
+| HTTP mapping helpers | `XxxHandler` | `VoiceTokenHandler` |
+| Handler bean holders | `XxxFunctionConfig` | `GameFunctionConfig` |
+| Entities | `XxxEntity` | `GameSessionEntity` |
+| API views | `XxxView` | `GameStateView` |
 | Mappers | `XxxMapper` | `SessionMapper` |
-| Entities | `XxxEntity` | `GameSessionEntity`, `CardEntity` |
-| Request DTOs | `XxxRequest` | `JoinGameRequest` |
-| Response DTOs | `XxxResponse` | `GameStateResponse` |
-| Lambda config | `XxxFunctionConfig` | `GameFunctionConfig` |
-| Exceptions | `XxxException` | `GameNotFoundException` |
-| Classes | PascalCase nouns | `GameSession`, `RuleEngine` |
 | Methods | camelCase verbs | `playCards()`, `shouldBurn()` |
-| Constants / enums | UPPER_SNAKE | `CardRule.BURNER`, `PlayResult.INVALID` |
-| Boolean methods | `is`/`can`/`should` prefix | `isStarted()`, `canPlay()`, `shouldBurn()` |
-| Packages | lowercase | `com.tamaspinter.backend.rules` |
+| Constants / enum values | UPPER_SNAKE | `MAX_PLAYERS`, `CardRule.BURNER` |
+| Booleans | `is`/`can`/`should` | `isStarted()`, `canPlay()` |
+| DynamoDB attribute names | as stored (snake_case keys, camelCase nested) | `game_id`, `updated_at`, `discardPile` |
+| Go | standard Go style, one concern per file | `janitor.go`, `games.go` |
 
 ---
 
 ## 5. Common Tasks
 
-### Adding a New Card Rule
+### Adding a Route to the Game API
 
-1. Add a value to `CardRule` enum.
-2. Create `XxxRuleStrategy implements RuleStrategy` (optionally `implements AfterEffect`).
-3. Register it in `RuleEngine.strategies` map.
-4. Register card value → rule in `GameConfig.defaultGameConfig()`.
-5. Add tests in `com.tamaspinter.backend.rules`.
+1. Write the handler as a `Function` bean on a `*FunctionConfig` (or a branch in `accountManagement`).
+2. Register it in `config/ApiRoutes.java` (`rest("GET", "/path/{id}", ...)` or `websocket("action", ...)`). Unregistered routes return 404.
+3. Terraform (`infra/terraform/api_gateway/`):
+   - REST: `aws_api_gateway_resource` (if new path) + method (`COGNITO_USER_POOLS`) + `AWS_PROXY` integration to the game API alias + MOCK `OPTIONS` method/integration/responses for CORS. **Add the new integration ids to the `triggers` hash of `aws_api_gateway_deployment.deployment`**, otherwise the `prod` stage never redeploys. The existing `/*/*` `LIVE` permission covers new REST paths.
+   - WebSocket: `aws_apigatewayv2_route` targeting the `play_card` (or `pickup_pile`) integration plus an `aws_lambda_permission` for `execution_arn/*/<route>` (WS stage auto-deploys).
+4. Return CORS headers on every response, including errors.
+5. Add tests (`GameApiFunctionConfigTest`, the handler's test).
 
-The existing card-rule picker can assign the existing `CardRule` values to any rank per game. `JOKER` and `TRANSPARENT` ranks are marked always-playable, while `BURNER` ranks also receive the play-again effect. Adding new rule types still requires implementing their backend strategy/effects.
+### Adding a Glue Feature (Go)
 
-### Adding a New Handler
+Add a file with the handler, a case in `App.Handle` (`dispatch.go`) if it is a new event shape, tests using `fake_dynamo_test.go`, and any env var/permission in `infra/terraform/lambda/glue.tf` / `iam.tf`. Keep it free-tier friendly (no scheduled work more frequent than needed).
 
-1. Add a `@Bean` method returning `Function<InputEvent, OutputEvent>` in `GameFunctionConfig` (or `AccountManagementFunctionConfig`). Its name is only the bean name; it is not a deployed function.
-2. Register it in `ApiRoutes` (see "Adding a Route to the Game API" above). Do not add a Lambda resource per handler.
-3. JWT claims are extracted from: `req.getRequestContext().getAuthorizer().get("claims")`.
+### Adding a Game Config Option
 
-### Profiles and Administrative Cleanup
+Touch all of: Go `GameConfig` + `buildGameConfig` (validation) in `glue-go/config.go`, `GameConfigEntity`, `GameConfig` (`fromEntity`/`toEntity`/default), `GameStateView` if clients need it, frontend `config/gameConfig.ts` and `screens/GameConfig.tsx`. Missing attributes on old items must read as the default.
 
-- `UserProfileRepository` persists display names and Elo ratings in the users table.
-- `GET /profile` and `PUT /profile` read/update the authenticated user's display name. A name change is also copied to that user's active game entries.
-- `DELETE /profile` deletes the caller's own account (`service/AccountDeletionService`). Only the authorizer `sub` and `cognito:username` claims are used, never the body; a blocked user may still call it (the block guard is skipped for this route). Order: remove the user from unstarted lobbies, close and delete their WebSocket connection rows (`UserConnectionService`), delete the profile row with its Elo rating and `__username__#` nickname claim (`UserProfileRepository.deleteProfile`), then `AdminDeleteUser` on the Cognito pool. Steps before Cognito are best-effort and only logged; a Cognito failure returns 500 and nothing is retried automatically. Success returns `{"deleted":true}`. The pool id comes from env `COGNITO_USER_POOL_ID` (`cognito.user-pool-id`); the game API role has `cognito-idp:AdminDeleteUser` on that pool only. Finished games keep their player names until the 1-hour TTL.
-- `POST /admin/doomsday` deletes active game sessions and closes WebSocket connections. It does not delete user profiles or Elo ratings.
-- Elo change per game: when a game finishes, `GameFunctionConfig.updateElo` returns each player's `before`/`after` rating (`EloService.calculateChanges`), stored as `eloChanges` (map playerId -> `EloChangeEntity`) on the game item together with `eloUpdated=true`. Nothing is stored when the update is skipped or fails, so it can be retried. Old items have no `eloChanges`. `SessionMapper.carryEloState` keeps `eloUpdated`/`eloChanges` on saves that rebuild the entity from a `GameSession`.
-- `GET /leaderboard/session/{id}` adds `eloBefore`/`eloAfter` per player when a change was recorded (`eloScore` stays the current rating). The global `/leaderboard/top` rows omit both fields. The session leaderboard screen shows the change as a green/red triangle with a signed delta and a muted "from N" line (`screens/Leaderboard.tsx`, `styles/elo-change.css`).
-- The route checks the Cognito `game-admin` group in JWT claims. Terraform creates the group but does not assign members; membership must be granted deliberately.
-- The game API Lambda uses one IAM role (`game_api_exec`) that holds the union of the permissions the former per-handler roles had: profiles, game cleanup, connection cleanup, and API Gateway connection management.
-- The profile screen renders the Game Maintenance card only when `/profile` reports `canClearGames` for a `game-admin` member.
-- User blocking: the users table item has an optional `blocked` boolean (missing = not blocked). Only `UserProfileRepository.setBlocked` writes it (UpdateItem SET/REMOVE); profile saves use UpdateItem with `withoutBlockedFlag()` and `ignoreNulls` so they never reset it. `GET /admin/users` scans the table and skips `__username__#` claim rows. `POST /admin/users/{userId}/block|unblock` refuses self-block, then best-effort closes the user's WebSocket connections (`UserConnectionService`, filtered scan) and removes them from unstarted lobbies (`LobbyMembershipService`).
-- `BlockedUserGuard.isBlocked(userId)` is checked at the top of the account management dispatch and in each authenticated game REST and WebSocket handler (play, pickup, setup); blocked users get 403 `{"message":"Your account has been blocked."}`. Leaderboard reads do not identify the user and are not guarded.
-- `GET /games` lists unfinished games whose `ttl` has not passed (newest first, max 50) with `status` `waiting`/`in_progress`, `playerCount`, and `maxPlayers` (`min(10, decksCount*52 / cardsPerPlayer)`; joins beyond 10 players are rejected with 409 and a message). Served by `GameBrowseService`/`GameBrowseHandler`.
-- The frontend `/games` (Browse games) and `/admin` screens sit inside `MenuLayout`; `/admin` is linked only when `/profile` reports `canClearGames`. A 403 with the blocked message sets a shared flag (`auth/accountBlocked.ts`) that shows a full-screen notice.
+### Adding a Card Rule
 
-### Adding a New Repository
+1. Add a `CardRule` value and `XxxRuleStrategy implements RuleStrategy` (optionally `AfterEffect`).
+2. Register it in `RuleEngine.STRATEGIES`, and mirror its `canPlay` logic in `frontend/src/app/lib/rules.ts`.
+3. Allow it in Go `validCardRuleValues` (and `rankValues` mapping if it affects `alwaysPlayable`/`canPlayAgain`).
+4. Expose it in the frontend rules picker and `RulesModal`.
+5. Tests in `rules/` and `glue-go/config_test.go`.
 
-1. Create an entity POJO in `entity/` with DynamoDB annotations.
-2. Create `XxxRepository` in `repository/` using `DynamoDbEnhancedClient`.
-3. Inject via `final` field + `@RequiredArgsConstructor` in the consumer class.
+### Adding a Repository
+
+Entity bean in `entity/` (or `model/`), `XxxRepository` in `repository/` using `DynamoDbEnhancedClient`, table name from `application.properties` (`${ENV_VAR:default}`), injected via `final` field. Add IAM actions to `game_api` policy in `java_lambda_functions.tf`.
+
+### Adding a Frontend Screen
+
+Add a loader to `routeModules.ts`, a `routeScreen(...)` + `<LazyRoute>` route in `routes.tsx`, a `PrefetchNavLink` in `MenuLayout` if it is a menu item, a query in `data/queries.ts` (decide explicitly whether its key may be persisted), and a new CSS file for its styles. Run `npm run build && npm run size`.
 
 ---
 
 ## 6. Repository Conventions
 
-### Commit Format (Conventional Commits)
+### How Tasks Are Shipped
 
-```
-<type>(<scope>): <short description>
+- Work on a feature branch `<type>/<short-description>` (e.g. `feat/ten-players`, `fix/janitor-grace`) and open a PR to `main`.
+- Commits follow Conventional Commits: `<type>(<scope>): <description>` with types `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `style`, `ci`, `revert`.
+- CI (`Code Quality & Tests`) must be green before merge. PRs are merged with **merge commits** (no squash/rebase).
+- Merging to `main` deploys: backend paths (`backend/**`, `glue-go/**`, `infra/**`, `pom.xml`, `Dockerfile`) run **Deploy Backend** (build JAR + glue zip, `terraform apply` to production); `frontend/**` or the workflow file run **Deploy Frontend** to GitHub Pages. `workflow_dispatch` runs both.
+- Terraform is applied **only by CI**. Never run `terraform apply`/`plan` against the real state locally, and never let two backend deploys overlap (no state lock).
 
-[optional body]
-```
+### CI (`.github/workflows/ci-cd.yaml`)
 
-| Type | When to use |
+Jobs: `changes` (`dorny/paths-filter@v4`), `test` (Java verify with `-P codeQuality`, Go vet + test, frontend `npm ci && npm run build`, `npm run size`), `deploy-backend`, `deploy-frontend`. Runners pinned to `ubuntu-24.04`. Actions: `actions/checkout@v7`, `actions/setup-java@v6` (temurin 17), `actions/setup-go@v7` (1.24), `actions/setup-node@v7` (20), `aws-actions/configure-aws-credentials@v6`, `hashicorp/setup-terraform@v4` (1.6.6, wrapper off), `actions/configure-pages@v6`, `actions/upload-pages-artifact@v5` (include hidden files for `.nojekyll`), `actions/deploy-pages@v5`. `deploy-backend` first waits for `shithead-*` functions to settle and sets SnapStart to `None` on functions that have it, then `terraform apply -parallelism=3` turns it back on from the Terraform config. Keep that pairing intact.
+
+### Required GitHub Configuration (names only)
+
+| Kind | Names |
 |---|---|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `refactor` | Code change without behaviour change |
-| `test` | Adding or changing tests |
-| `chore` | Build, deps, CI |
-| `docs` | Documentation only |
+| Secrets | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
+| Variables | `AWS_REGION`, `VPC_ID`, `SUBNETS_JSON`, `APP_URL`, `LIVEKIT_URL`, `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`, `VITE_COGNITO_DOMAIN`, `VITE_COGNITO_CLIENT_ID`, optional `VITE_BASE_PATH`, `VITE_COGNITO_REDIRECT_URI`, `VITE_COGNITO_LOGOUT_URI` (derived from `APP_URL` when set) |
 
-### Branch Naming
-
-```
-<type>/<short-description>
-feat/elo-rating
-fix/session-mapper-suit
-```
+Empty LiveKit values keep voice chat off. Frontend local env: `frontend/.env` with the `VITE_*` names from `.env.example`.
 
 ---
 
 ## 7. Clean Code Guidelines
 
-### SOLID
-
-- **Single Responsibility**: `GameSession` manages state transitions only; `RuleEngine` evaluates rules only; `SessionMapper` handles serialization only.
-- **Open/Closed**: Adding new card rules requires only a new strategy class + registration — no changes to existing logic.
-- **Dependency Inversion**: Inject abstractions (interfaces, repositories) not concrete implementations.
-
-### Method Design
-
-- Prefer methods **< 20 lines**.
-- Each method should operate at a **single level of abstraction** — do not mix high-level orchestration with low-level bitwise/string manipulation in the same method.
-- **Return early** for guard clauses instead of nesting:
-
-```java
-// Good
-public PlayResult playCards(List<Card> cards) {
-    if (finished) return PlayResult.INVALID;
-    // ... main logic
-}
-
-// Bad
-public PlayResult playCards(List<Card> cards) {
-    if (!finished) {
-        // ... main logic nested here
-    }
-    return PlayResult.INVALID;
-}
-```
-
-- **Avoid boolean parameters** — they hide intent. Use enums or split into two methods:
-
-```java
-// Bad
-session.advance(true);
-
-// Good
-session.nextPlayer();
-session.skipPlayer();
-```
-
-### Code Organization Within a Class
-
-Follow this ordering:
-
-1. Static fields and constants
-2. Instance fields
-3. Constructors
-4. Public methods
-5. Private/protected methods
-6. Inner classes / enums
-
-### Other Rules
-
-- **Fail fast at boundaries**: validate at Lambda handler entry; trust internal invariants.
-- **No over-engineering**: three similar lines is better than a premature abstraction. Only abstract when a pattern recurs three or more times.
-- **No backwards-compatibility shims**: if something is unused, delete it.
-- **Static for stateless utilities**: `RuleEngine`, `SessionMapper`, `EloService` are stateless — expose only `static` methods.
+- **Single responsibility**: `GameSession` owns state transitions, `RuleEngine` evaluates rules, `SessionMapper` converts, `*FunctionConfig` maps HTTP/WS to domain calls, services hold cross-cutting work.
+- **Open/closed**: a new card rule is a new strategy plus registration.
+- Prefer short methods at one level of abstraction; **return early** for guard clauses.
+- Avoid boolean parameters that hide intent; prefer enums or two methods.
+- Order inside a class: constants, fields, constructors, public methods, private methods, nested types.
+- **Fail fast at boundaries** (handler entry, Go `config.go` validation); trust internal invariants.
+- **No over-engineering**: three similar lines beat a premature abstraction.
+- **Delete unused code** instead of keeping compatibility shims, except where old clients or old DynamoDB items must still work (e.g. legacy `handIndex`/`faceUpIndex`, missing attributes reading as defaults); say so in a comment.
+- **Static for stateless utilities**: `RuleEngine`, `SessionMapper`, `EloService`.
+- Backwards compatibility of stored data matters: items live up to an hour and new attributes must tolerate absence.
 
 ---
 
@@ -535,183 +482,63 @@ Follow this ordering:
 
 | Pattern | Where |
 |---|---|
-| Builder | All multi-field domain/DTO classes via `@Builder` |
-| Strategy | `RuleStrategy` + per-rule implementations |
-| Command / AfterEffect | `AfterEffect` interface for post-play side effects |
-| Repository | `GameSessionRepository`, `UserProfileRepository` |
-| Static Factory | `GameConfig.defaultGameConfig()`, `GameConfig.fromEntity()` |
-| State Machine | `GameSession.playCards()` returning `PlayResult` |
-| Null Object | `Optional<Card>` for deck draws; `@Builder.Default` for empty collections |
+| Front controller / route table | `LambdaHandler` → `GameApiFunctionConfig.dispatch` → `ApiRoutes`; Go `App.Handle` |
+| Strategy | `RuleStrategy` implementations |
+| After-effect hook | `AfterEffect` (REVERSE, BURNER) |
+| Builder | `@Builder` on domain types, entities, DTOs |
+| Repository | `GameSessionRepository`, `UserProfileRepository`, `UsernameReservationRepository` |
+| Static factory | `GameConfig.defaultGameConfig()`, `GameConfig.fromEntity()`, `NudgeMessage.build()` |
+| State machine | `GameSession` with `PlayResult` + `InvalidReason` |
+| Optimistic/conditional write | Janitor conditional delete; nickname claim transaction |
+| Null object | `Optional<Card>` from `Deck.draw()`; `@Builder.Default` empty collections |
 
 ---
 
-## 9. Error Handling Best Practices
+## 9. Error Handling
 
-### Exception Hierarchy
-
-Define a custom exception hierarchy under `exception/`:
-
-```java
-// Base
-public abstract class GameException extends RuntimeException {
-    protected GameException(String message) { super(message); }
-    protected GameException(String message, Throwable cause) { super(message, cause); }
-}
-
-// Subtypes
-public class GameNotFoundException extends GameException {
-    public static GameNotFoundException forSession(String sessionId) {
-        return new GameNotFoundException("Game session not found: " + sessionId);
-    }
-}
-
-public class InvalidMoveException extends GameException {
-    public static InvalidMoveException notYourTurn(String playerId) {
-        return new InvalidMoveException("Not " + playerId + "'s turn");
-    }
-}
-```
-
-- Use **static factory methods** on exception classes for named, self-documenting error cases.
-- Lambda handlers translate exceptions to HTTP status codes at the boundary.
-- Log with `log.error("...", e)` — always include the exception object.
-
-### Error Response Shape
-
-Use a `record` for structured error responses:
-
-```java
-public record ErrorResponse(String type, String message) {
-    public static ErrorResponse of(String type, String message) {
-        return new ErrorResponse(type, message);
-    }
-}
-```
+- There is **no custom exception hierarchy**. Handlers translate outcomes to HTTP status codes directly with JSON bodies (`{"message": "..."}` for user-facing text; some older paths use `{"error": "..."}`; the frontend `throwForError` reads either).
+- Domain rule violations in `GameSession` are `IllegalStateException`s (game full, not enough cards, leaving a started game), caught at the handler and returned as 409 with the message (`conflictResponse`). Messages shown to players must not contain double quotes (the body is built by string concatenation).
+- Invalid moves are not exceptions: `PlayResult.INVALID` + `InvalidReason` → `PlayErrorMessages`.
+- WebSocket errors are posted to the sender only: `{type:"error", status, message}`; the Lambda also returns that status.
+- Service outcomes are enums where callers branch (`AccountDeletionService.DeletionOutcome`, `AdminUserService.BlockOutcome`).
+- Best-effort cleanup (connections, lobbies, Elo) logs failures and continues; AWS SDK failures are caught as `SdkException`.
+- Go: return `jsonResponse(status, ...)` for client errors, wrapped `error`s for infrastructure failures; the janitor skips (never deletes) on uncertainty.
+- Every REST response, success or error, carries CORS headers.
 
 ---
 
 ## 10. Testing Guidelines
 
-### Package Structure
-
-Tests mirror source packages exactly:
-
-```
-src/test/java/com/tamaspinter/backend/
-  game/       → GameSessionTest, GameConfigTest
-  mapper/     → SessionMapperTest
-  model/      → DeckTest
-  rules/      → RuleEngineTest, DefaultRuleStrategyTest, …
-  service/    → EloServiceTest
-```
-
-### Test Method Naming
-
-Use `methodUnderTest_scenario_expectedBehavior`:
-
-```java
-void playCards_withInvalidCard_returnsInvalid()
-void start_withTwoPlayers_dealsSixCardsEach()
-void shouldBurn_withFourMatchingCards_returnsTrue()
-void updateRatings_withEqualRatings_winnerGainsSixteen()
-```
-
-### Structure: Given / When / Then
-
-Always use `// Given`, `// When`, `// Then` (or `// When/Then`) section comments.
-
-```java
-@Test
-void canPlay_onEmptyPile_returnsTrue() {
-    // Given
-    Card card = Card.builder().suit(Suit.HEARTS).value(7).rule(CardRule.DEFAULT).build();
-    Deque<Card> pile = new ArrayDeque<>();
-
-    // When/Then
-    assertTrue(RuleEngine.canPlay(card, pile));
-}
-```
-
-### Test Data Builders
-
-Use static factory methods that return a pre-filled builder so tests can override only the field they care about:
-
-```java
-// In test helpers or inner class
-static Card.CardBuilder aCard() {
-    return Card.builder()
-            .suit(Suit.HEARTS)
-            .value(7)
-            .rule(CardRule.DEFAULT)
-            .alwaysPlayable(false);
-}
-
-// In test
-Card highCard = aCard().value(10).rule(CardRule.BURNER).build();
-Card lowCard  = aCard().value(3).build();
-```
-
-### Mockito Style
-
-Use `mockito-core` only (no `mockito-junit-jupiter`). Call `Mockito.mock()` directly:
-
-```java
-Deck mockDeck = Mockito.mock(Deck.class);
-when(mockDeck.draw()).thenReturn(Optional.of(card1), Optional.of(card2), Optional.empty());
-session.setDeck(mockDeck);
-```
-
-### Deterministic Game Setup
-
-Use `Deck(List<Card>)` (no-shuffle constructor) for controlled decks:
-
-```java
-session.setDeck(new Deck(List.of()));           // empty deck
-session.setDeck(new Deck(List.of(someCard)));   // exactly one card
-```
-
-### Coverage Targets
-
-- **80%+ line coverage** overall.
-- **100% branch coverage** for critical paths: `GameSession.playCards()`, all `RuleStrategy` implementations, `SessionMapper` round-trips.
-- Every new class must have a corresponding test class.
-
-### Floating-Point Assertions
-
-```java
-assertEquals(1016.0, updated.get("winner"), 0.001);
-```
+- Java tests mirror source packages under `backend/src/test/java/com/tamaspinter/backend/` (e.g. `game/GameSessionTest`, `game/GameSessionInvalidReasonTest`, `config/GameApiFunctionConfigTest`, `LambdaHandlerTest`, `service/AccountDeletionServiceTest`, `mapper/SessionMapperEloChangesTest`).
+- Go tests live next to the code (`*_test.go`): in-memory DynamoDB fake `fake_dynamo_test.go`, `httptest` JWKS server with a generated RSA key in `auth_test.go`, janitor and create-game cases.
+- The frontend has no automated tests; `npm run build` and `npm run size` are the CI gates.
+- No coverage tool is configured (no JaCoCo); every new class or behaviour still gets a test.
+- Naming: descriptive `subject_scenario_expectation` style, e.g. `admin_blockingSelf_isRefused` (`AccountManagementFunctionConfigTest`).
+- Structure tests with `// Given`, `// When`, `// Then` comments.
+- Mockito: `mockito-core` only (no `mockito-junit-jupiter`); use `Mockito.mock()` or `@Mock` with `MockitoAnnotations.openMocks(this)` in `@BeforeEach`.
+- Deterministic decks: `new Deck(List.of(...))` (no shuffle) and `session.setDeck(...)`.
+- Floating point: `assertEquals(expected, actual, 0.001)`.
 
 ---
 
 ## 11. Logging
 
-Use `@Slf4j` (Lombok) on all service and handler classes. Do not use `System.out.println`.
-
-| Level | When |
-|---|---|
-| `log.error(msg, e)` | Unrecoverable failures — always include the exception |
-| `log.warn(msg)` | Recoverable issues (e.g. stale WebSocket connection removed) |
-| `log.info(msg)` | Significant business events (game started, game ended, Elo updated) |
-| `log.debug(msg)` | Internal flow detail — disabled in production |
-
-Include structured context:
-
-```java
-log.error("Elo update failed for session {}", session.getSessionId(), e);
-log.info("Removing stale connection: {}", connectionId);
-log.info("Game {} ended — shithead: {}", sessionId, shitheadId);
-```
+- Java: `@Slf4j`; never `System.out`. `log.error(msg, e)` with the exception for failures, `log.warn` for recoverable issues, `log.info` for significant events. Go: `log.Printf`.
+- **Never log** tokens, LiveKit secrets, chat text, nudges, or full request bodies. `application.properties` keeps `AWSLambdaUtils` at WARN because payloads contain bearer tokens.
+- Use placeholders with ids: `log.error("Elo update failed for session {}", sessionId, e)`.
+- Logs go to CloudWatch (Lambda default groups; WS API access logs in `/api-gateway/${project}-websocket`, 14 days).
 
 ---
 
-## 12. Security Best Practices
+## 12. Security
 
-- JWT claims (`sub`, `username`) come from the API Gateway authorizer context — **never** trust user-supplied player IDs in the request body.
-- Use least-privilege IAM roles per Lambda (defined in Terraform).
-- Keep global game deletion behind Cognito `game-admin`; do not expose it to ordinary authenticated players.
-- Validate all external inputs at the Lambda handler boundary.
-- Never log sensitive data (tokens, full request bodies).
+- User identity comes **only** from authorizer claims (`sub`, `cognito:username`, `cognito:groups`), never from request bodies.
+- Admin features require the Cognito `game-admin` group (checked server-side: Java `hasAdminGroup`, Go `isGameAdmin`). Membership is assigned manually in Cognito; Terraform only creates the group.
+- Blocked users are rejected by the WS authorizer and `BlockedUserGuard` (except self-deletion).
+- `$default` WS route is a no-op so clients cannot broadcast arbitrary data.
+- IAM is least-privilege per role: `game_api_exec` (Java) and `lambda_exec` (Go); `AdminDeleteUser` is scoped to the one pool.
+- Validate inputs at the boundary (Go config validation, chat length, setup index checks).
+- No secrets, account ids or tokens in code, docs, logs or Terraform defaults; they come from GitHub secrets/variables.
 
 ---
 
@@ -719,46 +546,54 @@ log.info("Game {} ended — shithead: {}", sessionId, shitheadId);
 
 ### Before Making Changes
 
-1. Read the relevant source files before modifying them.
-2. Follow existing patterns — `@Builder`, `@RequiredArgsConstructor`, Records for DTOs, constructor injection.
-3. Every new class needs a test class in the mirrored package.
-4. Run `./mvnw test -pl backend` before committing.
+1. Read the relevant files first; verify claims here against the code when in doubt.
+2. Follow existing patterns (route table, `Function` beans, records, Lombok, CORS helpers).
+3. Add tests; run `mvn -q -f backend/pom.xml verify -P codeQuality`, `go vet ./... && go test ./...`, and for frontend changes `npm run build && npm run size`.
+4. Keep cost at zero: no new always-on resources, no provisioned concurrency, no paid services.
 
-### Key Files Quick Reference
+### Key Files
 
 | File | Why it matters |
 |---|---|
-| `game/GameSession.java` | Core state machine — understand before touching game logic |
-| `config/ApiRoutes.java` | Route table of the game API Lambda; add new routes here |
-| `config/GameApiFunctionConfig.java` | `gameApi` dispatcher bean (the game API Lambda entry point) |
-| `config/GameFunctionConfig.java` | Game handler `@Bean`s (join, leave, start, state, leaderboard, play, pickup) |
-| `glue-go/dispatch.go` | Go glue entry point and event-shape dispatch |
-| `rules/RuleEngine.java` | Static dispatcher for `canPlay` + `afterEffect` |
-| `game/GameConfig.java` | Card value → rule mapping; source of truth for special cards |
-| `mapper/SessionMapper.java` | Domain ↔ DynamoDB; has a known bug (see below) |
-| `backend/pom.xml` | Dependency versions |
+| `backend/.../LambdaHandler.java` | Java entry point; writes the response unwrapped |
+| `backend/.../config/ApiRoutes.java` | Route table |
+| `backend/.../config/GameApiFunctionConfig.java` | Event-shape dispatch, 404 with CORS |
+| `backend/.../config/GameFunctionConfig.java` | Game REST + WS handlers, broadcast, Elo |
+| `backend/.../config/AccountManagementFunctionConfig.java` | Profile, admin, browse, delete account |
+| `backend/.../game/GameSession.java` | State machine, `MAX_PLAYERS`, `InvalidReason` |
+| `backend/.../mapper/SessionMapper.java` | Domain ↔ entity (all card fields incl. suit round-trip) |
+| `glue-go/dispatch.go`, `games.go`, `config.go`, `auth.go`, `janitor.go` | Go glue |
+| `infra/terraform/api_gateway/api_gateway.tf` | REST API and deployment `triggers` |
+| `infra/terraform/lambda/java_lambda_functions.tf` | Java Lambda, env vars, IAM |
+| `.github/workflows/ci-cd.yaml` | CI/CD |
+| `frontend/src/app/routes.tsx`, `data/`, `auth/authStore.ts`, `screens/GameTable.tsx` | Frontend core |
 
-### SessionMapper Card Serialization
+### Gotchas (learned in production)
 
-`SessionMapper` persists all card fields, including `Suit`, and restores them when loading a session.
-
-### GameSession Invariants
-
-- `playCards()` returns `INVALID` immediately if `finished == true` — all guards come before state mutation.
-- `nextPlayer()` skips `isOut() == true` players — there must always be at least one active player before calling it.
-- `postPlayCleanup()` is always called after a successful play: burn check → refill hand → out check.
+- **REST stage redeploys only when the deployment `triggers` hash changes.** It hashes integration ids and the invoke ARNs (ids alone do not change when a route is retargeted). A new method/integration not added to the hash is live in the API but not in stage `prod`.
+- **Java entry point must write the API Gateway response unwrapped** (`LambdaHandler`). The generic Spring Cloud Function adapter double-wraps it (status 200, no CORS), which browsers show as "Failed to fetch".
+- **New routes need both** an `ApiRoutes` entry and Terraform (resource/method/integration/OPTIONS + triggers for REST; route + permission for WS). Either alone gives 404 or 403/"Missing Authentication Token".
+- **CORS headers on every response**, including 4xx/5xx from the Lambda; API Gateway's own errors are covered by gateway responses `cors_4xx`/`cors_5xx`. When adding an HTTP method, update both the MOCK `OPTIONS` integration response `Access-Control-Allow-Methods` in Terraform (preflight) and the `CORS_HEADERS` map of the Java class that answers the route (`DELETE` is only in `AccountManagementFunctionConfig`).
+- **Terraform state has no lock**: backend deploys must not overlap. Wait for a running `Deploy Backend` to finish before merging another backend PR.
+- **SnapStart**: CI disables it before apply and Terraform re-enables it; never remove `snap_start` or route API Gateway to `$LATEST` instead of `LIVE`.
+- **Cognito group `game-admin` is assigned manually** (console/CLI by the owner), never by Terraform or code.
+- **DynamoDB TTL deletion lags** (minutes to hours). Code that lists games filters `ttl <= now` itself (`GameBrowseService`), and the janitor ignores connection rows whose `ttl` has passed.
+- **Game TTL is fixed at creation + 1 hour**; long games disappear after that regardless of activity.
+- **WebSocket limits**: API Gateway closes idle connections after 10 minutes and any connection after 2 hours; the client has no keep-alive or auto-reconnect and asks the user to reload. Connection rows carry a 1-hour `ttl`, so a socket open longer than an hour can lose its row once TTL deletion runs (broadcasts then miss it), and the janitor already treats it as gone.
+- **LiveKit free tier** (5,000 participant-minutes/month on the free plan): keep the client safeguards in `lib/voice.ts` (hidden 5 min, alone 3 min, 90 min cap, leave on game end/page close) and keep voice admin-only.
+- **Root `vpc_id`/`subnets` variables** are still required by Terraform even though ECS is unused.
 
 ---
 
 ## 14. Documentation Update Protocol
 
 Update this file when:
-- A new package, significant class, or architectural pattern is added.
-- A known bug is fixed or a new one is discovered.
-- A dependency version changes significantly.
-- A coding convention is adopted or changed.
+- A package, significant class, route, table attribute or Terraform module is added, removed or renamed.
+- A gotcha is discovered or a known issue is fixed.
+- A dependency, CI action or runtime version changes significantly.
+- A convention is adopted or changed.
 
-Include a **change log entry** at the top of this section with date and model name.
+Add a change log row (date, change, model) for every update. Keep facts verified against the code; delete statements that are no longer true instead of appending corrections.
 
 ### Change Log
 
@@ -770,3 +605,4 @@ Include a **change log entry** at the top of this section with date and model na
 | 2026-10-09 | Added game activity feed (`events` attribute) and session chat (`chat` WebSocket route) | Claude Sonnet 5.5 |
 | 2026-10-09 | Added nudge (`nudge` WebSocket route, fart sound) and login sound | Claude Sonnet 5.5 |
 | 2026-10-10 | Added `DELETE /profile` account deletion (AccountDeletionService, Cognito AdminDeleteUser via `cognitoidentityprovider` SDK module) | Claude Haiku 5.5 |
+| 2026-10-10 | Full refresh to match the Go glue + single Java Lambda architecture and the features added since (incl. PRs #84-#91: pagination, seat indicators, table bar, PeekWrap, `lib/rules.ts` auto pick-up) | Claude Opus 5.5 |
