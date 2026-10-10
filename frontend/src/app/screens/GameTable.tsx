@@ -1,6 +1,6 @@
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
+import { Card, CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
 import { appendChatMessage } from "../lib/sessionChat";
 import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
 import { ApiError } from "../api/client";
@@ -29,6 +29,9 @@ import "../styles/swap-phase-desktop.css";
 
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
+
+/** How long a failed blind-flip reveal stays on screen: long enough to read the revealed card. */
+const FAILED_FLIP_NOTICE_MS = 3500;
 
 function usePhoneLayout(): boolean {
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -99,6 +102,8 @@ export default function GameTable() {
   const closePeek = useCallback(() => setPeekId(null), []);
   const socketRef = useRef<GameSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
+  // The failed blind-flip reveal and when it arrived. State polls never carry one, so applyState keeps it for FAILED_FLIP_NOTICE_MS.
+  const revealRef = useRef<{ card: Card; shownAt: number } | null>(null);
   const boardRef = useRef<HTMLElement>(null);
   const fxLayerRef = useRef<HTMLDivElement>(null);
   const animatedStateRef = useRef<GameStateView | null>(null);
@@ -205,8 +210,16 @@ export default function GameTable() {
   // Every state update (WebSocket push or 4s poll) goes through here. The selection is reconciled against the
   // previous state instead of being cleared, so updates that do not touch this player's cards or turn keep it.
   // A pending play/pickup/swap is cleared once the server acknowledges it with a change to this player's cards or turn.
-  const applyState = useCallback((next: GameStateView) => {
+  const applyState = useCallback((incoming: GameStateView) => {
     const previous = stateRef.current;
+    // A reveal in the update starts its window. An update without one (a 4s poll, or a socket update) keeps the
+    // reveal on screen until the window ends. The copy stops after that, so the reveal cannot come back on later polls.
+    let next = incoming;
+    if (incoming.revealedCard) {
+      revealRef.current = { card: incoming.revealedCard, shownAt: Date.now() };
+    } else if (revealRef.current && Date.now() - revealRef.current.shownAt < FAILED_FLIP_NOTICE_MS) {
+      next = { ...incoming, revealedCard: revealRef.current.card };
+    }
     stateRef.current = next;
     setState(next);
     if (!previous) return;
@@ -373,8 +386,6 @@ export default function GameTable() {
     }
   }, [state]);
 
-  // Long enough to read the revealed card in the failed blind-flip notice.
-  const FAILED_FLIP_NOTICE_MS = 3500;
   useEffect(() => {
     if (!state?.revealedCard) return;
     const timeout = window.setTimeout(() => {
