@@ -20,9 +20,10 @@ resource "aws_lambda_function" "glue" {
 
   environment {
     variables = {
-      GAME_SESSIONS_TABLE  = var.aws_dynamodb_table_games_name
-      USERS_TABLE          = var.aws_dynamodb_table_users_name
-      WS_CONNECTIONS_TABLE = var.aws_dynamodb_table_ws_connection_name
+      GAME_SESSIONS_TABLE    = var.aws_dynamodb_table_games_name
+      USERS_TABLE            = var.aws_dynamodb_table_users_name
+      WS_CONNECTIONS_TABLE   = var.aws_dynamodb_table_ws_connection_name
+      WS_MANAGEMENT_ENDPOINT = format("%s/$default", replace(var.websocket_api_endpoint, "wss://", "https://"))
     }
   }
 }

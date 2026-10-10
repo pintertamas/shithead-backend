@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -121,7 +122,8 @@ func TestJanitorDeletesAbandonedStartedGame(t *testing.T) {
 }
 
 func TestJanitorKeepsGameWithLiveConnection(t *testing.T) {
-	// Given: an idle started game that still has a live connection
+	// Given: an idle started game whose connection API Gateway reports open
+	api := useManagementAPI(t, nil)
 	db := newFakeDynamo()
 	db.seed(testGames, idleGame("g-watched", 40*time.Minute))
 	db.seed(testConnections, connectionRow("c1", "g-watched", time.Hour))
@@ -136,6 +138,98 @@ func TestJanitorKeepsGameWithLiveConnection(t *testing.T) {
 	}
 	if result.Kept != 1 || result.Deleted != 0 {
 		t.Fatalf("result = %+v, want one kept game", result)
+	}
+	if api.callCount() != 1 {
+		t.Fatalf("GetConnection calls = %d, want 1", api.callCount())
+	}
+	if db.item(testConnections, "c1") == nil {
+		t.Fatal("open connection row was removed")
+	}
+}
+
+func TestJanitorDeletesGameWhoseConnectionIsGone(t *testing.T) {
+	// Given: an idle started game whose only connection row is stale (API Gateway: gone)
+	useManagementAPI(t, map[string]int{"c-stale": http.StatusGone})
+	db := newFakeDynamo()
+	db.seed(testGames, idleGame("g-gone", 40*time.Minute))
+	db.seed(testConnections, connectionRow("c-stale", "g-gone", time.Hour))
+	app := newTestApp(db)
+
+	// When
+	result := runJanitorForTest(t, app)
+
+	// Then: the stale row is removed and, with no other live connection, so is the game
+	if db.item(testConnections, "c-stale") != nil {
+		t.Fatal("stale connection row was not removed")
+	}
+	if db.item(testGames, "g-gone") != nil {
+		t.Fatal("game whose only connection is gone was not deleted")
+	}
+	if result.Deleted != 1 {
+		t.Fatalf("Deleted = %d, want 1", result.Deleted)
+	}
+}
+
+func TestJanitorRemovesGoneRowsAndKeepsGameWithOpenConnection(t *testing.T) {
+	// Given: an idle started game with one stale row and one open connection
+	useManagementAPI(t, map[string]int{"c-stale": http.StatusGone})
+	db := newFakeDynamo()
+	db.seed(testGames, idleGame("g-mixed", 40*time.Minute))
+	db.seed(testConnections, connectionRow("c-stale", "g-mixed", time.Hour))
+	db.seed(testConnections, connectionRow("c-open", "g-mixed", time.Hour))
+	app := newTestApp(db)
+
+	// When
+	result := runJanitorForTest(t, app)
+
+	// Then: the stale row goes, the open one stays, and the game is kept
+	if db.item(testConnections, "c-stale") != nil {
+		t.Fatal("stale connection row was not removed")
+	}
+	if db.item(testConnections, "c-open") == nil {
+		t.Fatal("open connection row was removed")
+	}
+	if db.item(testGames, "g-mixed") == nil || result.Kept != 1 || result.Deleted != 0 {
+		t.Fatalf("result = %+v, want the game kept", result)
+	}
+}
+
+func TestJanitorKeepsGameWhenConnectionCheckFails(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T)
+	}{
+		{name: "API Gateway answers 500", setup: func(t *testing.T) {
+			useManagementAPI(t, map[string]int{"c1": http.StatusInternalServerError})
+		}},
+		{name: "API Gateway answers 403", setup: func(t *testing.T) {
+			useManagementAPI(t, map[string]int{"c1": http.StatusForbidden})
+		}},
+		{name: "management endpoint cannot be reached", setup: useUnreachableEndpoint},
+		{name: "management endpoint is not configured", setup: func(t *testing.T) {
+			setAWSTestEnv(t, "")
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given: an idle game whose connection cannot be verified
+			tt.setup(t)
+			db := newFakeDynamo()
+			db.seed(testGames, idleGame("g-unsure", 40*time.Minute))
+			db.seed(testConnections, connectionRow("c1", "g-unsure", time.Hour))
+			app := newTestApp(db)
+
+			// When
+			result := runJanitorForTest(t, app)
+
+			// Then: nothing is deleted, the row is kept, and the game is counted as kept
+			if db.item(testGames, "g-unsure") == nil || db.item(testConnections, "c1") == nil {
+				t.Fatal("game or connection row was deleted although the connection is unverified")
+			}
+			if result.Kept != 1 || result.Deleted != 0 || result.Skipped != 0 {
+				t.Fatalf("result = %+v, want one kept game", result)
+			}
+		})
 	}
 }
 
@@ -176,12 +270,14 @@ func TestJanitorKeepsFinishedGames(t *testing.T) {
 
 func TestJanitorLobbyCases(t *testing.T) {
 	tests := []struct {
-		name        string
-		lobby       map[string]types.AttributeValue
-		connection  map[string]types.AttributeValue
-		queryErr    error
-		wantDeleted bool
-		wantSkipped int
+		name           string
+		lobby          map[string]types.AttributeValue
+		connection     map[string]types.AttributeValue
+		apiStatus      int // GetConnection status for c1; 0 means 200
+		queryErr       error
+		wantDeleted    bool
+		wantRowDeleted bool
+		wantSkipped    int
 	}{
 		{
 			name:        "idle lobby with no connection is deleted",
@@ -192,6 +288,20 @@ func TestJanitorLobbyCases(t *testing.T) {
 			name:       "idle lobby with a live connection is kept",
 			lobby:      lobbyGame("g", 40*time.Minute),
 			connection: connectionRow("c1", "g", time.Hour),
+		},
+		{
+			name:           "idle lobby whose connection is gone is deleted",
+			lobby:          lobbyGame("g", 40*time.Minute),
+			connection:     connectionRow("c1", "g", time.Hour),
+			apiStatus:      http.StatusGone,
+			wantDeleted:    true,
+			wantRowDeleted: true,
+		},
+		{
+			name:       "idle lobby whose connection cannot be verified is kept",
+			lobby:      lobbyGame("g", 40*time.Minute),
+			connection: connectionRow("c1", "g", time.Hour),
+			apiStatus:  http.StatusInternalServerError,
 		},
 		{
 			name:        "idle lobby whose only connection row has expired is deleted",
@@ -218,6 +328,11 @@ func TestJanitorLobbyCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
+			statuses := map[string]int{}
+			if tt.apiStatus != 0 {
+				statuses["c1"] = tt.apiStatus
+			}
+			useManagementAPI(t, statuses)
 			db := newFakeDynamo()
 			db.seed(testGames, tt.lobby)
 			if tt.connection != nil {
@@ -233,6 +348,9 @@ func TestJanitorLobbyCases(t *testing.T) {
 			deleted := db.item(testGames, "g") == nil
 			if deleted != tt.wantDeleted {
 				t.Fatalf("deleted = %v, want %v (result %+v)", deleted, tt.wantDeleted, result)
+			}
+			if tt.connection != nil && (db.item(testConnections, "c1") == nil) != tt.wantRowDeleted {
+				t.Fatalf("connection row deleted = %v, want %v", db.item(testConnections, "c1") == nil, tt.wantRowDeleted)
 			}
 			if result.Skipped != tt.wantSkipped {
 				t.Fatalf("Skipped = %d, want %d", result.Skipped, tt.wantSkipped)
@@ -346,6 +464,7 @@ func TestJanitorConditionalDeleteLostRaceIsNotAnError(t *testing.T) {
 
 func TestJanitorIgnoresExpiredConnectionRows(t *testing.T) {
 	// Given: an idle game whose only connection row has already expired (TTL deletion lags)
+	api := useManagementAPI(t, nil)
 	db := newFakeDynamo()
 	db.seed(testGames, idleGame("g-expired-conn", 20*time.Minute))
 	db.seed(testConnections, connectionRow("stale", "g-expired-conn", -time.Second))
@@ -354,9 +473,12 @@ func TestJanitorIgnoresExpiredConnectionRows(t *testing.T) {
 	// When
 	runJanitorForTest(t, app)
 
-	// Then
+	// Then: the row is not live, so API Gateway is not asked about it
 	if db.item(testGames, "g-expired-conn") != nil {
 		t.Fatal("game was kept because of a connection row whose ttl had passed")
+	}
+	if api.callCount() != 0 {
+		t.Fatalf("GetConnection calls = %d, want 0 for an expired row", api.callCount())
 	}
 }
 

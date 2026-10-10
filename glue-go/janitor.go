@@ -35,12 +35,14 @@ func isScheduledEvent(probe eventProbe) bool {
 
 // runJanitor deletes abandoned games. A game is deleted only when it is unfinished,
 // either a started game or a lobby still waiting for players, idle past the grace
-// period and has no live WebSocket connection registered. Finished games are never
-// touched.
+// period and has no live WebSocket connection (see hasLiveConnection). A connection
+// row past its ttl is not live, so a socket open longer than an hour counts as gone;
+// games expire an hour after creation anyway. Finished games are never touched.
 func (a *App) runJanitor(ctx context.Context) (JanitorResult, error) {
 	var result JanitorResult
 	var startKey map[string]types.AttributeValue
 	now := a.now()
+	checker := newConnectionChecker(ctx)
 	for {
 		out, err := a.db.Scan(ctx, &dynamodb.ScanInput{
 			TableName:                 &a.settings.GameSessionsTable,
@@ -55,7 +57,7 @@ func (a *App) runJanitor(ctx context.Context) (JanitorResult, error) {
 		}
 		for _, item := range out.Items {
 			result.Scanned++
-			a.janitorConsider(ctx, item, now, &result)
+			a.janitorConsider(ctx, item, now, checker, &result)
 		}
 		if out.LastEvaluatedKey == nil {
 			break
@@ -69,7 +71,7 @@ func (a *App) runJanitor(ctx context.Context) (JanitorResult, error) {
 
 // janitorConsider applies every rule to one scanned game. Errors are logged and
 // the game is skipped: the janitor never deletes when it is uncertain.
-func (a *App) janitorConsider(ctx context.Context, item map[string]types.AttributeValue, now time.Time, result *JanitorResult) {
+func (a *App) janitorConsider(ctx context.Context, item map[string]types.AttributeValue, now time.Time, checker connectionChecker, result *JanitorResult) {
 	gameID := stringAttr(item, "game_id")
 	// The scan filter already checks finished; re-checking keeps the rule local and safe.
 	if gameID == "" || boolAttr(item, "finished") {
@@ -92,7 +94,7 @@ func (a *App) janitorConsider(ctx context.Context, item map[string]types.Attribu
 		result.Kept++
 		return
 	}
-	live, err := a.hasLiveConnection(ctx, gameID, now)
+	live, err := a.hasLiveConnection(ctx, gameID, now, checker)
 	if err != nil {
 		log.Printf("janitor skipped game %s: %v", gameID, err)
 		result.Skipped++
@@ -146,13 +148,15 @@ func lastActivity(item map[string]types.AttributeValue) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// hasLiveConnection reports whether any connection registered for the game has
-// not expired. Liveness is trusted from the row's ttl alone, so a socket that died
-// without a $disconnect keeps its game until its row expires (one hour after
-// connect). Rows whose own ttl is already past are ignored, because DynamoDB TTL
-// deletion can lag. A row without a ttl counts as live.
-func (a *App) hasLiveConnection(ctx context.Context, gameID string, now time.Time) (bool, error) {
+// hasLiveConnection reports whether the game has a live WebSocket connection. Only
+// rows whose ttl is still in the future are candidates; a row without a ttl counts
+// as one. Every candidate is confirmed with API Gateway: an open connection keeps the
+// game, a gone one (HTTP 410) has its row deleted and does not count, and any other
+// check failure keeps the game. Every candidate is checked, so stale rows are cleaned
+// up even when another connection is open. A query failure is returned as an error.
+func (a *App) hasLiveConnection(ctx context.Context, gameID string, now time.Time, checker connectionChecker) (bool, error) {
 	var startKey map[string]types.AttributeValue
+	live := false
 	for {
 		out, err := a.db.Query(ctx, &dynamodb.QueryInput{
 			TableName:                 &a.settings.ConnectionsTable,
@@ -167,17 +171,44 @@ func (a *App) hasLiveConnection(ctx context.Context, gameID string, now time.Tim
 			return false, fmt.Errorf("query connections: %w", err)
 		}
 		for _, row := range out.Items {
-			if connectionIsLive(row, now) {
+			if !connectionIsLive(row, now) {
+				continue
+			}
+			connectionID := stringAttr(row, "connection_id")
+			state, err := checker.check(ctx, connectionID)
+			if err != nil {
+				log.Printf("janitor keeps game %s: connection check failed: %v", gameID, err)
 				return true, nil
 			}
+			if state == connectionOpen {
+				live = true
+				continue
+			}
+			a.removeStaleConnection(ctx, gameID, connectionID)
 		}
 		if out.LastEvaluatedKey == nil {
-			return false, nil
+			return live, nil
 		}
 		startKey = out.LastEvaluatedKey
 	}
 }
 
+// removeStaleConnection deletes the row of a connection API Gateway reports gone.
+// A failed delete is logged only: the connection is gone either way.
+func (a *App) removeStaleConnection(ctx context.Context, gameID, connectionID string) {
+	_, err := a.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: &a.settings.ConnectionsTable,
+		Key:       key("connection_id", connectionID),
+	})
+	if err != nil {
+		log.Printf("janitor could not delete stale connection %s of game %s: %v", connectionID, gameID, err)
+		return
+	}
+	log.Printf("janitor removed stale connection %s of game %s", connectionID, gameID)
+}
+
+// connectionIsLive reports whether a connection row's ttl is still in the future.
+// A row without a ttl is treated as live, so it is checked with API Gateway.
 func connectionIsLive(row map[string]types.AttributeValue, now time.Time) bool {
 	ttl, ok := numberAttr(row, "ttl")
 	return !ok || ttl > now.Unix()
