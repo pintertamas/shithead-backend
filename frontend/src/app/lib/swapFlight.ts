@@ -130,7 +130,15 @@ function cancelFlightsOn(flights: Set<Flight>, real: HTMLElement) {
   }
 }
 
-/** A plain copy of a face-up card: same markup and colour hook, no selection state, and not focusable or read out. */
+/**
+ * The custom properties that size a card. The board sets them (table.css), and the viewer's own seat overrides them
+ * during setup (swap-phase CSS). The copy sits in .table-fx, a direct child of the board, so without these it would
+ * take the board's sizes: its corner and centre numbers came out smaller than the real card's and jumped to full size
+ * when the copy was removed at the end of the flight.
+ */
+const CARD_SIZE_PROPERTIES = ["--card-w", "--card-h", "--card-corner-fs", "--card-center-fs"];
+
+/** A plain copy of a face-up card: same markup, colour hook and sizes, no selection state, and not focusable or read out. */
 function createCopy(real: HTMLElement): HTMLElement {
   const copy = document.createElement("div");
   copy.className = "playing-card face-up-card";
@@ -138,6 +146,11 @@ function createCopy(real: HTMLElement): HTMLElement {
   const label = real.getAttribute("aria-label");
   if (label) copy.setAttribute("aria-label", label.replace(/, selected$/, ""));
   for (const child of Array.from(real.childNodes)) copy.appendChild(child.cloneNode(true));
+  const sizes = getComputedStyle(real);
+  for (const name of CARD_SIZE_PROPERTIES) {
+    const value = sizes.getPropertyValue(name).trim();
+    if (value) copy.style.setProperty(name, value);
+  }
   return copy;
 }
 
