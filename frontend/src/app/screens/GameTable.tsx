@@ -27,6 +27,7 @@ import "../styles/companion-width.css";
 import "../styles/table-bar.css";
 import "../styles/swap-phase-phone.css";
 import "../styles/swap-phase-desktop.css";
+import "../styles/mobile-play-row.css";
 
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
@@ -568,7 +569,7 @@ export default function GameTable() {
             <button className="button" disabled={(!pickupSelected && (selected.length === 0 || mixedSelectionIncomplete)) || pendingAction || !yourTurn || (pickupSelected && !pileHasCards)} onClick={playSelected}>
               {pendingAction ? "Sending..." : pickupSelected ? "Pick Up" : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
-            {(!yourTurn || pickupSelected || selected.length === 0) && (
+            {!phone && (!yourTurn || pickupSelected || selected.length === 0) && (
               <p className="game-hint">
                 {!yourTurn
                   ? `Waiting for ${currentName || "the current player"}'s turn.`
