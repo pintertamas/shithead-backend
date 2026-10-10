@@ -402,10 +402,9 @@ export default function GameTable() {
     );
   }
 
-  // Swap and Ready. On phones the swap button carries the pair counter (Swap (2↔2)) and the hint is hidden (CSS).
-  const swapLabel = phone
-    ? `Swap (${selectedStartingHand.length}↔${selectedStartingUp.length})`
-    : "Swap selected cards";
+  // Swap and Ready. The swap label is the same on phones and desktop; the pair counts stay in the button's title.
+  // On phones the hint is hidden (CSS).
+  const swapLabel = "Swap selected cards";
   const setupButtons = (
     <>
       <button className="button secondary" disabled={pendingAction || !canSwapStartingCards}

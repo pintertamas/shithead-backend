@@ -12,14 +12,15 @@
     height: 100svh;
   }
 
-  /* Chat button: top right, inside the bar's right padding so it never touches the title, chips or nudge. */
+  /* Chat button: top right, 12px in from the top and right edges. The default bottom-right spot covers the own cards
+     on 375x667 and 390x844. The bar's right padding keeps the nudge button 11px left of the chat button. */
   .game-page.setup-phase.phone-table .table-bar {
-    padding-right: 54px;
+    padding-right: 56px;
   }
 
   body:has(.game-page.setup-phase.phone-table) .chat-fab {
-    top: 8px;
-    right: 8px;
+    top: 12px;
+    right: 12px;
     bottom: auto;
     width: 40px;
     height: 40px;
