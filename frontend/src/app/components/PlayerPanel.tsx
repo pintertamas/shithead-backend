@@ -33,6 +33,20 @@ type Props = {
 const FAN_LIMIT = 10;
 
 /**
+ * An opponent with only a hand has no table slots, so the peek wrapper has no size and could not be hovered or
+ * tapped. This invisible box covers where one card would sit. It is absolutely positioned, so it takes no room in
+ * the seat layout and the seat keeps its size.
+ */
+const emptyTableHitArea: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: "50%",
+  width: "var(--card-w)",
+  height: "var(--card-h)",
+  transform: "translateX(-50%)",
+};
+
+/**
  * Table slots for one player's stacks. A face-up slot holds the card that was dealt there (or null once
  * it has been played); a face-down slot is alive until the card behind it is played. Slots never move,
  * so the server's compacted lists are mapped onto them: server index = rank among occupied slots.
@@ -169,6 +183,8 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
   const faceUpIndexes = serverIndexes(faceUpOccupied);
   const faceDownIndexes = serverIndexes(layout.faceDown);
   const stackCount = Math.max(layout.faceUp.length, layout.faceDown.length);
+  // Any card left (hand, face-down or face-up) makes the opponent peekable. An empty seat shows the plain stacks.
+  const opponentHasCards = player.handCount > 0 || player.faceDownCount > 0 || player.faceUp.length > 0;
 
   const stacks = (
     <div className="player-card-stacks" aria-label={`${player.username}'s table cards`}>
@@ -218,16 +234,17 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
             </div>
           </div>
         )}
-        {!player.isYou && player.faceUp.length > 0 ? (
+        {!player.isYou && opponentHasCards ? (
           <PeekWrap
             className="stack-peek-wrap"
-            label={`Enlarge ${player.username}'s face-up cards`}
+            label={`Enlarge ${player.username}'s cards`}
             toggleText="Enlarge"
             placement="below"
             pressToOpen={compact}
             popover={<SeatTableView player={player} isCurrentTurn={isCurrentTurn} />}
           >
             {stacks}
+            {stackCount === 0 && <span aria-hidden="true" style={emptyTableHitArea} />}
           </PeekWrap>
         ) : stacks}
       </div>
