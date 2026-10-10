@@ -8,6 +8,9 @@ import { getCreateGameConfig, loadGameConfig } from "../config/gameConfig";
 import { invalidateGames, useLobbyTopQuery, useProfileQuery } from "../data/queries";
 import { consumeLoginSound, playFart, unlockAudio } from "../lib/fartSound";
 import Icon from "../components/Icon";
+import { startIdleChunkPrefetch, usePrefetch } from "../lib/prefetch";
+// The lobby's ranking table and "Full leaderboard" button are styled here, so this stays eager with the lobby.
+import "../styles/leaderboard.css";
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -21,6 +24,13 @@ export default function Lobby() {
   const leaderboardQuery = useLobbyTopQuery(token);
   const leaders = leaderboardQuery.data ?? [];
   const leaderboardLoading = leaderboardQuery.isPending;
+  // Create and Join both end on the room page, then the table. They prefetch those chunks only, never data.
+  const createPrefetch = usePrefetch<HTMLButtonElement>(["room", "game"], { onView: true });
+  const joinPrefetch = usePrefetch<HTMLButtonElement>(["room", "game"], { onView: true });
+  const rankingsPrefetch = usePrefetch<HTMLButtonElement>(["leaderboard"], { onView: true });
+
+  // Once the lobby has painted, load the chunks of the screens people usually open next, one at a time.
+  useEffect(() => startIdleChunkPrefetch(), []);
 
   useEffect(() => {
     const navigationError = (location.state as { error?: unknown } | null)?.error;
@@ -89,7 +99,7 @@ export default function Lobby() {
             </div>
             <h2>Create Game</h2>
             <p>Start a new game with your saved configuration.</p>
-            <button className="button lobby-cta" onClick={handleCreate} disabled={loading !== null}>
+            <button className="button lobby-cta" onClick={handleCreate} disabled={loading !== null} {...createPrefetch}>
               <Icon name="plus" size={20} className="lobby-cta-icon" />{loading === "creating" ? "Creating…" : "Create Game"}
             </button>
             <div className="lobby-info"><Icon name="info" className="lobby-info-icon" /> New games use your saved configuration.</div>
@@ -121,7 +131,7 @@ export default function Lobby() {
                 onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
                 disabled={loading !== null}
               />
-              <button className="button lobby-cta" type="submit" disabled={loading !== null || !joinCode.trim()}>
+              <button className="button lobby-cta" type="submit" disabled={loading !== null || !joinCode.trim()} {...joinPrefetch}>
                 <Icon name="enter" size={20} className="lobby-cta-icon" />{loading === "joining" ? "Joining…" : "Join Game"}
               </button>
             </form>
@@ -143,7 +153,7 @@ export default function Lobby() {
                 <p>See the best players and their current ELO.</p>
               </div>
             </div>
-            <button className="button secondary lobby-rankings-link" onClick={() => navigate("/leaderboard")}>
+            <button className="button secondary lobby-rankings-link" onClick={() => navigate("/leaderboard")} {...rankingsPrefetch}>
               Full leaderboard
             </button>
           </div>
