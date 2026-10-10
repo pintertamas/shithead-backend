@@ -38,29 +38,6 @@
     display: none;
   }
 
-  /* Setup controls: a two-column block (starter and instructions, then the buttons) instead of one tall
-     column, so the middle row keeps about the height of the piles. */
-  .game-page .setup-controls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 6px 20px;
-    align-items: start;
-  }
-
-  .game-page .setup-controls > h3 {
-    grid-column: 1 / -1;
-  }
-
-  .game-page .setup-controls .button {
-    justify-self: start;
-  }
-
-  /* Opponent panels share the row: each is capped at its share of the board, and its name (already an
-     ellipsis) and count line shrink to fit instead of pushing the row onto a second line. */
-  .game-page .game-opponents > .game-seat {
-    max-width: calc((var(--board-inner-w) - (var(--opponent-count, 1) - 1) * 10px) / var(--opponent-count, 1));
-  }
-
   /* Board sizes. --rows-h is the height left for the three rows once the board's padding, gaps and border
      are taken out. Heights per card width w: opponent panel 2.8w + 101px, own panel 2.8w + 127px (together
      5.6w + 228px), piles 1.4w + 73px plus 12px of row padding. Setup needs the setup block, play needs the

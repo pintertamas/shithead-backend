@@ -29,13 +29,14 @@
     overscroll-behavior-x: contain;
   }
 
-  /* A seat never shrinks below its readable width. Narrower than that, the row scrolls. The 124px floor only
-     bites when the count-based cap (table-desktop-fix.css) would make the seat narrower, so small tables are unchanged. */
+  /* Each seat is capped at its share of the row: the row's 2px side padding (4px together) and the 10px gaps are
+     taken out first, so the seats fit without a horizontal scrollbar. A seat never shrinks below its readable
+     width (124px): narrower than that, the row scrolls. */
   .game-page .game-opponents > .game-seat {
     flex: 0 0 auto;
     scroll-snap-align: start;
     max-width: max(
-      calc((var(--board-inner-w) - (var(--opponent-count, 1) - 1) * 10px) / var(--opponent-count, 1)),
+      calc((var(--board-inner-w) - 4px - (var(--opponent-count, 1) - 1) * 10px) / var(--opponent-count, 1)),
       124px
     );
   }

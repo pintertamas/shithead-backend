@@ -1,7 +1,7 @@
 /*
  * Seat panels during the swap phase (state.started && !state.setupComplete; GameTable adds `setup-phase` to the
  * page). The seat counts say nothing useful then, so they go, and the freed height goes to
- * the cards: the opponents' and the own cards are sized from the height left once the setup block is placed.
+ * the cards. Phone sizes are below; desktop sizes and the setup block layout are in swap-phase-desktop.css.
  * Loaded through PlayerPanel.tsx. Play-phase sizes stay in table-fit.css and table-desktop-fix.css.
  */
 
@@ -31,25 +31,4 @@
   }
 }
 
-/* ---------- Swap phase, desktop: bigger cards in the height the setup block leaves ---------- */
-
-@media (min-width: 1101px) {
-  .game-page.setup-phase .game-board {
-    /* The starter picker and the buttons take about 170px in the two-column setup block. */
-    --setup-block-h: 170px;
-    /* Each opponent panel is about 3.0 card heights + 74px and the own panel about 3.0 + 110px (header with the
-       name kept). Both share the height the rows leave after the setup block. */
-    --swap-budget: calc((var(--rows-h) - 184px - var(--setup-block-h)) / 3.024);
-    --card-w: max(26px, min(calc(var(--swap-budget) * 0.45), 84px,
-      calc((var(--board-inner-w) - var(--opponent-count, 1) * 44px + 4px) / (3 * var(--opponent-count, 1)))));
-  }
-
-  /* The own panel gets its own card size. The derived sizes (height, corner and centre text) are declared
-     here as well, because table.css derives them on the board, and custom properties are resolved where set. */
-  .game-page.setup-phase .game-board .game-seat-own {
-    --card-w: max(26px, min(calc(var(--swap-budget) * 0.55), 100px));
-    --card-h: calc(var(--card-w) * 7 / 5);
-    --card-corner-fs: calc(var(--card-w) * 0.22);
-    --card-center-fs: calc(var(--card-w) * 0.46);
-  }
-}
+/* Swap phase on desktop (701px and wider): styles/swap-phase-desktop.css. */

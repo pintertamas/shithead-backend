@@ -1,0 +1,91 @@
+/*
+ * Swap phase on desktop (701px and wider; GameTable.tsx adds `setup-phase` to the page while
+ * state.started && !state.setupComplete). Phone rules live in seat-panels.css and table-mobile.css.
+ *
+ * Vertical flow: opponents row, then the middle row (piles and setup block, one group), then the own panel.
+ * The middle row has a fixed height (--swap-middle-h), so it can never be squeezed. The setup block fills
+ * a fixed height too: its items flow down one column and break into a second column when the first is full,
+ * so nothing spills into the rows above or below. The card size is the largest size at which the three rows fit
+ * the board, using these measured heights (card height h = 1.4 x card width):
+ *   opponent panel  = 2.16h + 82   (hand fan, face-up row, header and padding)
+ *   own panel       = 2.16h + 109  (hand row, face-up row, header and padding)
+ * so the two card widths together may use at most (rows height - 205 - middle height) / 3.024. The 205px is the
+ * 191px of the panels plus 14px of margin for font and browser differences.
+ *
+ * Opponents take 0.45 of that budget (at most 84px, and at most the width one seat gets on the row); the own
+ * panel takes the rest (at most 100px). The piles (1.4w + 75px) stay within the middle height at 84px cards.
+ */
+
+@media (min-width: 701px) {
+  .game-page.setup-phase .game-board {
+    /* Setup block content height: the starter chips and the "not ready" names add lines with more players. */
+    --swap-setup-h: calc(200px + max(0, var(--opponent-count, 1) - 4) * 8px);
+    /* Middle row: the setup block plus the middle row's 6px top and bottom padding. */
+    --swap-middle-h: calc(var(--swap-setup-h) + 12px);
+    --swap-budget: calc((var(--rows-h) - 205px - var(--swap-middle-h)) / 3.024);
+    /* Opponents' card width (also the piles' width). */
+    --swap-opp-w: max(26px, min(
+      calc(var(--swap-budget) * 0.45),
+      84px,
+      calc((var(--board-inner-w) - var(--opponent-count, 1) * 44px + 4px) / (3 * var(--opponent-count, 1)))
+    ));
+    --card-w: var(--swap-opp-w);
+  }
+
+  /* Own panel: the rest of the budget, at most 100px. Its derived sizes are declared here too, because table.css
+     derives them on the board and custom properties resolve where they are set. */
+  .game-page.setup-phase .game-board .game-seat-own {
+    --card-w: max(26px, min(calc(var(--swap-budget) - var(--swap-opp-w)), 100px));
+    --card-h: calc(var(--card-w) * 7 / 5);
+    --card-corner-fs: calc(var(--card-w) * 0.22);
+    --card-center-fs: calc(var(--card-w) * 0.46);
+  }
+
+  /* Middle row: fixed height, not squeezed by the flex column. The piles and the setup block are centred in it. */
+  .game-page.setup-phase .game-middle {
+    flex: 0 0 auto;
+    height: var(--swap-middle-h);
+    box-sizing: border-box;
+    min-height: 0;
+  }
+
+  /* Setup block: a fixed-height column that breaks into a second column (heading and starter picker, then the
+     instructions, then the buttons, hint and waiting line). Each column is at most half the block. */
+  .game-page.setup-phase .setup-controls {
+    display: flex;
+    flex-flow: column wrap;
+    align-content: flex-start;
+    align-items: flex-start;
+    column-gap: 20px;
+    row-gap: 6px;
+    height: var(--swap-setup-h);
+    overflow: visible;
+  }
+
+  .game-page.setup-phase .setup-controls > * {
+    max-width: calc(50% - 10px);
+    margin: 0;
+  }
+
+  .game-page.setup-phase .setup-controls > .button {
+    margin-top: 0;
+  }
+}
+
+/* Narrower desktop (the setup block gets about 350-460px beside the piles and the side column): the text
+   wraps more, so the block is taller and its text a little smaller. */
+@media (min-width: 701px) and (max-width: 1199px) {
+  .game-page.setup-phase .game-board {
+    --swap-setup-h: 280px;
+  }
+
+  .game-page.setup-phase .setup-controls p {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .game-page.setup-phase .setup-controls .button {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
