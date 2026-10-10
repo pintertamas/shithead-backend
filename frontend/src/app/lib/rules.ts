@@ -38,20 +38,22 @@ export type MoveInput = {
 };
 
 /**
- * The cards the player can play from right now. Hand when it has cards (plus face-up when mixing is allowed and
- * the draw pile is empty); otherwise face-up. Face-down cards are never included: a blind flip is always allowed.
+ * The candidate cards for the forced pick-up check (see mustPickUp):
+ * - The hand, when the hand has any cards. Face-up cards are not candidates then, even when mixing is allowed
+ *   (allowMixedHandAndFaceUpWhenDeckEmpty): a face-up card cannot be played alone while the hand has cards, and a
+ *   mixed play needs a playable hand card, so the hand cards decide.
+ * - The face-up cards, when the hand is empty.
+ * Face-down cards are never candidates. With only face-down cards there are no candidates, so nothing is forced:
+ * a blind flip is always allowed.
  */
 export function playableSourceCards(input: MoveInput): Card[] {
-  if (input.hand.length > 0) {
-    const mixing = input.allowMixedHandAndFaceUpWhenDeckEmpty && input.deckCount === 0;
-    return mixing ? [...input.hand, ...input.faceUp] : input.hand;
-  }
-  return input.faceUp;
+  return input.hand.length > 0 ? input.hand : input.faceUp;
 }
 
 /**
- * True when it is this player's turn, the discard pile has cards and none of the player's candidate cards can be
- * played on it. In that case the table selects the pick-up. Face-down only (or nothing) is never forced: a flip is allowed.
+ * True when it is this player's turn, the discard pile has cards and none of the candidate cards from
+ * playableSourceCards can be played on it. In that case the table selects the pick-up. With only face-down cards
+ * there are no candidates, so the result is false: a blind flip is always allowed.
  */
 export function mustPickUp(input: MoveInput): boolean {
   if (!input.setupComplete || input.finished || !input.yourTurn) return false;
