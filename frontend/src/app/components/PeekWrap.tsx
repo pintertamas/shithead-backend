@@ -10,7 +10,7 @@ type Props = {
   label: string;
   /** Visible text of the toggle button. */
   toggleText: string;
-  /** Kept for compatibility; desktop overlays are centred on the element, dialogs are centred in the viewport. */
+  /** Kept for compatibility. Desktop overlays are placed above the element (else below or beside), dialogs are centred in the viewport. */
   placement?: "above" | "below";
   /** Content of the overlay. A function receives whether the overlay is shown as a dialog (touch devices). */
   popover: ReactNode | ((dialog: boolean) => ReactNode);
@@ -26,6 +26,9 @@ type Props = {
  */
 const HOVER_QUERY = "(hover: hover) and (pointer: fine)";
 const EDGE = 8;
+/** Space between the wrapped element and an anchored overlay. */
+const GAP = 10;
+const MIN_OVERLAY_HEIGHT = 80;
 const HIDE_DELAY_MS = 150;
 
 function matches(query: string) {
@@ -51,7 +54,9 @@ function useCanHover() {
 /**
  * Wraps a table element with a peek overlay. The overlay is portalled to document.body and is
  * position: fixed, so it never affects layout. Devices with hover get it on pointer hover or keyboard
- * focus, anchored over the element and kept inside the viewport. Touch devices tap the toggle (or the
+ * focus, placed above the element (else below or beside) and kept inside the viewport. A hover
+ * preview is click-through (pointer-events: none) so it never blocks the element it belongs to; it only
+ * takes pointer events once pinned. Touch devices tap the toggle (or the
  * element when pressToOpen) to get a centred dialog with a backdrop that closes on tap outside, Escape or
  * the close button.
  */
@@ -119,22 +124,47 @@ export default function PeekWrap({ className = "", dialogClassName = "", label, 
     if (pinned && dialog) popoverRef.current?.focus({ preventScroll: true });
   }, [pinned, dialog]);
 
-  // Anchored overlay: centred on the wrapped element, clamped inside the viewport. Fixed coordinates only,
-  // so the document never changes size. Runs after each render so content changes keep it inside.
+  // Anchored overlay: never over the element it belongs to. Preference: above it, then below, then beside it;
+  // when no side fits the whole overlay it takes the roomier vertical side with a max height and scrolls inside.
+  // Fixed coordinates only, so the document never changes size. Runs after each render so content changes keep it placed.
   useLayoutEffect(() => {
     if (!open || dialog) return;
     const place = () => {
       const overlay = popoverRef.current;
       const anchor = wrapperRef.current?.firstElementChild;
       if (!overlay || !anchor) return;
+      // Measure the natural size first; a max height set by an earlier placement would hide it.
+      overlay.style.maxHeight = "";
       const a = anchor.getBoundingClientRect();
       const p = overlay.getBoundingClientRect();
       const viewportWidth = document.documentElement.clientWidth;
       const viewportHeight = window.innerHeight;
-      const left = clamp(a.left + a.width / 2 - p.width / 2, EDGE, Math.max(EDGE, viewportWidth - p.width - EDGE));
-      const top = clamp(a.top + a.height / 2 - p.height / 2, EDGE, Math.max(EDGE, viewportHeight - p.height - EDGE));
-      overlay.style.left = `${left}px`;
-      overlay.style.top = `${top}px`;
+      const roomAbove = a.top - GAP - EDGE;
+      const roomBelow = viewportHeight - a.bottom - GAP - EDGE;
+      const roomLeft = a.left - GAP - EDGE;
+      const roomRight = viewportWidth - a.right - GAP - EDGE;
+      const centredLeft = clamp(a.left + a.width / 2 - p.width / 2, EDGE, Math.max(EDGE, viewportWidth - p.width - EDGE));
+      const centredTop = clamp(a.top + a.height / 2 - p.height / 2, EDGE, Math.max(EDGE, viewportHeight - p.height - EDGE));
+      let left = centredLeft;
+      let top = 0;
+      let maxHeight: number | null = null;
+      if (p.height <= roomAbove) {
+        top = a.top - GAP - p.height;
+      } else if (p.height <= roomBelow) {
+        top = a.bottom + GAP;
+      } else if (p.height <= viewportHeight - EDGE * 2 && (p.width <= roomRight || p.width <= roomLeft)) {
+        top = centredTop;
+        left = p.width <= roomRight ? a.right + GAP : a.left - GAP - p.width;
+      } else if (roomAbove >= roomBelow) {
+        maxHeight = Math.max(MIN_OVERLAY_HEIGHT, roomAbove);
+        top = Math.max(EDGE, a.top - GAP - maxHeight);
+      } else {
+        maxHeight = Math.max(MIN_OVERLAY_HEIGHT, roomBelow);
+        top = a.bottom + GAP;
+      }
+      overlay.style.maxHeight = maxHeight === null ? "" : `${maxHeight}px`;
+      overlay.style.left = `${clamp(left, EDGE, Math.max(EDGE, viewportWidth - p.width - EDGE))}px`;
+      overlay.style.top = `${clamp(top, EDGE, Math.max(EDGE, viewportHeight - (maxHeight ?? p.height) - EDGE))}px`;
     };
     place();
     window.addEventListener("resize", place);
@@ -186,7 +216,7 @@ export default function PeekWrap({ className = "", dialogClassName = "", label, 
           <div
             ref={popoverRef}
             id={id}
-            className={`peek-overlay ${dialog ? `peek-overlay-mobile${dialogClassName ? ` ${dialogClassName}` : ""}` : "peek-overlay-desktop"}`}
+            className={`peek-overlay ${dialog ? `peek-overlay-mobile${dialogClassName ? ` ${dialogClassName}` : ""}` : "peek-overlay-desktop"}${dialog || pinned ? "" : " peek-overlay-passive"}`}
             role={dialog ? "dialog" : "region"}
             aria-modal={dialog ? true : undefined}
             aria-label={label}
