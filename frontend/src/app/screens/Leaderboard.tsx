@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { LeaderboardEntry } from "../api/leaderboard";
+import Pager from "../components/Pager";
 import Tabs from "../components/Tabs";
 import ErrorAlert from "../components/ErrorAlert";
 import Icon from "../components/Icon";
@@ -10,6 +11,9 @@ import { useGlobalLeaderboardQuery, useSessionLeaderboardQuery } from "../data/q
 import "../styles/leaderboard.css";
 import "../styles/rankings.css";
 import "../styles/elo-change.css";
+
+/** Players shown per page of the leaderboard, on every screen size. */
+const PAGE_SIZE = 10;
 
 function TrophyIcon() {
   return (
@@ -65,6 +69,8 @@ export default function Leaderboard() {
   const { token } = useAuth();
   const [tab, setTab] = useState(sessionId ? "Session" : "Global");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const listRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const sessionQuery = useSessionLeaderboardQuery(token, sessionId);
   const globalQuery = useGlobalLeaderboardQuery(token);
@@ -91,6 +97,34 @@ export default function Leaderboard() {
     ? ranked.filter(({ entry }) => entry.username.toLowerCase().includes(needle))
     : ranked;
 
+  // Pagination runs over the filtered list. The page is clamped when the list shrinks (filter or data refresh).
+  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  useEffect(() => {
+    if (page !== currentPage) setPage(currentPage);
+  }, [page, currentPage]);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pagedVisible = visible.slice(pageStart, pageStart + PAGE_SIZE);
+  const rangeStart = visible.length === 0 ? 0 : pageStart + 1;
+  const rangeEnd = Math.min(pageStart + PAGE_SIZE, visible.length);
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    // The pager sits below the list, so bring the top of the list back into view after a page change.
+    const list = listRef.current;
+    if (list && list.getBoundingClientRect().top < 0) list.scrollIntoView({ block: "start" });
+  };
+
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    setPage(1);
+  };
+
+  const changeTab = (next: string) => {
+    setTab(next);
+    setPage(1);
+  };
+
   return (
     <div className="leaderboard-page fade-in">
       <div className="leaderboard-main">
@@ -113,7 +147,7 @@ export default function Leaderboard() {
             </div>
           </div>
 
-          {sessionId && <Tabs tabs={["Session", "Global"]} active={tab} onChange={setTab} />}
+          {sessionId && <Tabs tabs={["Session", "Global"]} active={tab} onChange={changeTab} />}
 
           {loading ? <RankingRowsSkeleton rows={8} />
             : rows.length === 0 ? <p className="lobby-rankings-message">{error ? "Rankings couldn't be loaded." : "No rankings are available yet."}</p>
@@ -130,11 +164,11 @@ export default function Leaderboard() {
                         autoComplete="off"
                         spellCheck={false}
                         value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); }}
+                        onChange={(event) => changeQuery(event.target.value)}
+                        onKeyDown={(event) => { if (event.key === "Escape") changeQuery(""); }}
                       />
                       {query && (
-                        <button type="button" className="rankings-search-clear" aria-label="Clear search" onClick={() => setQuery("")}>
+                        <button type="button" className="rankings-search-clear" aria-label="Clear search" onClick={() => changeQuery("")}>
                           <Icon name="close" size={16} />
                         </button>
                       )}
@@ -149,11 +183,11 @@ export default function Leaderboard() {
                   {visible.length === 0 ? (
                     <p className="lobby-rankings-message rankings-no-match" role="status">No players match “{query.trim()}”.</p>
                   ) : (
-                    <div className="lobby-table-wrap">
+                    <div className="lobby-table-wrap" ref={listRef}>
                       <table className="lobby-rankings-table">
                         <thead><tr><th scope="col">#</th><th scope="col">Name</th><th scope="col">ELO</th></tr></thead>
                         <tbody>
-                          {visible.map(({ entry, rank }) => (
+                          {pagedVisible.map(({ entry, rank }) => (
                             <tr key={entry.userId}>
                               <td><span className={`lobby-rank${rank <= 3 ? ` top-${rank}` : ""}`}>{rank}</span></td>
                               <td>{entry.username}</td>
@@ -170,6 +204,19 @@ export default function Leaderboard() {
                         </tbody>
                       </table>
                     </div>
+                  )}
+
+                  {visible.length > PAGE_SIZE && (
+                    <Pager
+                      label="Leaderboard pages"
+                      page={currentPage}
+                      totalPages={totalPages}
+                      rangeStart={rangeStart}
+                      rangeEnd={rangeEnd}
+                      total={visible.length}
+                      noun="players"
+                      onPageChange={goToPage}
+                    />
                   )}
                 </>
               )}

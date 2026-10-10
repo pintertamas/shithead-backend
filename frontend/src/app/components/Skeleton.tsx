@@ -51,18 +51,45 @@ export function RouteSkeleton({ variant = "menu" }: { variant?: "menu" | "bare" 
   );
 }
 
+// Same markup and classes as the loaded user table and pager in screens/Admin.tsx, so the placeholder takes the same
+// space: one card or row per user on the page, plus the pager row.
 export function AdminRowsSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="admin-table-wrap glass skeleton-admin" role="status">
-      <span className="visually-hidden">Loading users…</span>
-      {Array.from({ length: rows }, (_, index) => (
-        <div className="skeleton-admin-row" key={index} aria-hidden="true">
-          <Skeleton height={16} width="45%" />
-          <Skeleton height={16} width={48} />
-          <Skeleton height={24} width={72} />
-          <Skeleton height={32} width={84} />
+    <>
+      <div className="admin-table-wrap glass skeleton-admin" role="status">
+        <span className="visually-hidden">Loading users…</span>
+        <table className="admin-table" aria-hidden="true">
+          <thead>
+            <tr>
+              <th scope="col">User</th>
+              <th scope="col">ELO</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span className="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: rows }, (_, index) => (
+              <tr className="admin-row" key={index}>
+                <td data-label="User">
+                  <span className="admin-username"><Skeleton height={16} width="60%" /></span>
+                  <span className="admin-userid"><Skeleton height={12} width="85%" /></span>
+                </td>
+                <td data-label="ELO" className="admin-elo"><Skeleton height={16} width={40} /></td>
+                <td data-label="Status"><Skeleton height={22} width={64} /></td>
+                <td data-label="Action" className="admin-action-cell"><Skeleton height={32} width={72} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="admin-pager skeleton-admin-pager" aria-hidden="true">
+        <Skeleton className="skeleton-pager-button" />
+        <div className="admin-pager-status">
+          <Skeleton height={16} width={90} />
+          <Skeleton height={13} width={140} />
         </div>
-      ))}
-    </div>
+        <Skeleton className="skeleton-pager-button" />
+      </div>
+    </>
   );
 }

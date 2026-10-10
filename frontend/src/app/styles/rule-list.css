@@ -1,0 +1,30 @@
+/*
+ * Bulleted list of special card rules (Card Rules section on /config).
+ * Uses the .config-note text style from layout.css for colour and size.
+ */
+
+.rule-list {
+  list-style: disc outside;
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+}
+
+.rule-list li {
+  margin: 0 0 4px;
+  padding-left: 2px;
+}
+
+.rule-list li:last-child {
+  margin-bottom: 0;
+}
+
+.rule-list li::marker {
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.rule-list strong {
+  font-weight: 600;
+}

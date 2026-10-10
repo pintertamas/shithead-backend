@@ -47,6 +47,9 @@
 
 .admin-row.blocked td { background: rgba(255, 107, 107, 0.05); }
 
+/* Fixed row height so every user row (and every loading placeholder row) takes the same space. */
+.admin-table tbody .admin-row { height: var(--admin-row-height, 68px); }
+
 .admin-action { padding: 8px 14px; box-shadow: none; white-space: nowrap; }
 
 .admin-pager {
