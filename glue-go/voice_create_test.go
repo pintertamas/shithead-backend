@@ -105,6 +105,9 @@ func TestCreateGameRefusesVoiceAtGuardThreshold(t *testing.T) {
 	if n := db.writes("PutItem"); n != 0 {
 		t.Fatalf("refused game must not write, got %d puts", n)
 	}
+	if n := db.writes("GetItemConsistent"); n != 1 {
+		t.Fatalf("the guard must read the usage with ConsistentRead, got %d consistent reads", n)
+	}
 }
 
 func TestCreateGameAllowsVoiceJustBelowGuard(t *testing.T) {

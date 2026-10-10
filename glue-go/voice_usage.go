@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -37,12 +38,18 @@ func voiceOpenKey(room, identity string) string {
 }
 
 // voiceMinutesUsed returns the participant-minutes recorded for the UTC month of at.
+// The read is strongly consistent, so the create guard cannot run behind the webhook.
 func (a *App) voiceMinutesUsed(ctx context.Context, at time.Time) (int64, error) {
-	item, err := a.getItem(ctx, a.settings.UsersTable, "user_id", voiceUsageKey(at))
+	consistent := true
+	out, err := a.db.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName:      &a.settings.UsersTable,
+		Key:            key("user_id", voiceUsageKey(at)),
+		ConsistentRead: &consistent,
+	})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("get voice usage: %w", err)
 	}
-	minutes, _ := numberAttr(item, "minutes")
+	minutes, _ := numberAttr(out.Item, "minutes")
 	return minutes, nil
 }
 
@@ -83,15 +90,25 @@ func (a *App) openVoiceSession(ctx context.Context, room, identity string, joine
 	})
 }
 
-// recordVoiceLeave removes the open row. When one came back, its connection is
-// counted in the month of the leave event and the new total is returned with true.
-// A duplicate or unmatched leave finds no row and counts nothing.
+// recordVoiceLeave closes the open session by removing its joined_at attribute, only
+// while that attribute exists (UpdateItem REMOVE with attribute_exists). The old
+// attributes come back, so the connection is counted in the month of the leave
+// event and the new total is returned with true. A duplicate or unmatched leave fails
+// the condition and counts nothing. The key-only row is left behind: UpdateItem cannot
+// delete an item, and a later join overwrites it.
 func (a *App) recordVoiceLeave(ctx context.Context, room, identity string, leftAt int64) (int64, bool, error) {
-	out, err := a.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
-		TableName:    &a.settings.UsersTable,
-		Key:          key("user_id", voiceOpenKey(room, identity)),
-		ReturnValues: types.ReturnValueAllOld,
+	out, err := a.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:                &a.settings.UsersTable,
+		Key:                      key("user_id", voiceOpenKey(room, identity)),
+		UpdateExpression:         strPtr("REMOVE #joined"),
+		ConditionExpression:      strPtr("attribute_exists(#joined)"),
+		ExpressionAttributeNames: map[string]string{"#joined": "joined_at"},
+		ReturnValues:             types.ReturnValueAllOld,
 	})
+	var conditionFailed *types.ConditionalCheckFailedException
+	if errors.As(err, &conditionFailed) {
+		return 0, false, nil
+	}
 	if err != nil {
 		return 0, false, fmt.Errorf("close voice session: %w", err)
 	}

@@ -33,15 +33,15 @@ func TestVoiceJoinThenLeaveAddsRoundedMinutes(t *testing.T) {
 	// When they leave 150 seconds later
 	resp := deliverWebhook(t, app, roomEventBody(t, "participant_left", "ROOM01", "player-1", joined+150))
 
-	// Then 150 seconds is billed as 3 minutes and the open row is removed
+	// Then 150 seconds is billed as 3 minutes and the open session no longer has joined_at
 	if resp.StatusCode != 200 {
 		t.Fatalf("leave should be 200, got %d", resp.StatusCode)
 	}
 	if got := usageMinutes(db, testNow); got != 3 {
 		t.Fatalf("150 seconds should count as 3 minutes, got %d", got)
 	}
-	if db.item(testUsers, voiceOpenKey("ROOM01", "player-1")) != nil {
-		t.Fatal("leave should remove the open session row")
+	if _, open := numberAttr(db.item(testUsers, voiceOpenKey("ROOM01", "player-1")), "joined_at"); open {
+		t.Fatal("leave should remove joined_at from the open session row")
 	}
 }
 
@@ -62,11 +62,9 @@ func TestVoiceDuplicateLeaveAddsNothing(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("duplicate leave should still be 200, got %d", resp.StatusCode)
 	}
+	// The total stays at 3: a second ADD would have made it 6
 	if got := usageMinutes(db, testNow); got != 3 {
 		t.Fatalf("duplicate leave must not double count, got %d minutes", got)
-	}
-	if n := db.writes("UpdateItem"); n != 1 {
-		t.Fatalf("only the first leave should update the total, got %d updates", n)
 	}
 }
 
@@ -83,11 +81,12 @@ func TestVoiceLeaveWithoutJoinAddsNothing(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("unmatched leave should still be 200, got %d", resp.StatusCode)
 	}
+	// No usage item is created: the condition failed before any ADD ran
+	if db.item(testUsers, voiceUsageKey(testNow)) != nil {
+		t.Fatal("leave without join must not create this month's usage item")
+	}
 	if got := usageMinutes(db, testNow); got != 0 {
 		t.Fatalf("leave without join must add nothing, got %d minutes", got)
-	}
-	if n := db.writes("UpdateItem"); n != 0 {
-		t.Fatalf("leave without join must not update the total, got %d updates", n)
 	}
 }
 
