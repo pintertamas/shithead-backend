@@ -20,6 +20,7 @@ import StarterPicker from "../components/StarterPicker";
 import PeekWrap from "../components/PeekWrap";
 import { SeatChip, SeatPeek } from "../components/SeatChip";
 import { describeEvent } from "../lib/gameFeed";
+import { useVoiceSnapshot, type VoiceSnapshot } from "../lib/voice";
 import "../styles/table-mobile.css";
 import "../styles/companion-width.css";
 import "../styles/table-bar.css";
@@ -58,6 +59,14 @@ function neighbourPlayerId(players: PlayerState[], index: number, step: 1 | -1):
   }
   return null;
 }
+
+/** Players speaking in this game's voice call right now (LiveKit player ids). Empty unless our own connection is up. */
+function speakingPlayerIds(voice: VoiceSnapshot): Set<string> {
+  if (voice.status !== "connected") return new Set();
+  const inCall = new Set(voice.participants.map((participant) => participant.identity));
+  if (voice.localIdentity) inCall.add(voice.localIdentity);
+  return new Set(voice.speakers.filter((id) => inCall.has(id)));
+}
 export default function GameTable() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -81,6 +90,8 @@ export default function GameTable() {
   const [latestChatByPlayer, setLatestChatByPlayer] = useState<Record<string, { text: string; ts: number }>>({});
   const [nudgeFrom, showNudge] = useNudgeNotice();
   const phone = usePhoneLayout();
+  const voice = useVoiceSnapshot(sessionId);
+  const speakingIds = useMemo(() => speakingPlayerIds(voice), [voice]);
   // Phone only: the opponent whose cards are open in the centred peek dialog.
   const [peekId, setPeekId] = useState<string | null>(null);
   const closePeek = useCallback(() => setPeekId(null), []);
@@ -414,7 +425,7 @@ export default function GameTable() {
       <div className={`phone-side phone-side-${side}`}>
         {player && (
           <PlayerPanel player={player} compact isCurrentTurn={state.currentPlayerId === player.playerId}
-            isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} />
+            isNext={nextPlayerId === player.playerId} speaking={speakingIds.has(player.playerId)} chatBubble={latestChatByPlayer[player.playerId]} />
         )}
       </div>
     );
@@ -446,7 +457,7 @@ export default function GameTable() {
           <div className="phone-chips" ref={phoneChipsRef} role="group" aria-label="Other players">
             {phoneSeats.chips.map((player) => (
               <SeatChip key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
-                isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} onOpen={setPeekId} />
+                isNext={nextPlayerId === player.playerId} speaking={speakingIds.has(player.playerId)} chatBubble={latestChatByPlayer[player.playerId]} onOpen={setPeekId} />
             ))}
           </div>
         )}
@@ -470,7 +481,7 @@ export default function GameTable() {
           <div className="game-opponents" aria-label="Other players">
             {others.map((player) => (
               <PlayerPanel key={player.playerId} player={player} isCurrentTurn={state.currentPlayerId === player.playerId}
-                isNext={nextPlayerId === player.playerId} chatBubble={latestChatByPlayer[player.playerId]} />
+                isNext={nextPlayerId === player.playerId} speaking={speakingIds.has(player.playerId)} chatBubble={latestChatByPlayer[player.playerId]} />
             ))}
           </div>
         )}
@@ -523,6 +534,7 @@ export default function GameTable() {
           player={you}
           isCurrentTurn={yourTurn}
           isNext={nextPlayerId === you.playerId}
+          speaking={speakingIds.has(you.playerId)}
           chatBubble={latestChatByPlayer[you.playerId]}
           canSelectFaceUp={canSelectFaceUp || (canMixHandAndFaceUp && !setupStage)}
           canSelectFaceDown={!setupStage && hand.length === 0 && you.faceUp.length === 0}

@@ -6,25 +6,29 @@ import SeatTableView from "./SeatTableView";
 import "../styles/overlays.css";
 import "../styles/table-mobile.css";
 import "../styles/seat-indicators.css";
+import "../styles/voice-speaking.css";
 
 /** Phones only: other players who are not the neighbours of the viewer are shown as small chips. */
 type ChipProps = {
   player: PlayerState;
   isCurrentTurn: boolean;
   isNext: boolean;
+  /** In this game's voice call and speaking right now. Draws the green speaking ring (voice-speaking.css). */
+  speaking?: boolean;
   chatBubble?: { text: string; ts: number } | null;
   onOpen: (playerId: string) => void;
 };
 
 const CHIP_FAN_LIMIT = 3;
 
-export function SeatChip({ player, isCurrentTurn, isNext, chatBubble, onOpen }: ChipProps) {
+export function SeatChip({ player, isCurrentTurn, isNext, speaking = false, chatBubble, onOpen }: ChipProps) {
   const backs = Math.min(CHIP_FAN_LIMIT, player.handCount);
   const out = player.handCount === 0 && player.faceDownCount === 0 && player.faceUp.length === 0;
   const classes = ["seat-chip-wrap"];
   if (isCurrentTurn) classes.push("seat-chip-playing");
   if (isNext) classes.push("seat-next");
   if (out) classes.push("seat-chip-out");
+  if (speaking) classes.push("seat-speaking");
   return (
     <div className={classes.join(" ")} data-seat-id={player.playerId}>
       {chatBubble && <ChatBubble key={chatBubble.ts} text={chatBubble.text} />}
@@ -32,7 +36,7 @@ export function SeatChip({ player, isCurrentTurn, isNext, chatBubble, onOpen }: 
         type="button"
         className="seat-chip"
         onClick={() => onOpen(player.playerId)}
-        aria-label={`${player.username}: ${player.handCount} in hand, ${player.faceDownCount} face-down, ${player.faceUp.length} face-up${isCurrentTurn ? ", current turn" : ""}${isNext ? ", plays next" : ""}. Show cards`}
+        aria-label={`${player.username}: ${player.handCount} in hand, ${player.faceDownCount} face-down, ${player.faceUp.length} face-up${isCurrentTurn ? ", current turn" : ""}${isNext ? ", plays next" : ""}${speaking ? ", speaking" : ""}. Show cards`}
       >
         <span className="seat-chip-name">
           {player.username}
