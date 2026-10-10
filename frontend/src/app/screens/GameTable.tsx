@@ -14,7 +14,7 @@ import ShitheadModal from "../components/ShitheadModal";
 import ErrorAlert from "../components/ErrorAlert";
 import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
-import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, reconcileSelection } from "../lib/selection";
+import { EMPTY_SELECTION, SelectionState, affectsOwnCardsOrTurn, nextSelection, reconcileSelection } from "../lib/selection";
 import StarterPicker from "../components/StarterPicker";
 import PeekWrap from "../components/PeekWrap";
 import { SeatChip, SeatPeek } from "../components/SeatChip";
@@ -175,15 +175,8 @@ export default function GameTable() {
   }, []);
 
   const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
-    setSelection((prev) => {
-      const exists = prev.selected.some((item) => item.source === source && item.index === index);
-      let nextSelected: CardSelection[];
-      if (exists) nextSelected = prev.selected.filter((item) => item.source !== source || item.index !== index);
-      else if (source === "faceDown" || prev.selected.some((item) => item.source === "faceDown")) nextSelected = [{ source, index }];
-      else nextSelected = [...prev.selected, { source, index }];
-      return { selected: nextSelected, pickupSelected: false };
-    });
-  }, []);
+    setSelection((prev) => nextSelection(prev, { source, index }, { hand: you?.hand, faceUp: you?.faceUp }, setupStage ? "setup" : "play"));
+  }, [you, setupStage]);
 
   const sendWs = useCallback((payload: object) => {
     const ws = wsRef.current;
@@ -367,7 +360,7 @@ export default function GameTable() {
   const latestEvent = state.events && state.events.length > 0 ? state.events[state.events.length - 1] : null;
 
   return (
-    <div className={`page fade-in game-page${phone ? " phone-table" : ""}`}>
+    <div className={`page fade-in game-page${phone ? " phone-table" : ""}${setupStage ? " setup-phase" : ""}`}>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <NudgeBanner username={nudgeFrom} />
 
@@ -471,15 +464,15 @@ export default function GameTable() {
             <button className="button" disabled={(!pickupSelected && (selected.length === 0 || mixedSelectionIncomplete)) || pendingAction || !yourTurn || (pickupSelected && !pileHasCards)} onClick={playSelected}>
               {pendingAction ? "Sending..." : pickupSelected ? "Pick Up" : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
-            <p className="game-hint">
-              {!yourTurn
-                ? `Waiting for ${currentName || "the current player"}'s turn.`
-                : pickupSelected
-                  ? "Discard pile selected. Press Pick Up to collect it."
-                  : selected.length === 0
-                  ? "Select cards, then press Play."
-                  : "Selected cards are highlighted. Press Play to submit your move."}
-            </p>
+            {(!yourTurn || pickupSelected || selected.length === 0) && (
+              <p className="game-hint">
+                {!yourTurn
+                  ? `Waiting for ${currentName || "the current player"}'s turn.`
+                  : pickupSelected
+                    ? "Discard pile selected. Press Pick Up to collect it."
+                    : "Select cards, then press Play."}
+              </p>
+            )}
           </div>
         )}
         {phone && (

@@ -1,0 +1,344 @@
+/*
+ * Draw and discard piles share one box: title on top, the card area in the middle (same size for both,
+ * with padding so no card touches the box edge), and the count underneath. Also the discard pile's
+ * contents dialog (phones) and the seat view used by the opponent popovers (SeatTableView).
+ * Selectors are a little more specific than table.css / table-mobile.css so these rules win.
+ */
+
+/* ---------- Pile box ---------- */
+
+.game-board .game-piles .pile.pile-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-width: calc(var(--card-w) + 34px);
+  padding: 10px 10px 8px;
+  color: #f5edda;
+  text-align: center;
+}
+
+.game-board .game-piles .pile.pile-box.pile-with-transparent {
+  min-width: max(calc(var(--card-w) + 34px), min(45vw, 280px));
+}
+
+.game-board .game-piles .pile-box .pile-title {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(245, 237, 218, 0.78);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The card area: a fixed box a little larger than one card, so the pile never changes size when cards
+   move on or off it, and the cards keep a gap from the box edge. */
+.game-board .game-piles .pile-box .pile-body {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  width: calc(var(--card-w) + 12px);
+  min-height: calc(var(--card-h) + 12px);
+  margin: 0;
+  padding: 0;
+}
+
+.game-board .game-piles .pile-box .pile-body > .pile-visible-cards {
+  width: var(--card-w);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.game-board .game-piles .pile-box .pile-count {
+  min-height: 1em;
+  color: #f5edda;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.game-board .game-piles .pile-box.pile-empty .pile-count {
+  color: rgba(240, 217, 158, 0.7);
+}
+
+/* Draw pile: the stack of backs is centred in the same body box. */
+.game-board .game-piles .pile-box .draw-stack {
+  margin: 0;
+}
+
+.game-board .game-piles .pile-box.pile-empty .draw-stack {
+  border: 2px dashed rgba(240, 217, 158, 0.32);
+  border-radius: 6px;
+}
+
+/* Discard pile placeholder when there are no cards: a dashed slot the size of a card. */
+.game-board .game-piles .pile-box .pile-slot {
+  width: var(--card-w);
+  height: var(--card-h);
+}
+
+/* Discard pile with a transparent card on top: the body grows to show the card beneath. */
+.game-board .game-piles .pile-box .pile-overlap {
+  margin: 0 auto;
+}
+
+/* ---------- Discard pile contents: desktop popover ---------- */
+
+.pile-contents {
+  display: grid;
+  gap: 8px;
+  min-width: min(74vw, 320px);
+}
+
+.pile-contents-title {
+  color: rgba(245, 237, 218, 0.82);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.pile-contents-title span {
+  margin-left: 6px;
+  opacity: 0.6;
+}
+
+/* ---------- Discard pile contents: phone dialog ---------- */
+
+.peek-overlay.pile-dialog-overlay {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  width: min(92vw, 400px);
+  max-width: min(92vw, 400px);
+  max-height: 75dvh;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 54px 0 16px;
+  border-bottom: 1px solid rgba(229, 213, 164, 0.25);
+  color: #f5edda;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.peek-overlay.pile-dialog-overlay .peek-close {
+  top: 11px;
+  right: 11px;
+  width: 30px;
+  height: 30px;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 14px 10px;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-cell {
+  position: relative;
+  min-width: 0;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-card {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5 / 7;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  container-type: inline-size;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-card .playing-card-corner,
+.peek-overlay.pile-dialog-overlay .pile-dialog-card .playing-card-corner-opposite {
+  font-size: 15cqw;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-card .playing-card-center {
+  font-size: 42cqw;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-top {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e6c36a;
+  color: #1d2a20;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-empty {
+  margin: 8px 0;
+  color: rgba(245, 237, 218, 0.7);
+  font-size: 13px;
+}
+
+.peek-overlay.pile-dialog-overlay .pile-dialog-note {
+  margin: 0;
+  color: rgba(245, 237, 218, 0.82);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* ---------- Seat view (opponent popovers, phone seat dialog) ---------- */
+
+.seat-table-view {
+  --stv-w: 58px;
+  --stv-h: calc(var(--stv-w) * 7 / 5);
+  display: grid;
+  gap: 12px;
+  min-width: min(70vw, 300px);
+  color: #f5edda;
+  text-align: left;
+}
+
+.seat-table-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-right: 36px;
+}
+
+.seat-table-head strong {
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+
+.seat-table-counts {
+  color: rgba(245, 237, 218, 0.8);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.seat-table-label {
+  margin-bottom: 6px;
+  color: rgba(245, 237, 218, 0.62);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.seat-table-section {
+  display: grid;
+  gap: 0;
+}
+
+.seat-table-empty {
+  margin: 0;
+  color: rgba(245, 237, 218, 0.62);
+  font-size: 13px;
+}
+
+/* Table cards: each slot is one face-down card with its face-up card (if any) laid on top. */
+.seat-table-stacks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 12px;
+}
+
+.seat-table-stack {
+  position: relative;
+  width: var(--stv-w);
+  height: calc(var(--stv-h) + 8px);
+}
+
+.seat-table-view .playing-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--stv-w);
+  height: var(--stv-h);
+  margin: 0;
+  flex: none;
+}
+
+.seat-table-view .seat-table-back {
+  transform: translate(3px, 4px) rotate(-4deg);
+}
+
+.seat-table-view .face-up-card {
+  transform: translate(-1px, 0) rotate(2deg);
+  box-shadow: 0 4px 9px rgba(0, 0, 0, 0.4);
+}
+
+.seat-table-view .playing-card-corner,
+.seat-table-view .playing-card-corner-opposite {
+  font-size: calc(var(--stv-w) * 0.22);
+}
+
+.seat-table-view .playing-card-center {
+  font-size: calc(var(--stv-w) * 0.46);
+}
+
+/* Hand: a fan of backs, one per card in hand (the count label is exact; the fan is capped). */
+.seat-table-fan {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: calc(var(--stv-h) * 0.6 + 8px);
+  padding-left: 2px;
+}
+
+.seat-table-fan .seat-table-fan-card {
+  position: relative;
+  flex: none;
+  width: calc(var(--stv-w) * 0.62);
+  height: calc(var(--stv-h) * 0.62);
+  margin-left: calc(var(--stv-w) * -0.3);
+  border-radius: 4px;
+  border: 2px solid #e9dfc6;
+  background: repeating-linear-gradient(45deg, #853d37, #853d37 4px, #e8dfcc 4px, #e8dfcc 6px, #315447 6px, #315447 10px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.seat-table-fan .seat-table-fan-card:first-child {
+  margin-left: 0;
+}
+
+.seat-table-hand-count {
+  margin: 0 0 0 2px;
+  color: rgba(245, 237, 218, 0.7);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat-table-view * {
+    transition: none;
+  }
+}
