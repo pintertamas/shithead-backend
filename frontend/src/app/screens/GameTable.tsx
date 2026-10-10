@@ -24,6 +24,7 @@ import "../styles/table-mobile.css";
 import "../styles/companion-width.css";
 import "../styles/table-bar.css";
 import "../styles/swap-phase-phone.css";
+import "../styles/swap-phase-desktop.css";
 
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
