@@ -4,7 +4,8 @@ import java.util.Locale;
 
 /** Kinds of computer-controlled players the lobby owner can seat. */
 public enum BotType {
-    BEGINNER("Beginner Bot");
+    BEGINNER("Beginner Bot"),
+    INTERMEDIATE("Intermediate Bot");
 
     private final String displayName;
 
@@ -15,6 +16,13 @@ public enum BotType {
     /** Name prefix of seats of this type, numbered per game ("Beginner Bot 1", "Beginner Bot 2"). */
     public String getDisplayName() {
         return displayName;
+    }
+
+    /**
+     * True for bots that remember public moves, so the game keeps a {@link CardMemory} for them.
+     */
+    public boolean countsCards() {
+        return this == INTERMEDIATE;
     }
 
     /** Parses a stored or requested type name, case-insensitively. Null or unknown names give null. */

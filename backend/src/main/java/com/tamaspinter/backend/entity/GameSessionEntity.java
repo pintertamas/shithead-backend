@@ -42,6 +42,8 @@ public class GameSessionEntity {
     private String ownerId;
     private GameConfigEntity config;
     private List<GameEventEntity> events;
+    /** Card memory of card-counting bots. Null for games without them and for items written before bots existed. */
+    private BotMemoryEntity botMemory;
     @Getter(AccessLevel.NONE)
     private String createdAt;
     @Getter(AccessLevel.NONE)

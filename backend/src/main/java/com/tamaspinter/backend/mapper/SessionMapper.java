@@ -1,6 +1,7 @@
 package com.tamaspinter.backend.mapper;
 
 import com.tamaspinter.backend.bot.BotType;
+import com.tamaspinter.backend.bot.CardMemory;
 import com.tamaspinter.backend.entity.CardEntity;
 import com.tamaspinter.backend.entity.GameEventEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
@@ -35,6 +36,7 @@ public class SessionMapper {
                 .deck(deck != null ? cardsToEntities(new ArrayDeque<>(deck.getCards())) : List.of())
                 .config(session.getConfig().toEntity())
                 .events(eventsToEntities(session.getEvents()))
+                .botMemory(session.getObserver() instanceof CardMemory memory ? memory.toEntity() : null)
                 .createdAt(session.getCreatedAt())
                 .ttl(session.getTtl())
                 .build();
@@ -78,6 +80,9 @@ public class SessionMapper {
             entitiesToCards(playerEntity.getFaceDown()).forEach(player.getFaceDown()::addLast);
             player.setOut(playerEntity.isOut());
             session.getPlayers().add(player);
+        }
+        if (session.getPlayers().stream().anyMatch(player -> player.isBot() && player.getBotType().countsCards())) {
+            session.setObserver(CardMemory.fromEntity(entity.getBotMemory()));
         }
         String currentPlayerId = entity.getCurrentPlayerId();
         for (int i = 0; i < session.getPlayers().size(); i++) {
