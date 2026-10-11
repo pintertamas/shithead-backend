@@ -90,7 +90,7 @@ shithead-backend/
 |---|---|
 | (root) | `LambdaHandler` (boots Spring once, calls `GameApiFunctionConfig.dispatch`, writes the response as-is), `BackendApplication` |
 | `config` | `GameApiFunctionConfig` (event-shape dispatcher), `ApiRoutes` (route table), `GameFunctionConfig` (join/leave/start/raise decks/state/leaderboards, `playCardWS`, `pickupPileWS`), `AccountManagementFunctionConfig` (profile, admin, browse, delete account), `VoiceFunctionConfig`, `PlayErrorMessages`, `CognitoClientConfig`, `SecurityConfig` |
-| `bot` | `BotType`, `BotStrategy` (+ `BeginnerBotStrategy`, `BotStrategies`), `BotView` (public table view), `SetupSwap`, `BotTurnRunner` (bot setup and in-memory bot turns) |
+| `bot` | `BotType`, `BotStrategy` (+ `BeginnerBotStrategy`, `IntermediateBotStrategy` with `PlayEvaluator`/`OpponentOdds`/`CardWorth`, `BotStrategies`), `BotView` (public table view, plus `knownHand`/`unseen` for card-counting bots), `CardMemory` (public-move memory, stored as `botMemory`), `SetupSwap`, `BotTurnRunner` (bot setup and in-memory bot turns) |
 | `game` | `GameSession`, `GameConfig`, `PlayResult`, `CardSelection`, `CardSource`, `GameEvent`, `GameEventType`, `ChatMessageValidator`, `NudgeMessage`, `GameManager` |
 | `rules` | `RuleEngine` (static), `RuleStrategy`, `AfterEffect`, `Default/Joker/Smaller/Transparent/Reverse/BurnerRuleStrategy` |
 | `model` | `Card`, `Player`, `Deck`, `Suit`, `CardRule`, `UserProfile` (users-table bean); `model.api`: `GameStateView`, `PlayerStateView`, `LeaderboardEntry`; `model.websocket`: `PlayMessage`, `PickupMessage`, `GameEnded` |
@@ -630,3 +630,4 @@ Add a change log row (date, change, model) for every update. Keep facts verified
 | 2026-10-10 | Full refresh to match the Go glue + single Java Lambda architecture and the features added since (incl. PRs #84-#91: pagination, seat indicators, table bar, PeekWrap, `lib/rules.ts` auto pick-up) | Claude Opus 5.5 |
 | 2026-10-10 | Final refresh for PRs #92-#108: second deck route and seat capacity, janitor lobbies + `GetConnection` + unused-name fix, LiveKit webhook and voice usage guards, game socket reconnect, Web Audio nudge queue, forced pick-up candidates, peek, flip notice, piles, speaking ring, log popover, swap label | Claude Opus 5.5 |
 | 2026-10-11 | Added beginner bots: `bot/` package, `POST /games/{sessionId}/bots`, in-memory bot turns, `botType` player attribute, Elo exclusion | Claude Opus 5.5 |
+| 2026-10-11 | Added the card-counting `IntermediateBotStrategy` (scores legal plays from public info: shedding, burns, pressure on the next player); `PublicMoveObserver.handCardsPutFaceUp` | Claude Opus 5.5 |
