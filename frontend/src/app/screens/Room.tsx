@@ -22,7 +22,8 @@ const MAX_SEATS = 10;
 
 /** Bot types the owner can add. Add an entry (e.g. INTERMEDIATE / "Intermediate bot") to offer another type. */
 const BOT_TYPES = [
-  { value: "BEGINNER", label: "Beginner bot" }
+  { value: "BEGINNER", label: "Beginner bot" },
+  { value: "INTERMEDIATE", label: "Intermediate bot" }
 ] as const;
 
 export default function Room() {
