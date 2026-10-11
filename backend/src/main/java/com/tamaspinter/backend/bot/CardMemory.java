@@ -33,12 +33,7 @@ public class CardMemory implements PublicMoveObserver {
         if (known == null) {
             return;
         }
-        for (Card card : cards) {
-            int index = known.indexOf(card.getValue());
-            if (index >= 0) {
-                known.remove(index);
-            }
-        }
+        forget(known, cards);
         // The hand size is public: a known list can never be longer than the hand.
         while (known.size() > player.getHand().size()) {
             known.remove(0);
@@ -63,6 +58,28 @@ public class CardMemory implements PublicMoveObserver {
     @Override
     public void faceUpTakenIntoHand(Player player, List<Card> cards) {
         remember(player, cards);
+    }
+
+    /** A card swapped back face up is on the table again; forgetting one copy never claims a card that left. */
+    @Override
+    public void handCardsPutFaceUp(Player player, List<Card> cards) {
+        List<Integer> known = knownHands.get(player.getPlayerId());
+        if (known == null) {
+            return;
+        }
+        forget(known, cards);
+        if (known.isEmpty()) {
+            knownHands.remove(player.getPlayerId());
+        }
+    }
+
+    private static void forget(List<Integer> known, List<Card> cards) {
+        for (Card card : cards) {
+            int index = known.indexOf(card.getValue());
+            if (index >= 0) {
+                known.remove(index);
+            }
+        }
     }
 
     private void remember(Player player, List<Card> cards) {

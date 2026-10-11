@@ -7,8 +7,8 @@ import java.util.List;
 
 /**
  * Hears what everyone at the table can see happen: cards played onto the pile, piles picked up (the pile was face
- * up, and a failed blind flip or face-up play is revealed), piles burned, and face-up cards taken into the hand
- * during setup. It is never told about draws, dealt hands or face-down cards.
+ * up, and a failed blind flip or face-up play is revealed), piles burned, and the cards swapped between hand and
+ * face up during setup. It is never told about draws, dealt hands or face-down cards.
  */
 public interface PublicMoveObserver {
     /** Observes nothing. */
@@ -31,6 +31,11 @@ public interface PublicMoveObserver {
 
     /** Face-up cards the player swapped into their hand during setup. */
     default void faceUpTakenIntoHand(Player player, List<Card> cards) {
+        // ignored unless overridden
+    }
+
+    /** Hand cards the player swapped face up during setup: they are on the table now, no longer in the hand. */
+    default void handCardsPutFaceUp(Player player, List<Card> cards) {
         // ignored unless overridden
     }
 }
