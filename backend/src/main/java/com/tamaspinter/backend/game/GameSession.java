@@ -276,6 +276,7 @@ public class GameSession {
         }
         List<Card> hand = new ArrayList<>(player.getHand());
         List<Card> faceUp = new ArrayList<>(player.getFaceUp());
+        observer.handCardsPutFaceUp(player, handIndices.stream().map(hand::get).toList());
         observer.faceUpTakenIntoHand(player, faceUpIndices.stream().map(faceUp::get).toList());
         for (int i = 0; i < handIndices.size(); i++) {
             int handIndex = handIndices.get(i);
