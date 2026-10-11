@@ -89,6 +89,9 @@ public class GameSession {
     @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
     private int lastRequiredPileValue;
+    /** Told about every public move; bots that count cards build their memory from it. Not persisted itself. */
+    @Builder.Default
+    private PublicMoveObserver observer = PublicMoveObserver.NONE;
 
     /**
      * Seats that the decks hold when every player is dealt a full layout, capped at {@link #MAX_PLAYERS}.
@@ -273,6 +276,8 @@ public class GameSession {
         }
         List<Card> hand = new ArrayList<>(player.getHand());
         List<Card> faceUp = new ArrayList<>(player.getFaceUp());
+        observer.handCardsPutFaceUp(player, handIndices.stream().map(hand::get).toList());
+        observer.faceUpTakenIntoHand(player, faceUpIndices.stream().map(faceUp::get).toList());
         for (int i = 0; i < handIndices.size(); i++) {
             int handIndex = handIndices.get(i);
             int faceUpIndex = faceUpIndices.get(i);
@@ -326,6 +331,7 @@ public class GameSession {
     /** Places the played cards on the pile, logs the play, then applies burn and out checks. */
     private void commitPlay(Player player, List<Card> played) {
         played.forEach(discardPile::addLast);
+        observer.cardsPlayed(player, List.copyOf(played));
         recordEvent(GameEventType.PLAYED, player, played, played.size());
         postPlayCleanup(player);
     }
@@ -582,6 +588,9 @@ public class GameSession {
 
     private void applyAfterEffect(Card card, Player player) {
         int pileBeforeRule = discardPile.size();
+        if (card.getRule() == CardRule.BURNER && pileBeforeRule > 0) {
+            observer.pileBurned(List.copyOf(discardPile));
+        }
         RuleEngine.playAfterEffect(card, discardPile, player, players);
         if (card.getRule() == CardRule.BURNER && pileBeforeRule > 0) {
             recordEvent(GameEventType.BURNED, player, List.of(), pileBeforeRule);
@@ -623,7 +632,10 @@ public class GameSession {
      * The failed cards are the ones revealed by a blind flip or an illegal face-up play.
      */
     private PlayResult pickUpPile(Player player, List<Card> failedCards, GameEventType type) {
-        int count = discardPile.size() + failedCards.size();
+        List<Card> taken = new ArrayList<>(failedCards);
+        taken.addAll(discardPile);
+        observer.cardsPickedUp(player, List.copyOf(taken));
+        int count = taken.size();
         failedCards.forEach(player.getHand()::addLast);
         discardPile.forEach(player.getHand()::addLast);
         recordEvent(type, player, failedCards, count);
@@ -709,6 +721,7 @@ public class GameSession {
     private void postPlayCleanup(Player player) {
         lastPlayBurned = RuleEngine.shouldBurn(discardPile, config.getBurnCount());
         if (lastPlayBurned) {
+            observer.pileBurned(List.copyOf(discardPile));
             recordEvent(GameEventType.BURNED, player, List.of(), discardPile.size());
             discardPile.clear();
         }
