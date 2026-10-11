@@ -1,0 +1,49 @@
+/* Owner's "Add bot" control and bot rows in the waiting room (screens/Room.tsx). */
+
+.room-bots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--card-border);
+}
+
+.room-bots .room-bots-select {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.room-bots .room-bots-add {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+.player-item {
+  gap: 8px;
+}
+
+.player-item .player-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.player-item .badge-bot {
+  opacity: 0.7;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+
+.player-item .room-bot-remove {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 6px 12px;
+  font-size: 14px;
+}

@@ -1,5 +1,6 @@
 package com.tamaspinter.backend.game;
 
+import com.tamaspinter.backend.bot.BotType;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.mapper.SessionMapper;
 import com.tamaspinter.backend.model.Card;
@@ -14,6 +15,7 @@ import lombok.Setter;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -22,6 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.stream.IntStream;
 
 @Getter
 @Setter
@@ -55,6 +60,8 @@ public class GameSession {
     public static final int MAX_PLAYERS = 10;
     /** Cards in one standard deck. */
     public static final int DECK_CARD_COUNT = 52;
+    /** Player id prefix of bot seats; Cognito subs are plain UUIDs, so ids never collide. */
+    public static final String BOT_ID_PREFIX = "bot-";
 
     private final String sessionId;
     @Builder.Default
@@ -123,13 +130,60 @@ public class GameSession {
         return "Game is full: at most " + capacity + " players can join";
     }
 
+    /**
+     * Seats a computer-controlled player before the start, numbered per type ("Beginner Bot 1", ...).
+     * Uses the same seat limit as a human join.
+     */
+    public Player addBot(BotType type) {
+        if (started) {
+            throw new IllegalStateException("Game already started");
+        }
+        int capacity = seatCapacity();
+        if (players.size() >= capacity) {
+            throw new IllegalStateException(fullMessage(capacity));
+        }
+        Player bot = Player.builder()
+                .playerId(BOT_ID_PREFIX + UUID.randomUUID())
+                .username(nextBotName(type))
+                .botType(type)
+                .build();
+        players.add(bot);
+        return bot;
+    }
+
+    private String nextBotName(BotType type) {
+        Set<String> taken = new HashSet<>();
+        players.forEach(player -> taken.add(player.getUsername()));
+        int number = 1;
+        while (taken.contains(type.getDisplayName() + " " + number)) {
+            number++;
+        }
+        return type.getDisplayName() + " " + number;
+    }
+
+    /** Removes a bot seat before the start. False when the game started or the id is not a bot of this game. */
+    public boolean removeBot(String botId) {
+        if (started) {
+            return false;
+        }
+        return players.removeIf(player -> player.isBot() && player.getPlayerId().equals(botId));
+    }
+
+    /**
+     * Removes a player before the start. Ownership passes to the next human; when only bots would remain the
+     * lobby is emptied, so callers delete it as they do for an empty lobby.
+     */
     public void removePlayer(String playerId) {
         if (started) {
             throw new IllegalStateException("Cannot leave a started game");
         }
         players.removeIf(p -> p.getPlayerId().equals(playerId));
-        if (ownerId != null && ownerId.equals(playerId) && !players.isEmpty()) {
-            ownerId = players.get(0).getPlayerId();
+        if (players.stream().noneMatch(player -> !player.isBot())) {
+            players.clear();
+            return;
+        }
+        if (ownerId != null && ownerId.equals(playerId)) {
+            ownerId = players.stream().filter(player -> !player.isBot()).findFirst().orElseThrow().getPlayerId();
         }
     }
 
@@ -486,10 +540,14 @@ public class GameSession {
 
     /** Mixing hand and face-up cards is only allowed with the option on and the draw pile empty. */
     private InvalidReason mixedPlayViolation(List<Card> selectedCards) {
-        if (!config.isAllowMixedHandAndFaceUpWhenDeckEmpty() || deck == null || !deck.getCards().isEmpty()) {
+        if (!mixedPlayAllowed()) {
             return InvalidReason.MIXED_HAND_FACEUP_NOT_ALLOWED;
         }
         return ruleViolation(selectedCards);
+    }
+
+    private boolean mixedPlayAllowed() {
+        return config.isAllowMixedHandAndFaceUpWhenDeckEmpty() && deck != null && deck.getCards().isEmpty();
     }
 
     private void removeMixedSelections(Player player, List<CardSelection> selections, List<Card> selectedCards) {
@@ -688,6 +746,89 @@ public class GameSession {
             currentIndex = (currentIndex + 1) % players.size();
         }
         while (players.get(currentIndex).isOut());
+    }
+
+    /** The player whose turn it is, or null when there is none. */
+    public Player getCurrentPlayer() {
+        if (players.isEmpty() || currentIndex < 0 || currentIndex >= players.size()) {
+            return null;
+        }
+        return players.get(currentIndex);
+    }
+
+    /**
+     * Every play the current player may make right now, judged by the same zone, same-value and pile checks as
+     * {@link #playSelections}. Each entry is a selection list ready for {@code playSelections}. Same-value cards
+     * are offered as 1..n of the lowest indexes. Face-down cards are offered one at a time (a blind flip is always
+     * allowed; it may end in a pickup). Picking up the pile is not listed: it is allowed whenever the pile is not
+     * empty. Empty while the game is finished or in setup.
+     */
+    public List<List<CardSelection>> legalPlays() {
+        Player player = getCurrentPlayer();
+        if (finished || !setupComplete || player == null) {
+            return List.of();
+        }
+        List<List<CardSelection>> plays = new ArrayList<>();
+        if (player.getHand().isEmpty() && player.getFaceUp().isEmpty()) {
+            IntStream.range(0, player.getFaceDown().size())
+                    .forEach(index -> plays.add(List.of(new CardSelection(CardSource.FACE_DOWN, index))));
+            return plays;
+        }
+        CardSource zone = player.getHand().isEmpty() ? CardSource.FACE_UP : CardSource.HAND;
+        List<Card> cards = new ArrayList<>(zone == CardSource.HAND ? player.getHand() : player.getFaceUp());
+        indexesByValue(cards).values().stream()
+                .filter(indexes -> !playerCannotPlayAllSelectedCards(List.of(cards.get(indexes.get(0)))))
+                .forEach(indexes -> IntStream.rangeClosed(1, indexes.size())
+                        .forEach(count -> plays.add(selectionsOf(zone, indexes.subList(0, count)))));
+        if (zone == CardSource.HAND && mixedPlayAllowed()) {
+            addMixedPlays(plays, cards, new ArrayList<>(player.getFaceUp()));
+        }
+        return plays;
+    }
+
+    private static Map<Integer, List<Integer>> indexesByValue(List<Card> cards) {
+        Map<Integer, List<Integer>> indexes = new TreeMap<>();
+        IntStream.range(0, cards.size())
+                .forEach(index -> indexes.computeIfAbsent(cards.get(index).getValue(), value -> new ArrayList<>()).add(index));
+        return indexes;
+    }
+
+    private static List<CardSelection> selectionsOf(CardSource source, List<Integer> indexes) {
+        return indexes.stream().map(index -> new CardSelection(source, index)).toList();
+    }
+
+    /** With the option on and the draw pile empty: every hand and face-up card of one playable value together. */
+    private void addMixedPlays(List<List<CardSelection>> plays, List<Card> hand, List<Card> faceUp) {
+        Map<Integer, List<Integer>> faceUpByValue = indexesByValue(faceUp);
+        indexesByValue(hand).forEach((value, handIndexes) -> {
+            List<Integer> faceUpIndexes = faceUpByValue.get(value);
+            if (faceUpIndexes == null || playerCannotPlayAllSelectedCards(List.of(hand.get(handIndexes.get(0))))) {
+                return;
+            }
+            List<CardSelection> selection = new ArrayList<>(selectionsOf(CardSource.HAND, handIndexes));
+            selection.addAll(selectionsOf(CardSource.FACE_UP, faceUpIndexes));
+            plays.add(List.copyOf(selection));
+        });
+    }
+
+    /**
+     * Ends a game that can no longer progress on its own: only bots are left and they hit the move cap of one
+     * invocation. The still-active player holding the most cards becomes the shithead. Does nothing while
+     * a human is still playing or the game is over.
+     */
+    public void finishStalledBotGame() {
+        if (finished || players.stream().anyMatch(player -> !player.isOut() && !player.isBot())) {
+            return;
+        }
+        players.stream()
+                .filter(player -> !player.isOut())
+                .max(Comparator.comparingInt(player -> player.getHand().size() + player.getFaceUp().size()
+                        + player.getFaceDown().size()))
+                .ifPresent(loser -> {
+                    shitheadId = loser.getPlayerId();
+                    recordEvent(GameEventType.FINISHED, loser, List.of(), 0);
+                });
+        finished = true;
     }
 
     public String getCurrentPlayerId() {

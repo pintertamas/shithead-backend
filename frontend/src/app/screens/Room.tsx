@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, startGame, leaveGame, raiseDecks, ChatMessage, GameStateView, openGameSocket } from "../api/game";
+import { fetchState, startGame, leaveGame, raiseDecks, addBot, removeBot, ChatMessage, GameStateView, openGameSocket } from "../api/game";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
@@ -9,12 +9,21 @@ import { appendChatMessage, sendChatMessage } from "../lib/sessionChat";
 import { disconnectVoice } from "../lib/voice";
 import "../styles/room-header.css";
 import "../styles/raise-decks.css";
+import "../styles/select-fix.css";
+import "../styles/room-bots.css";
 
 /** decksCount is not in GameStateView yet, so it stays optional here until the state response carries it. */
 type RoomGameState = GameStateView & { decksCount?: number };
 
 /** Seats of a one-deck game with the default layout (3 face-down + 3 face-up + 3 hand = 9 cards): 52 / 9 = 5. Hardcoded because the state does not send the layout. */
 const ONE_DECK_SEATS = 5;
+/** Most seats any game has (GameSession.MAX_PLAYERS). */
+const MAX_SEATS = 10;
+
+/** Bot types the owner can add. Add an entry (e.g. INTERMEDIATE / "Intermediate bot") to offer another type. */
+const BOT_TYPES = [
+  { value: "BEGINNER", label: "Beginner bot" }
+] as const;
 
 export default function Room() {
   const { sessionId } = useParams();
@@ -25,6 +34,10 @@ export default function Room() {
   const [raiseError, setRaiseError] = useState<string | null>(null);
   const [raisingDecks, setRaisingDecks] = useState(false);
   const raiseRequestInProgress = useRef(false);
+  const [botError, setBotError] = useState<string | null>(null);
+  const [botType, setBotType] = useState<string>(BOT_TYPES[0].value);
+  const [botBusy, setBotBusy] = useState(false);
+  const botRequestInProgress = useRef(false);
   const [loading, setLoading] = useState<string | null>(null);
   const failCount = useRef(0);
   const startRequestInProgress = useRef(false);
@@ -183,10 +196,37 @@ export default function Room() {
     }
   };
 
+  const canManageBots = !!state && state.isOwner && !state.started && !state.starting;
+  // Custom card layouts can seat more than ONE_DECK_SEATS with one deck, so only the hard cap disables the button;
+  // the server answers 409 with the real limit.
+  const lobbyFull = !!state && state.players.length >= MAX_SEATS;
+
+  const runBotRequest = async (request: () => Promise<unknown>, fallback: string) => {
+    if (!sessionId || botRequestInProgress.current) return;
+    botRequestInProgress.current = true;
+    setBotBusy(true);
+    setBotError(null);
+    try {
+      await request();
+      // Refetch now so the roster updates at once; a failed refetch is covered by the poll.
+      const next = await fetchState(token, sessionId).catch(() => null);
+      if (next) setState(next);
+    } catch (cause) {
+      setBotError(cause instanceof ApiError ? cause.message : fallback);
+    } finally {
+      botRequestInProgress.current = false;
+      setBotBusy(false);
+    }
+  };
+
+  const onAddBot = () => runBotRequest(() => addBot(token, sessionId!, botType), "Couldn't add a bot. Please try again.");
+  const onRemoveBot = (botId: string) => runBotRequest(() => removeBot(token, sessionId!, botId), "Couldn't remove the bot. Please try again.");
+
   return (
     <div className="page fade-in room-page">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <ErrorAlert message={raiseError} onDismiss={() => setRaiseError(null)} />
+      <ErrorAlert message={botError} onDismiss={() => setBotError(null)} />
       <header className="room-bar">
         <div className="room-bar-title">
           <h2 className="title">Room {sessionId}</h2>
@@ -221,11 +261,43 @@ export default function Room() {
           <ul className="player-list" aria-label="Players">
             {state?.players.map((player) => (
               <li key={player.playerId} className="player-item">
-                <span>{player.username}</span>
+                <span className="player-name">
+                  {player.username}
+                  {player.isBot && <span className="badge badge-bot">Bot</span>}
+                </span>
                 {player.isYou && <span className="badge">You</span>}
+                {player.isBot && canManageBots && (
+                  <button
+                    className="button secondary room-bot-remove"
+                    type="button"
+                    aria-label={`Remove ${player.username}`}
+                    onClick={() => onRemoveBot(player.playerId)}
+                    disabled={botBusy}
+                  >
+                    Remove
+                  </button>
+                )}
               </li>
             ))}
           </ul>
+          {canManageBots && (
+            <div className="room-bots">
+              <select
+                className="input rules-select room-bots-select"
+                aria-label="Bot type"
+                value={botType}
+                onChange={(event) => setBotType(event.target.value)}
+                disabled={botBusy}
+              >
+                {BOT_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+              <button className="button secondary room-bots-add" type="button" onClick={onAddBot} disabled={botBusy || lobbyFull}>
+                {botBusy ? "Working..." : "Add bot"}
+              </button>
+            </div>
+          )}
           {canRaiseDecks && (
             <div className="room-raise-decks">
               <button className="button secondary" type="button" onClick={onRaiseDecks} disabled={raisingDecks}>

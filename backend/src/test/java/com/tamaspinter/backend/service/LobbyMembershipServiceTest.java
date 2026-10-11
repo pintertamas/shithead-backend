@@ -59,6 +59,24 @@ class LobbyMembershipServiceTest {
         verify(repo, never()).save(any(GameSessionEntity.class));
     }
 
+    @Test
+    void removeFromUnstartedLobbies_deletesLobbyThatOnlyHasBotsLeft() {
+        // Given: the user shares the lobby with a bot only
+        GameSessionEntity lobby = game("with-bot", false, USER, "bot-1");
+        lobby.getPlayers().get(1).setBotType("BEGINNER");
+        GameSessionRepository repo = mock(GameSessionRepository.class);
+        when(repo.findAll()).thenReturn(List.of(lobby));
+        LobbyMembershipService service = new LobbyMembershipService(repo);
+
+        // When
+        int removed = service.removeFromUnstartedLobbies(USER);
+
+        // Then: bots alone are not a lobby
+        assertEquals(1, removed);
+        verify(repo).delete("with-bot");
+        verify(repo, never()).save(any(GameSessionEntity.class));
+    }
+
     private static GameSessionEntity game(String id, boolean started, String... playerIds) {
         List<PlayerEntity> players = new ArrayList<>();
         for (String playerId : playerIds) {

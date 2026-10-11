@@ -165,7 +165,7 @@ func (a *App) newGameID(ctx context.Context) (string, error) {
 }
 
 // cleanupOldSessions removes the owner from unstarted lobbies they own. A lobby
-// with no players left is deleted; otherwise the next player becomes owner.
+// with no human players left is deleted; otherwise the next human becomes owner.
 func (a *App) cleanupOldSessions(ctx context.Context, userID string) error {
 	out, err := a.db.Query(ctx, &dynamodb.QueryInput{
 		TableName:                 &a.settings.GameSessionsTable,
@@ -190,7 +190,8 @@ func (a *App) cleanupOldSessions(ctx context.Context, userID string) error {
 func (a *App) handOverOrDelete(ctx context.Context, item map[string]types.AttributeValue, userID string) error {
 	gameID := stringAttr(item, "game_id")
 	remaining := remainingPlayers(item, userID)
-	if len(remaining) == 0 {
+	newOwner := firstHumanID(remaining)
+	if newOwner == "" {
 		_, err := a.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 			TableName: &a.settings.GameSessionsTable,
 			Key:       key("game_id", gameID),
@@ -200,7 +201,6 @@ func (a *App) handOverOrDelete(ctx context.Context, item map[string]types.Attrib
 		}
 		return nil
 	}
-	newOwner := playerIDOf(remaining[0])
 	_, err := a.db.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName:                 &a.settings.GameSessionsTable,
 		Key:                       key("game_id", gameID),
@@ -235,6 +235,26 @@ func playerIDOf(player types.AttributeValue) string {
 		return ""
 	}
 	return stringAttr(m.Value, "playerId")
+}
+
+// isBotPlayer reports whether a stored player map carries a non-empty botType.
+// A missing or NULL attribute, or an empty string, means a human.
+func isBotPlayer(player types.AttributeValue) bool {
+	m, ok := player.(*types.AttributeValueMemberM)
+	if !ok {
+		return false
+	}
+	return stringAttr(m.Value, "botType") != ""
+}
+
+// firstHumanID returns the playerId of the first non-bot player, or "" if none.
+func firstHumanID(players []types.AttributeValue) string {
+	for _, player := range players {
+		if !isBotPlayer(player) {
+			return playerIDOf(player)
+		}
+	}
+	return ""
 }
 
 func strPtr(value string) *string {

@@ -6,6 +6,8 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tamaspinter.backend.bot.BotTurnRunner;
+import com.tamaspinter.backend.bot.BotType;
 import com.tamaspinter.backend.entity.EloChangeEntity;
 import com.tamaspinter.backend.entity.GameConfigEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
@@ -56,7 +58,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods", "PMD.ExcessiveImports"})
+@SuppressWarnings({"PMD.GodClass", "PMD.TooManyMethods", "PMD.ExcessiveImports", "PMD.CyclomaticComplexity"})
 public class GameFunctionConfig {
 
     private static final Map<String, String> CORS_HEADERS = Map.of(
@@ -191,6 +193,7 @@ public class GameFunctionConfig {
             GameSession session = SessionMapper.fromEntity(entity);
             try {
                 session.start(loadRatings(entity));
+                BotTurnRunner.completeSetup(session);
             } catch (IllegalStateException e) {
                 if (entity.isStarting()) {
                     entity.setStarting(false);
@@ -243,6 +246,80 @@ public class GameFunctionConfig {
             sessionRepo.save(entity);
             return corsResponse(200, "{\"decksCount\":" + TWO_DECKS + ",\"burnCount\":" + TWO_DECKS_BURN_COUNT + "}");
         };
+    }
+
+    /**
+     * Owner-only, before the start: seats or removes a bot. {@code POST /games/{sessionId}/bots} with body
+     * {@code {"action":"add","botType":"BEGINNER"}} returns the new seat as {@code {"playerId","username"}};
+     * {@code {"action":"remove","botId":"..."}} removes that bot. Seats are limited like human joins (409).
+     */
+    @Bean
+    @SuppressWarnings("PMD.CognitiveComplexity")
+    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> manageBots() {
+        return req -> {
+            String sessionId = req.getPathParameters() == null ? null : req.getPathParameters().get("sessionId");
+            GameSessionEntity entity = sessionId == null ? null : sessionRepo.get(sessionId);
+            if (entity == null) {
+                return corsResponse(404);
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
+            String userId = claims.get("sub");
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
+            if (userId == null || !userId.equals(entity.getOwnerId())) {
+                return corsResponse(403, "{\"message\":\"Only the game owner can add or remove bots.\"}");
+            }
+            if (entity.isStarted() || entity.isStarting()) {
+                return conflictResponse("Game already started");
+            }
+            JsonNode body = readJson(req.getBody());
+            String action = body == null ? null : body.path("action").asText(null);
+            GameSession session = SessionMapper.fromEntity(entity);
+            if ("add".equals(action)) {
+                BotType type = BotType.fromName(body.path("botType").asText(null));
+                if (type == null) {
+                    return corsResponse(400, "{\"message\":\"Unknown bot type.\"}");
+                }
+                Player bot;
+                try {
+                    bot = session.addBot(type);
+                } catch (IllegalStateException e) {
+                    return conflictResponse(e.getMessage());
+                }
+                sessionRepo.save(session.toEntity());
+                return corsResponse(200, writeJson(Map.of("playerId", bot.getPlayerId(), "username", bot.getUsername())));
+            }
+            if ("remove".equals(action)) {
+                if (!session.removeBot(body.path("botId").asText(null))) {
+                    return corsResponse(404, "{\"message\":\"That bot is not in this game.\"}");
+                }
+                sessionRepo.save(session.toEntity());
+                return corsResponse(200);
+            }
+            return corsResponse(400);
+        };
+    }
+
+    private JsonNode readJson(String body) {
+        if (body == null) {
+            return null;
+        }
+        try {
+            JsonNode root = mapper.readTree(body);
+            return root != null && root.isObject() ? root : null;
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return mapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Could not serialize response", e);
+        }
     }
 
     /**
@@ -369,17 +446,7 @@ public class GameFunctionConfig {
                         PlayErrorMessages.forReason(session.getLastInvalidReason(), session.getLastRequiredPileValue()));
             }
 
-            GameSessionEntity updated = session.toEntity();
-            SessionMapper.carryEloState(entity, updated);
-            sessionRepo.save(updated);
-            if (session.isFinished() && !entity.isEloUpdated()) {
-                Map<String, EloChangeEntity> eloChanges = updateElo(session);
-                if (!eloChanges.isEmpty()) {
-                    updated.setEloUpdated(true);
-                    updated.setEloChanges(eloChanges);
-                    sessionRepo.save(updated);
-                }
-            }
+            GameSessionEntity updated = saveAfterMove(entity, session);
             String endpoint = websocketEndpoint(ev);
             broadcastState(msg.sessionId(), updated, endpoint,
                     result == PlayResult.PICKUP ? revealedCard : null);
@@ -454,10 +521,7 @@ public class GameFunctionConfig {
         if (!applySetupAction(session, message, userId)) {
             return websocketError(event, 400, "That setup action is no longer available.");
         }
-        GameSessionEntity updated = session.toEntity();
-        updated.setStarting(entity.isStarting());
-        SessionMapper.carryEloState(entity, updated);
-        sessionRepo.save(updated);
+        GameSessionEntity updated = saveAfterMove(entity, session);
         broadcastState(message.sessionId(), updated, websocketEndpoint(event));
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
@@ -547,9 +611,7 @@ public class GameFunctionConfig {
                         PlayErrorMessages.forReason(session.getLastInvalidReason(), session.getLastRequiredPileValue()));
             }
 
-            GameSessionEntity updated = session.toEntity();
-            SessionMapper.carryEloState(entity, updated);
-            sessionRepo.save(updated);
+            GameSessionEntity updated = saveAfterMove(entity, session);
             String endpoint = "https://" + ev.getRequestContext().getDomainName()
                     + "/" + ev.getRequestContext().getStage();
             broadcastState(msg.sessionId(), updated, endpoint);
@@ -570,9 +632,21 @@ public class GameFunctionConfig {
                     ? List.of()
                     : entity.getPlayers().stream().map(PlayerEntity::getPlayerId)
                             .collect(Collectors.toList());
-            Map<String, UserProfile> profiles = userRepo.batchGet(playerIds)
-                    .stream()
-                    .collect(Collectors.toMap(UserProfile::getUserId, profile -> profile));
+            List<String> humanIds = entity.getPlayers() == null
+                    ? List.of()
+                    : entity.getPlayers().stream().filter(player -> player.getBotType() == null)
+                            .map(PlayerEntity::getPlayerId).collect(Collectors.toList());
+            Map<String, UserProfile> profiles = new HashMap<>();
+            userRepo.batchGet(humanIds).forEach(profile -> profiles.put(profile.getUserId(), profile));
+            // Bots have no profile; show them under their seat name with the default rating.
+            if (entity.getPlayers() != null) {
+                entity.getPlayers().stream().filter(player -> player.getBotType() != null)
+                        .forEach(bot -> profiles.put(bot.getPlayerId(), UserProfile.builder()
+                                .userId(bot.getPlayerId())
+                                .username(bot.getUsername())
+                                .eloScore(GameSession.DEFAULT_RATING)
+                                .build()));
+            }
             List<LeaderboardEntry> entries = sessionEntries(
                     playerIds, profiles, entity.getEloChanges(), entity.isFinished(), entity.getShitheadId());
             try {
@@ -643,17 +717,46 @@ public class GameFunctionConfig {
     }
 
     /**
+     * Lets the bots take every turn that is theirs now (all in memory), then saves the session once and, when the
+     * game just finished, records the Elo update. Keeps the stored starting flag and Elo bookkeeping.
+     */
+    private GameSessionEntity saveAfterMove(GameSessionEntity stored, GameSession session) {
+        BotTurnRunner.playBotTurns(session);
+        GameSessionEntity updated = session.toEntity();
+        updated.setStarting(stored.isStarting());
+        SessionMapper.carryEloState(stored, updated);
+        sessionRepo.save(updated);
+        if (session.isFinished() && !stored.isEloUpdated()) {
+            Map<String, EloChangeEntity> eloChanges = updateElo(session);
+            if (!eloChanges.isEmpty()) {
+                updated.setEloUpdated(true);
+                updated.setEloChanges(eloChanges);
+                sessionRepo.save(updated);
+            }
+        }
+        return updated;
+    }
+
+    /**
      * Applies the Elo update for a finished game and returns each player's before/after rating. Returns an empty
      * map when nothing was updated (fewer than two profiles, or a DynamoDB failure); the caller then leaves
      * {@code eloUpdated} unset so the update can be retried.
      */
-    private Map<String, EloChangeEntity> updateElo(GameSession session) {
+    // package-private for tests
+    Map<String, EloChangeEntity> updateElo(GameSession session) {
         String shitheadId = session.getShitheadId();
+        // Bots have no rating. Only humans are rated, and only when a human lost: a bot shithead would let every
+        // human gain without anyone losing.
+        List<Player> humans = session.getPlayers().stream().filter(player -> !player.isBot()).toList();
+        if (humans.stream().noneMatch(player -> player.getPlayerId().equals(shitheadId))) {
+            log.info("Skipping Elo update for session {} because no human lost", session.getSessionId());
+            return Map.of();
+        }
         Map<String, Double> results = new HashMap<>();
-        for (var player : session.getPlayers()) {
+        for (var player : humans) {
             results.put(player.getPlayerId(), player.getPlayerId().equals(shitheadId) ? 0.0 : 1.0);
         }
-        List<String> playerIds = session.getPlayers().stream()
+        List<String> playerIds = humans.stream()
                 .map(Player::getPlayerId)
                 .collect(Collectors.toList());
         try {
@@ -758,7 +861,8 @@ public class GameFunctionConfig {
 
     private Map<String, Double> loadRatings(GameSessionEntity entity) {
         List<String> playerIds = entity.getPlayers() == null ? List.of()
-                : entity.getPlayers().stream().map(PlayerEntity::getPlayerId).toList();
+                : entity.getPlayers().stream().filter(player -> player.getBotType() == null)
+                        .map(PlayerEntity::getPlayerId).toList();
         if (playerIds.isEmpty()) {
             return Map.of();
         }
@@ -807,6 +911,8 @@ public class GameFunctionConfig {
                             .hand(isYou ? SessionMapper.entitiesToCardList(hand) : Collections.emptyList())
                             .eloScore(ratings.getOrDefault(player.getPlayerId(), 1000.0))
                             .ready(player.isReady())
+                            .isBot(player.getBotType() != null)
+                            .botType(player.getBotType())
                             .build();
                 })
                 .collect(Collectors.toList());

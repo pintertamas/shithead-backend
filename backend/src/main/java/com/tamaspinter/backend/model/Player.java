@@ -1,5 +1,6 @@
 package com.tamaspinter.backend.model;
 
+import com.tamaspinter.backend.bot.BotType;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,6 +27,12 @@ public class Player {
     private boolean ready = true;
     @Setter
     private boolean out;
+    /** Set for a computer-controlled seat, null for a human player. */
+    private final BotType botType;
+
+    public boolean isBot() {
+        return botType != null;
+    }
 
     public void sortHand() {
         sortCards(hand);

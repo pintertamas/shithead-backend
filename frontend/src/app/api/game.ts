@@ -19,6 +19,8 @@ export type PlayerState = {
   hand?: Card[];
   eloScore: number;
   ready: boolean;
+  isBot?: boolean;
+  botType?: string | null;
 };
 
 export type GameEventType =
@@ -130,6 +132,23 @@ export async function raiseDecks(token: string, sessionId: string) {
   });
   await throwForError(res, "add a second deck");
   return res.json() as Promise<{ decksCount: number; burnCount: number }>;
+}
+
+export async function addBot(token: string, sessionId: string, botType: string) {
+  const res = await apiFetch(`/games/${sessionId}/bots`, token, {
+    method: "POST",
+    body: JSON.stringify({ action: "add", botType })
+  });
+  await throwForError(res, "add a bot");
+  return res.json() as Promise<{ playerId: string; username: string }>;
+}
+
+export async function removeBot(token: string, sessionId: string, botId: string) {
+  const res = await apiFetch(`/games/${sessionId}/bots`, token, {
+    method: "POST",
+    body: JSON.stringify({ action: "remove", botId })
+  });
+  await throwForError(res, "remove the bot");
 }
 
 export async function fetchState(token: string, sessionId: string) {

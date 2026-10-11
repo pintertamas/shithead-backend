@@ -15,6 +15,8 @@ public record PlayerStateView(
         boolean isYou,
         List<Card> hand,
         double eloScore,
-        boolean ready
+        boolean ready,
+        boolean isBot,
+        String botType
 ) {
 }
