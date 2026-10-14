@@ -8,12 +8,14 @@ import com.tamaspinter.backend.model.Card;
 import com.tamaspinter.backend.model.Player;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
 
 import static com.tamaspinter.backend.bot.BotTables.activeCount;
 import static com.tamaspinter.backend.bot.BotTables.bot;
+import static com.tamaspinter.backend.bot.BotTables.card;
 import static com.tamaspinter.backend.bot.BotTables.give;
 import static com.tamaspinter.backend.bot.BotTables.human;
 import static com.tamaspinter.backend.bot.BotTables.pile;
@@ -535,5 +537,160 @@ class BotTurnRunnerTest {
 
         // Then
         assertEquals("b1", session.getShitheadId());
+    }
+
+    // ---------------------------------------------------------------- pacing and the move listener
+
+    @Test
+    void playBotTurns_sixBotMoves_pausesBeforeTheFirstFourMovesOnly() {
+        // Given: six bots with one playable card each, then a human
+        GameSession session = botChain(3, 4, 5, 7, 11, 12);
+        List<Integer> pileWhenPaused = new ArrayList<>();
+        List<Long> pauses = new ArrayList<>();
+        BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> {
+            pauses.add(millis);
+            pileWhenPaused.add(session.getDiscardPile().size());
+        });
+
+        // When
+        int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()), pacing, s -> { });
+
+        // Then: all six moves are made; a pause precedes the first four (pile of 0 to 3), none the last two
+        assertEquals(6, moves);
+        assertEquals(List.of(0, 1, 2, 3), pileWhenPaused);
+        long delay = BotTurnRunner.BOT_MOVE_DELAY_MS;
+        assertEquals(List.of(delay, delay, delay, delay), pauses);
+        assertEquals("h1", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void playBotTurns_listener_calledOnceAfterEachBotMoveWithThatState() {
+        // Given: three bots with one playable card each, then a human
+        GameSession session = botChain(3, 4, 5);
+        List<String> seenAfterEachMove = new ArrayList<>();
+
+        // When
+        int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()),
+                new BotTurnRunner.Pacing(millis -> { }),
+                s -> seenAfterEachMove.add(s.getCurrentPlayerId() + " " + values(s.getDiscardPile())));
+
+        // Then: one call per move, each showing the table after that move
+        assertEquals(3, moves);
+        assertEquals(List.of("b2 [3]", "b3 [3, 4]", "h1 [3, 4, 5]"), seenAfterEachMove);
+    }
+
+    @Test
+    void playBotTurns_oneBotMove_pausesOnceBeforeIt() {
+        // Given: one bot with a playable card, then a human
+        GameSession session = botChain(4);
+        List<Long> pauses = new ArrayList<>();
+        List<String> seen = new ArrayList<>();
+
+        // When
+        int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()),
+                new BotTurnRunner.Pacing(millis -> pauses.add(millis)), s -> seen.add(s.getCurrentPlayerId()));
+
+        // Then: the first bot move waits like the others
+        assertEquals(1, moves);
+        assertEquals(List.of((long) BotTurnRunner.BOT_MOVE_DELAY_MS), pauses);
+        assertEquals(List.of("h1"), seen);
+    }
+
+    @Test
+    void playBotTurns_twoChainsInOneRequest_shareTheFourPauses() {
+        // Given: two tables of three bots each, both run under the pacing of one request
+        GameSession first = botChain(3, 4, 5);
+        GameSession second = botChain(7, 11, 12);
+        List<Long> pauses = new ArrayList<>();
+        BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> pauses.add(millis));
+
+        // When
+        int firstMoves = BotTurnRunner.playBotTurns(first, new Random(1), always(firstLegal()), pacing, s -> { });
+        int secondMoves = BotTurnRunner.playBotTurns(second, new Random(1), always(firstLegal()), pacing, s -> { });
+
+        // Then: the request waits for four pauses in all, not four per chain
+        assertEquals(3, firstMoves);
+        assertEquals(3, secondMoves);
+        assertEquals(BotTurnRunner.PACED_BOT_MOVES, pauses.size());
+    }
+
+    @Test
+    void playBotTurns_pacedAndUnpaced_sameSeed_endInTheSameState() {
+        for (long seed = 1; seed <= 20; seed++) {
+            // Given: two identical all-bot tables from the same seed
+            GameSession unpaced = lobbyWithBots(2 + (int) (seed % 4), false);
+            startDeterministic(unpaced, seed);
+            BotTurnRunner.completeSetup(unpaced);
+            GameSession paced = lobbyWithBots(2 + (int) (seed % 4), false);
+            startDeterministic(paced, seed);
+            BotTurnRunner.completeSetup(paced);
+            List<Long> pauses = new ArrayList<>();
+            List<GameSession> listened = new ArrayList<>();
+            BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> pauses.add(millis));
+
+            // When
+            int unpacedMoves = BotTurnRunner.playBotTurns(unpaced, new Random(seed));
+            int pacedMoves = BotTurnRunner.playBotTurns(paced, new Random(seed), BotStrategies::forType, pacing,
+                    listened::add);
+
+            // Then
+            String context = "seed " + seed;
+            assertEquals(unpacedMoves, pacedMoves, context);
+            assertEquals(pacedMoves, listened.size(), context);
+            assertEquals(Math.min(BotTurnRunner.PACED_BOT_MOVES, pacedMoves), pauses.size(), context);
+            assertEquals(snapshot(unpaced), snapshot(paced), context);
+        }
+    }
+
+    /**
+     * A table of bots, each holding one card to play, then one human holding a card; the first bot is to move. Every
+     * bot also has a face-up card so none goes out. Values 3, 4, 5, 7, 11 and 12 use the default rule, so the pile
+     * only grows and a bot can always play its card.
+     */
+    private static GameSession botChain(int... botValues) {
+        List<Player> seats = new ArrayList<>();
+        for (int i = 0; i < botValues.length; i++) {
+            seats.add(bot("b" + (i + 1)));
+        }
+        Player alice = human("h1");
+        seats.add(alice);
+        GameSession session = running(DEFAULTS, seats.toArray(new Player[0]));
+        for (int i = 0; i < botValues.length; i++) {
+            Player botSeat = seats.get(i);
+            give(session, botSeat, botValues[i]);
+            botSeat.getFaceUp().add(card(DEFAULTS, 14));
+        }
+        give(session, alice, 14);
+        return session;
+    }
+
+    /** Plays the first legal play, so a chain of bots with one playable card each is predictable. */
+    private static BotStrategy firstLegal() {
+        return new BotStrategy() {
+            @Override
+            public SetupSwap chooseSetupSwap(List<Card> hand, List<Card> faceUp, GameConfig config) {
+                return SetupSwap.none();
+            }
+
+            @Override
+            public List<CardSelection> choosePlay(BotView view, List<List<CardSelection>> legalPlays, Random random) {
+                return legalPlays.isEmpty() ? null : legalPlays.get(0);
+            }
+        };
+    }
+
+    /** The table as the players see it, with bots named by username (their ids are random). */
+    private static String snapshot(GameSession session) {
+        Player current = session.getCurrentPlayer();
+        StringBuilder text = new StringBuilder()
+                .append("current=").append(current == null ? "none" : current.getUsername())
+                .append(" finished=").append(session.isFinished())
+                .append(" pile=").append(values(session.getDiscardPile()));
+        for (Player player : session.getPlayers()) {
+            text.append(" | ").append(player.getUsername())
+                    .append(values(player.getHand())).append(values(player.getFaceUp()))
+                    .append(values(player.getFaceDown())).append(player.isOut());
+        }
+        return text.toString();
     }
 }

@@ -2,17 +2,24 @@ package com.tamaspinter.backend.config;
 
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayV2WebSocketEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tamaspinter.backend.bot.BotTurnRunner;
 import com.tamaspinter.backend.bot.BotType;
 import com.tamaspinter.backend.entity.EloChangeEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
+import com.tamaspinter.backend.game.CardSelection;
+import com.tamaspinter.backend.game.CardSource;
 import com.tamaspinter.backend.game.GameConfig;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.mapper.SessionMapper;
+import com.tamaspinter.backend.model.Card;
+import com.tamaspinter.backend.model.Deck;
 import com.tamaspinter.backend.model.Player;
+import com.tamaspinter.backend.model.Suit;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
@@ -22,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -33,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,6 +51,7 @@ import static org.mockito.Mockito.when;
 class GameFunctionConfigBotsTest {
 
     private static final String SESSION_ID = "ABC123";
+    private static final String ENDPOINT = "https://api.test/prod";
     private static final String OWNER = "owner-1";
     private static final String HUMAN = "p1";
     private static final String BOT = "bot-1";
@@ -335,6 +345,139 @@ class GameFunctionConfigBotsTest {
         assertEquals(2, rows.size());
         assertEquals("Beginner Bot 1", rows.get(1).get("username").asText());
         assertEquals(GameSession.DEFAULT_RATING, rows.get(1).get("eloScore").asDouble(), 0.001);
+    }
+
+    @Test
+    void saveAfterMove_playerMoveThenBot_broadcastsThePlayerMoveBeforeTheBotMove() {
+        // Given: the owner is to move, and the bot is next. The stored entity has the starting flag set.
+        GameSession session = ownerThenBot();
+        GameSessionEntity stored = SessionMapper.toEntity(session);
+        stored.setStarting(true);
+        session.playSelections(List.of(new CardSelection(CardSource.HAND, 0)));
+        List<String> log = new ArrayList<>();
+        GameFunctionConfig recording = recordingConfig(log, OWNER);
+        recordSaves(log);
+
+        // When: no pause is taken, since the test pacing does not wait
+        GameSessionEntity updated = recording.saveAfterMove(stored, session, SESSION_ID, ENDPOINT, null,
+                new BotTurnRunner.Pacing(millis -> { }));
+
+        // Then: the player's move goes out on its own before the bot plays; then the bot's move, then the final save
+        assertEquals(List.of(
+                "save current=Beginner Bot 1 pile=1",
+                "broadcast current=Beginner Bot 1 pile=1",
+                "save current=owner pile=2",
+                "broadcast current=owner pile=2",
+                "save current=owner pile=2"), log);
+        assertTrue(updated.isStarting());
+        assertEquals(OWNER, updated.getCurrentPlayerId());
+    }
+
+    @Test
+    void playCardWS_botToMoveFirst_runsTheBotTurnBeforeTheActionIsJudged() {
+        // Given: a game left on a bot's turn (a save failed part way through the bot chain). The owner's play is
+        // only legal once the bot has played its 5.
+        List<String> log = new ArrayList<>();
+        GameFunctionConfig recording = recordingConfig(log, OWNER);
+        recordSaves(log);
+        when(sessionRepo.get(SESSION_ID)).thenReturn(SessionMapper.toEntity(botThenOwnerThenHuman()));
+
+        // When: the owner plays their 14 from the hand
+        APIGatewayProxyResponseEvent response = recording.playCardWS().apply(webSocketEvent(
+                "{\"action\":\"play\",\"sessionId\":\"" + SESSION_ID
+                        + "\",\"selections\":[{\"source\":\"HAND\",\"index\":0}]}"));
+
+        // Then: the bot plays first, the owner's play is accepted, and the human after the owner is next
+        assertEquals(200, response.getStatusCode());
+        assertEquals(List.of(
+                "save current=owner pile=1",
+                "broadcast current=owner pile=1",
+                "save current=owner pile=1",
+                "save current=human pile=2",
+                "broadcast current=human pile=2"), log);
+    }
+
+    /** A config whose WebSocket broadcasts are recorded in {@code log} instead of posted, and whose bots do not wait. */
+    private GameFunctionConfig recordingConfig(List<String> log, String webSocketUserId) {
+        GameFunctionConfig recording = new GameFunctionConfig(sessionRepo, userRepo, blockedUserGuard, mapper) {
+            @Override
+            String websocketUserId(APIGatewayV2WebSocketEvent event) {
+                return webSocketUserId;
+            }
+
+            @Override
+            void broadcastState(String gameSessionId, GameSessionEntity state, String endpoint, Card revealedCard) {
+                log.add("broadcast " + describe(state));
+            }
+        };
+        recording.setBotPause(millis -> { });
+        return recording;
+    }
+
+    /** Records each session save in {@code log}, in the order the saves happen. */
+    private void recordSaves(List<String> log) {
+        doAnswer(invocation -> {
+            log.add("save " + describe(invocation.getArgument(0)));
+            return null;
+        }).when(sessionRepo).save(any());
+    }
+
+    /** The table as the players can tell it apart: whose turn it is and how many cards lie on the pile. */
+    private static String describe(GameSessionEntity state) {
+        String current = state.getPlayers().stream()
+                .filter(player -> player.getPlayerId().equals(state.getCurrentPlayerId()))
+                .map(PlayerEntity::getUsername)
+                .findFirst()
+                .orElse("none");
+        return "current=" + current + " pile=" + state.getDiscardPile().size();
+    }
+
+    private static APIGatewayV2WebSocketEvent webSocketEvent(String body) {
+        APIGatewayV2WebSocketEvent.RequestContext context = new APIGatewayV2WebSocketEvent.RequestContext();
+        context.setConnectionId("conn-1");
+        context.setDomainName("api.test");
+        context.setStage("prod");
+        APIGatewayV2WebSocketEvent event = new APIGatewayV2WebSocketEvent();
+        event.setBody(body);
+        event.setRequestContext(context);
+        return event;
+    }
+
+    /** A started table in which the owner is to move: the owner holds a 5 and a face-up 14, the bot a 14 and a face-up 14. */
+    private static GameSession ownerThenBot() {
+        return table(seat(OWNER, "owner", null, 5, 14), seat(BOT, "Beginner Bot 1", BotType.BEGINNER, 14, 14));
+    }
+
+    /**
+     * A started table in which the bot is to move: it holds a 5 and a face-up 14. The owner is next with a 14 and a
+     * face-up 14, and a third player holds a 3 and a face-up 3.
+     */
+    private static GameSession botThenOwnerThenHuman() {
+        return table(seat(BOT, "Beginner Bot 1", BotType.BEGINNER, 5, 14), seat(OWNER, "owner", null, 14, 14),
+                seat(HUMAN, "human", null, 3, 3));
+    }
+
+    /** A started game with an empty draw pile and the given seats in turn order, the first seat to move. */
+    private static GameSession table(Player... seats) {
+        GameSession session = GameSession.builder().sessionId(SESSION_ID).ownerId(OWNER).config(oneDeckConfig()).build();
+        session.getPlayers().addAll(List.of(seats));
+        session.setStarted(true);
+        session.setSetupComplete(true);
+        session.setDeck(new Deck(List.of()));
+        return session;
+    }
+
+    /** A seat with one card to play and one face-up card, so that no seat goes out on its first play. */
+    private static Player seat(String playerId, String username, BotType botType, int handValue, int faceUpValue) {
+        GameConfig gameConfig = oneDeckConfig();
+        Player player = Player.builder().playerId(playerId).username(username).botType(botType).build();
+        player.getHand().add(card(gameConfig, handValue));
+        player.getFaceUp().add(card(gameConfig, faceUpValue));
+        return player;
+    }
+
+    private static Card card(GameConfig gameConfig, int value) {
+        return Card.builder().suit(Suit.HEARTS).value(value).rule(gameConfig.getCardRule(value)).build();
     }
 
     private static UserProfile profile(String userId) {
