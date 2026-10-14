@@ -58,8 +58,17 @@ function cardsPlayed(prev: GameStateView, next: GameStateView, before: PlayerSta
   return tableTotal(before) - tableTotal(after) + Math.max(0, prev.deckCount - next.deckCount);
 }
 
-function seatElement(board: HTMLElement, playerId: string): HTMLElement | null {
-  const seats = board.querySelectorAll<HTMLElement>("[data-seat-id]");
+/**
+ * The page that holds the table. Seats are searched on the whole page, not only the board: on phones the other players
+ * who are not the viewer's neighbours are chips in the header, outside the board. Falls back to the board.
+ */
+function pageRoot(board: HTMLElement): HTMLElement {
+  return board.closest<HTMLElement>(".game-page") ?? board;
+}
+
+/** The first seat (in document order) with this player id under `root`, or null. */
+function seatElement(root: HTMLElement, playerId: string): HTMLElement | null {
+  const seats = root.querySelectorAll<HTMLElement>("[data-seat-id]");
   for (const seat of Array.from(seats)) {
     if (seat.dataset.seatId === playerId) return seat;
   }
@@ -150,8 +159,9 @@ export function playTableTransitions(prev: GameStateView, next: GameStateView, l
   if (prefersReducedMotion() || !prev.started || !next.started) return;
   const board = layer.parentElement;
   if (!board) return;
+  const page = pageRoot(board);
   const origin = layer.getBoundingClientRect();
-  const seatPoint = (playerId: string | null) => (playerId ? centerOf(seatElement(board, playerId), origin) : null);
+  const seatPoint = (playerId: string | null) => (playerId ? centerOf(seatElement(page, playerId), origin) : null);
   const discardPoint = centerOf(board.querySelector('[data-fx="discard"]'), origin);
   const drawPoint = centerOf(board.querySelector('[data-fx="draw"]'), origin);
   const cardRect = board.querySelector(".game-piles .playing-card, .game-piles .pile-slot")?.getBoundingClientRect();
@@ -222,13 +232,20 @@ export function playTableTransitions(prev: GameStateView, next: GameStateView, l
   }
 
   if (next.currentPlayerId && next.currentPlayerId !== prev.currentPlayerId) {
-    const seat = seatElement(board, next.currentPlayerId);
-    seat?.animate?.(
-      [
+    const seat = seatElement(page, next.currentPlayerId);
+    // A phone chip's wrapper has no radius and no box of its own, and the chip strip clips anything outside its box.
+    // A chip pulses on its button instead (the 10 px radius), with the ring drawn inside the button so the strip cannot cut it.
+    const chipButton = seat?.querySelector<HTMLElement>(".seat-chip") ?? null;
+    const target = chipButton ?? seat;
+    const keyframes = chipButton
+      ? [
+        { boxShadow: "inset 0 0 0 0 rgba(242, 196, 111, 0.8)" },
+        { boxShadow: "inset 0 0 0 6px rgba(242, 196, 111, 0)" }
+      ]
+      : [
         { boxShadow: "0 0 0 0 rgba(242, 196, 111, 0.8)" },
         { boxShadow: "0 0 0 16px rgba(242, 196, 111, 0)" }
-      ],
-      { duration: PULSE_MS, easing: "ease-out" }
-    );
+      ];
+    target?.animate?.(keyframes, { duration: PULSE_MS, easing: "ease-out" });
   }
 }
