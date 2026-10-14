@@ -233,12 +233,19 @@ export function playTableTransitions(prev: GameStateView, next: GameStateView, l
 
   if (next.currentPlayerId && next.currentPlayerId !== prev.currentPlayerId) {
     const seat = seatElement(page, next.currentPlayerId);
-    seat?.animate?.(
-      [
+    // A phone chip's wrapper has no radius and no box of its own, and the chip strip clips anything outside its box.
+    // A chip pulses on its button instead (the 10 px radius), with the ring drawn inside the button so the strip cannot cut it.
+    const chipButton = seat?.querySelector<HTMLElement>(".seat-chip") ?? null;
+    const target = chipButton ?? seat;
+    const keyframes = chipButton
+      ? [
+        { boxShadow: "inset 0 0 0 0 rgba(242, 196, 111, 0.8)" },
+        { boxShadow: "inset 0 0 0 6px rgba(242, 196, 111, 0)" }
+      ]
+      : [
         { boxShadow: "0 0 0 0 rgba(242, 196, 111, 0.8)" },
         { boxShadow: "0 0 0 16px rgba(242, 196, 111, 0)" }
-      ],
-      { duration: PULSE_MS, easing: "ease-out" }
-    );
+      ];
+    target?.animate?.(keyframes, { duration: PULSE_MS, easing: "ease-out" });
   }
 }
