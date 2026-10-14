@@ -12,7 +12,10 @@ import com.tamaspinter.backend.entity.PlayerEntity;
 import com.tamaspinter.backend.game.GameConfig;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.mapper.SessionMapper;
+import com.tamaspinter.backend.model.Card;
+import com.tamaspinter.backend.model.Deck;
 import com.tamaspinter.backend.model.Player;
+import com.tamaspinter.backend.model.Suit;
 import com.tamaspinter.backend.model.UserProfile;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
@@ -29,12 +32,14 @@ import java.util.function.Function;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -42,6 +47,7 @@ import static org.mockito.Mockito.when;
 class GameFunctionConfigBotsTest {
 
     private static final String SESSION_ID = "ABC123";
+    private static final String ENDPOINT = "https://api.test/prod";
     private static final String OWNER = "owner-1";
     private static final String HUMAN = "p1";
     private static final String BOT = "bot-1";
@@ -335,6 +341,40 @@ class GameFunctionConfigBotsTest {
         assertEquals(2, rows.size());
         assertEquals("Beginner Bot 1", rows.get(1).get("username").asText());
         assertEquals(GameSession.DEFAULT_RATING, rows.get(1).get("eloScore").asDouble(), 0.001);
+    }
+
+    @Test
+    void saveAfterMove_botMoveThenHuman_savesAfterTheBotMoveAndOnceMoreKeepingTheStartingFlag() {
+        // Given: a started game where the bot is to move and the owner is next, with the starting flag set
+        GameSession session = botToMove();
+        GameSessionEntity stored = SessionMapper.toEntity(session);
+        stored.setStarting(true);
+        ArgumentCaptor<GameSessionEntity> saved = ArgumentCaptor.forClass(GameSessionEntity.class);
+
+        // When: no pause is taken, since the chain is one bot move long
+        GameSessionEntity updated = config.saveAfterMove(stored, session, SESSION_ID, ENDPOINT, null);
+
+        // Then: the state after the bot move is stored, then the final state; both keep the starting flag
+        verify(sessionRepo, times(2)).save(saved.capture());
+        assertEquals(OWNER, saved.getAllValues().get(0).getCurrentPlayerId());
+        assertTrue(saved.getAllValues().get(0).isStarting());
+        assertSame(updated, saved.getValue());
+        assertTrue(updated.isStarting());
+        assertEquals(OWNER, updated.getCurrentPlayerId());
+    }
+
+    /** A started game: the bot is to move with a playable card and a face-up card, and the owner is next. */
+    private static GameSession botToMove() {
+        GameConfig gameConfig = oneDeckConfig();
+        GameSession session = GameSession.builder().sessionId(SESSION_ID).ownerId(OWNER).config(gameConfig).build();
+        Player bot = session.addBot(BotType.BEGINNER);
+        session.addPlayer(OWNER, "owner");
+        bot.getHand().add(Card.builder().suit(Suit.HEARTS).value(5).rule(gameConfig.getCardRule(5)).build());
+        bot.getFaceUp().add(Card.builder().suit(Suit.SPADES).value(14).rule(gameConfig.getCardRule(14)).build());
+        session.setStarted(true);
+        session.setSetupComplete(true);
+        session.setDeck(new Deck(List.of()));
+        return session;
     }
 
     private static UserProfile profile(String userId) {

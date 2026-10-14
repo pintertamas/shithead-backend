@@ -446,10 +446,10 @@ public class GameFunctionConfig {
                         PlayErrorMessages.forReason(session.getLastInvalidReason(), session.getLastRequiredPileValue()));
             }
 
-            GameSessionEntity updated = saveAfterMove(entity, session);
             String endpoint = websocketEndpoint(ev);
-            broadcastState(msg.sessionId(), updated, endpoint,
-                    result == PlayResult.PICKUP ? revealedCard : null);
+            Card broadcastCard = result == PlayResult.PICKUP ? revealedCard : null;
+            GameSessionEntity updated = saveAfterMove(entity, session, msg.sessionId(), endpoint, broadcastCard);
+            broadcastState(msg.sessionId(), updated, endpoint, broadcastCard);
 
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
         };
@@ -521,8 +521,9 @@ public class GameFunctionConfig {
         if (!applySetupAction(session, message, userId)) {
             return websocketError(event, 400, "That setup action is no longer available.");
         }
-        GameSessionEntity updated = saveAfterMove(entity, session);
-        broadcastState(message.sessionId(), updated, websocketEndpoint(event));
+        String endpoint = websocketEndpoint(event);
+        GameSessionEntity updated = saveAfterMove(entity, session, message.sessionId(), endpoint, null);
+        broadcastState(message.sessionId(), updated, endpoint);
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
 
@@ -611,9 +612,8 @@ public class GameFunctionConfig {
                         PlayErrorMessages.forReason(session.getLastInvalidReason(), session.getLastRequiredPileValue()));
             }
 
-            GameSessionEntity updated = saveAfterMove(entity, session);
-            String endpoint = "https://" + ev.getRequestContext().getDomainName()
-                    + "/" + ev.getRequestContext().getStage();
+            String endpoint = websocketEndpoint(ev);
+            GameSessionEntity updated = saveAfterMove(entity, session, msg.sessionId(), endpoint, null);
             broadcastState(msg.sessionId(), updated, endpoint);
 
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
@@ -717,14 +717,15 @@ public class GameFunctionConfig {
     }
 
     /**
-     * Lets the bots take every turn that is theirs now (all in memory), then saves the session once and, when the
-     * game just finished, records the Elo update. Keeps the stored starting flag and Elo bookkeeping.
+     * Lets the bots take every turn that is theirs now. After each bot move the session is saved and broadcast, so
+     * the players see every bot play as its own update. Then the session is saved once more and, when the game just
+     * finished, the Elo update is recorded. Keeps the stored starting flag and Elo bookkeeping.
      */
-    private GameSessionEntity saveAfterMove(GameSessionEntity stored, GameSession session) {
-        BotTurnRunner.playBotTurns(session);
-        GameSessionEntity updated = session.toEntity();
-        updated.setStarting(stored.isStarting());
-        SessionMapper.carryEloState(stored, updated);
+    // package-private for tests
+    GameSessionEntity saveAfterMove(GameSessionEntity stored, GameSession session, String gameSessionId,
+                                    String endpoint, Card revealedCard) {
+        BotTurnRunner.playBotTurns(session, botMoveListener(stored, gameSessionId, endpoint, revealedCard));
+        GameSessionEntity updated = storedEntity(stored, session);
         sessionRepo.save(updated);
         if (session.isFinished() && !stored.isEloUpdated()) {
             Map<String, EloChangeEntity> eloChanges = updateElo(session);
@@ -735,6 +736,24 @@ public class GameFunctionConfig {
             }
         }
         return updated;
+    }
+
+    /** Saves and broadcasts the session after one bot move. The handler's final broadcast carries the same reveal. */
+    private BotTurnRunner.BotMoveListener botMoveListener(GameSessionEntity stored, String gameSessionId,
+                                                          String endpoint, Card revealedCard) {
+        return botSession -> {
+            GameSessionEntity state = storedEntity(stored, botSession);
+            sessionRepo.save(state);
+            broadcastState(gameSessionId, state, endpoint, revealedCard);
+        };
+    }
+
+    /** The session as it is stored: keeps the stored starting flag and Elo bookkeeping. */
+    private static GameSessionEntity storedEntity(GameSessionEntity stored, GameSession session) {
+        GameSessionEntity entity = session.toEntity();
+        entity.setStarting(stored.isStarting());
+        SessionMapper.carryEloState(stored, entity);
+        return entity;
     }
 
     /**

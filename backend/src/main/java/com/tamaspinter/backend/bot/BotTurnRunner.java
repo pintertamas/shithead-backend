@@ -12,8 +12,9 @@ import java.util.Random;
 import java.util.function.Function;
 
 /**
- * Plays the bot seats of a game in memory, inside the invocation that changed the state, so callers save and
- * broadcast once. Every move goes through {@link GameSession}, the same code that checks human moves.
+ * Plays the bot seats of a game in memory, inside the invocation that changed the state. A caller that passes a
+ * {@link BotMoveListener} also gets the state after every bot move, so the moves can be shown one at a time. Every
+ * move goes through {@link GameSession}, the same code that checks human moves.
  */
 @Slf4j
 public final class BotTurnRunner {
@@ -24,7 +25,33 @@ public final class BotTurnRunner {
      */
     public static final int MAX_BOT_MOVES = 2000;
 
+    /** Pause before a paced bot move, long enough for the players to follow each play. */
+    public static final int BOT_MOVE_DELAY_MS = 1200;
+
+    /**
+     * Bot moves that get a pause before them. The pauses come before the second to the (PACED_BOT_MOVES + 1)th move
+     * of an invocation, so one request waits for at most PACED_BOT_MOVES pauses (about 5 seconds). Later moves run
+     * straight after each other.
+     */
+    public static final int PACED_BOT_MOVES = 4;
+
+    private static final Sleeper THREAD_SLEEP = BotTurnRunner::sleepOnThread;
+    private static final Sleeper NO_PAUSE = millis -> { };
+    private static final BotMoveListener NO_LISTENER = session -> { };
+
     private BotTurnRunner() {
+    }
+
+    /** Waits between two bot moves. The real one blocks the thread; tests pass a fake that records the waits. */
+    @FunctionalInterface
+    interface Sleeper {
+        void sleep(long millis);
+    }
+
+    /** Told after every bot move, with the session as it is after that move. */
+    @FunctionalInterface
+    public interface BotMoveListener {
+        void onBotMove(GameSession session);
     }
 
     /** Lets every bot that is not ready yet make its setup swap and mark itself ready. */
@@ -65,7 +92,7 @@ public final class BotTurnRunner {
     }
 
     /**
-     * Plays while it is a bot's turn and the game is running, up to {@link #MAX_BOT_MOVES} moves.
+     * Plays while it is a bot's turn and the game is running, up to {@link #MAX_BOT_MOVES} moves, without pauses.
      *
      * @return the number of bot moves made
      */
@@ -81,22 +108,60 @@ public final class BotTurnRunner {
     }
 
     /**
+     * Plays the bot turns of a WebSocket request, paced: a pause of {@link #BOT_MOVE_DELAY_MS} before the paced moves
+     * (see {@link #PACED_BOT_MOVES}), and {@code listener} called after every bot move.
+     *
+     * @return the number of bot moves made
+     */
+    public static int playBotTurns(GameSession session, BotMoveListener listener) {
+        return playBotTurns(session, new Random(), BotStrategies::forType, THREAD_SLEEP, listener);
+    }
+
+    /**
      * Test seam: {@link #playBotTurns(GameSession, Random)} with the strategy of each bot type supplied by the caller.
      */
     static int playBotTurns(GameSession session, Random random, Function<BotType, BotStrategy> strategies) {
+        return playBotTurns(session, random, strategies, NO_PAUSE, NO_LISTENER);
+    }
+
+    /**
+     * Test seam: the whole bot loop, with the pauses and the move listener supplied by the caller.
+     */
+    static int playBotTurns(GameSession session, Random random, Function<BotType, BotStrategy> strategies,
+                            Sleeper sleeper, BotMoveListener listener) {
         int moves = 0;
         while (isBotTurn(session) && moves < MAX_BOT_MOVES) {
+            if (isPaced(moves)) {
+                sleeper.sleep(BOT_MOVE_DELAY_MS);
+            }
             if (!playOneMove(session, random, strategies)) {
                 log.error("Bot could not move in game {}; stopping the bot loop", session.getSessionId());
                 break;
             }
             moves++;
+            listener.onBotMove(session);
         }
         if (moves >= MAX_BOT_MOVES && isBotTurn(session)) {
             log.warn("Bot move cap reached in game {}", session.getSessionId());
             session.finishStalledBotGame();
         }
         return moves;
+    }
+
+    /**
+     * True before a move that follows {@code movesSoFar} moves of the invocation, while the pauses last.
+     */
+    private static boolean isPaced(int movesSoFar) {
+        return movesSoFar > 0 && movesSoFar <= PACED_BOT_MOVES;
+    }
+
+    /** Real pause for the production loop; an interrupted wait just ends early and keeps the interrupt flag. */
+    private static void sleepOnThread(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static boolean isBotTurn(GameSession session) {
