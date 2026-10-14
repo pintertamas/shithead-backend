@@ -542,23 +542,22 @@ class BotTurnRunnerTest {
     // ---------------------------------------------------------------- pacing and the move listener
 
     @Test
-    void playBotTurns_sixBotMoves_pausesBeforeMovesTwoToFiveOnly() {
+    void playBotTurns_sixBotMoves_pausesBeforeTheFirstFourMovesOnly() {
         // Given: six bots with one playable card each, then a human
         GameSession session = botChain(3, 4, 5, 7, 11, 12);
         List<Integer> pileWhenPaused = new ArrayList<>();
         List<Long> pauses = new ArrayList<>();
+        BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> {
+            pauses.add(millis);
+            pileWhenPaused.add(session.getDiscardPile().size());
+        });
 
         // When
-        int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()),
-                millis -> {
-                    pauses.add(millis);
-                    pileWhenPaused.add(session.getDiscardPile().size());
-                },
-                s -> { });
+        int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()), pacing, s -> { });
 
-        // Then: all six moves are made; a pause of one bot move precedes each of the moves 2 to 5 (pile of 1 to 4)
+        // Then: all six moves are made; a pause precedes the first four (pile of 0 to 3), none the last two
         assertEquals(6, moves);
-        assertEquals(List.of(1, 2, 3, 4), pileWhenPaused);
+        assertEquals(List.of(0, 1, 2, 3), pileWhenPaused);
         long delay = BotTurnRunner.BOT_MOVE_DELAY_MS;
         assertEquals(List.of(delay, delay, delay, delay), pauses);
         assertEquals("h1", session.getCurrentPlayerId());
@@ -569,11 +568,10 @@ class BotTurnRunnerTest {
         // Given: three bots with one playable card each, then a human
         GameSession session = botChain(3, 4, 5);
         List<String> seenAfterEachMove = new ArrayList<>();
-        List<Long> pauses = new ArrayList<>();
 
         // When
         int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()),
-                millis -> pauses.add(millis),
+                new BotTurnRunner.Pacing(millis -> { }),
                 s -> seenAfterEachMove.add(s.getCurrentPlayerId() + " " + values(s.getDiscardPile())));
 
         // Then: one call per move, each showing the table after that move
@@ -582,7 +580,7 @@ class BotTurnRunnerTest {
     }
 
     @Test
-    void playBotTurns_oneBotMove_makesNoPause() {
+    void playBotTurns_oneBotMove_pausesOnceBeforeIt() {
         // Given: one bot with a playable card, then a human
         GameSession session = botChain(4);
         List<Long> pauses = new ArrayList<>();
@@ -590,12 +588,30 @@ class BotTurnRunnerTest {
 
         // When
         int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()),
-                millis -> pauses.add(millis), s -> seen.add(s.getCurrentPlayerId()));
+                new BotTurnRunner.Pacing(millis -> pauses.add(millis)), s -> seen.add(s.getCurrentPlayerId()));
 
-        // Then
+        // Then: the first bot move waits like the others
         assertEquals(1, moves);
-        assertTrue(pauses.isEmpty());
+        assertEquals(List.of((long) BotTurnRunner.BOT_MOVE_DELAY_MS), pauses);
         assertEquals(List.of("h1"), seen);
+    }
+
+    @Test
+    void playBotTurns_twoChainsInOneRequest_shareTheFourPauses() {
+        // Given: two tables of three bots each, both run under the pacing of one request
+        GameSession first = botChain(3, 4, 5);
+        GameSession second = botChain(7, 11, 12);
+        List<Long> pauses = new ArrayList<>();
+        BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> pauses.add(millis));
+
+        // When
+        int firstMoves = BotTurnRunner.playBotTurns(first, new Random(1), always(firstLegal()), pacing, s -> { });
+        int secondMoves = BotTurnRunner.playBotTurns(second, new Random(1), always(firstLegal()), pacing, s -> { });
+
+        // Then: the request waits for four pauses in all, not four per chain
+        assertEquals(3, firstMoves);
+        assertEquals(3, secondMoves);
+        assertEquals(BotTurnRunner.PACED_BOT_MOVES, pauses.size());
     }
 
     @Test
@@ -610,17 +626,18 @@ class BotTurnRunnerTest {
             BotTurnRunner.completeSetup(paced);
             List<Long> pauses = new ArrayList<>();
             List<GameSession> listened = new ArrayList<>();
+            BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> pauses.add(millis));
 
             // When
             int unpacedMoves = BotTurnRunner.playBotTurns(unpaced, new Random(seed));
-            int pacedMoves = BotTurnRunner.playBotTurns(paced, new Random(seed), BotStrategies::forType,
-                    millis -> pauses.add(millis), listened::add);
+            int pacedMoves = BotTurnRunner.playBotTurns(paced, new Random(seed), BotStrategies::forType, pacing,
+                    listened::add);
 
             // Then
             String context = "seed " + seed;
             assertEquals(unpacedMoves, pacedMoves, context);
             assertEquals(pacedMoves, listened.size(), context);
-            assertEquals(Math.min(BotTurnRunner.PACED_BOT_MOVES, Math.max(0, pacedMoves - 1)), pauses.size(), context);
+            assertEquals(Math.min(BotTurnRunner.PACED_BOT_MOVES, pacedMoves), pauses.size(), context);
             assertEquals(snapshot(unpaced), snapshot(paced), context);
         }
     }
