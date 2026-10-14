@@ -33,6 +33,31 @@ function tableTotal(player: PlayerState | undefined) {
   return player ? player.handCount + player.faceUp.length + player.faceDownCount : 0;
 }
 
+/**
+ * Sequence number of the newest event in a state. Events are numbered upwards for the whole game, so a smaller number
+ * means an older state. 0 when the state carries no events (an older server, or no move yet).
+ */
+export function lastEventSeq(state: GameStateView | null | undefined): number {
+  const events = state?.events;
+  return events && events.length > 0 ? events[events.length - 1].seq : 0;
+}
+
+/** Cards the player put on the pile after `prev` (their PLAYED events, in order). Empty when the events are missing. */
+function playedSince(prev: GameStateView, next: GameStateView, playerId: string): Card[] {
+  const since = lastEventSeq(prev);
+  return (next.events ?? [])
+    .filter((event) => event.seq > since && event.type === "PLAYED" && event.playerId === playerId)
+    .flatMap((event) => event.cards);
+}
+
+/**
+ * Cards the acting player put on the pile. A hand refilled from the draw pile keeps the table total, so the cards drawn
+ * are added back: a play of one card from hand with a non-empty draw pile gives 1.
+ */
+function cardsPlayed(prev: GameStateView, next: GameStateView, before: PlayerState, after: PlayerState) {
+  return tableTotal(before) - tableTotal(after) + Math.max(0, prev.deckCount - next.deckCount);
+}
+
 function seatElement(board: HTMLElement, playerId: string): HTMLElement | null {
   const seats = board.querySelectorAll<HTMLElement>("[data-seat-id]");
   for (const seat of Array.from(seats)) {
@@ -152,10 +177,24 @@ export function playTableTransitions(prev: GameStateView, next: GameStateView, l
       }
     } else if (discardPoint) {
       let burnDelay = 0;
-      if (actorPoint && actorBefore && actorAfter && tableTotal(actorAfter) < tableTotal(actorBefore)) {
-        flyCard(layer, null, size, actorPoint, discardPoint, 0, PLAY_MS);
-        burnDelay = PLAY_MS * 0.7;
-        playStarted = true;
+      if (actorPoint && actorBefore && actorAfter && actorAfter.isYou) {
+        // The viewer's own play is unchanged: it flies only when the viewer's table total drops.
+        if (tableTotal(actorAfter) < tableTotal(actorBefore)) {
+          flyCard(layer, null, size, actorPoint, discardPoint, 0, PLAY_MS);
+          burnDelay = PLAY_MS * 0.7;
+          playStarted = true;
+        }
+      } else if (actorPoint && actorBefore && actorAfter) {
+        // Another seat's play that burns the pile: its card(s) still fly from that seat, before the pile is burned.
+        const played = Math.min(Math.max(0, cardsPlayed(prev, next, actorBefore, actorAfter)), MAX_FLIGHTS);
+        if (played > 0) {
+          const faces = playedSince(prev, next, actorBefore.playerId);
+          for (let index = 0; index < played; index++) {
+            flyCard(layer, faces[index] ?? null, size, actorPoint, discardPoint, index * 70, PLAY_MS);
+          }
+          burnDelay = (played - 1) * 70 + PLAY_MS * 0.7;
+          playStarted = true;
+        }
       }
       const count = Math.min(prev.discardCount, MAX_FLIGHTS);
       const cards = prev.discardPile.slice(-count);

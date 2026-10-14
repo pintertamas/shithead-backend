@@ -1,11 +1,12 @@
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { flushSync } from "react-dom";
 import { Card, CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
 import { appendChatMessage } from "../lib/sessionChat";
 import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
-import { playTableTransitions } from "../lib/tableAnimations";
+import { lastEventSeq, playTableTransitions } from "../lib/tableAnimations";
 import { useSwapFlights } from "../lib/swapFlight";
 import { CardFaceContent, isRedSuit } from "../components/CardFace";
 import Pile from "../components/Pile";
@@ -220,6 +221,9 @@ export default function GameTable() {
   // A pending play/pickup/swap is cleared once the server acknowledges it with a change to this player's cards or turn.
   const applyState = useCallback((incoming: GameStateView) => {
     const previous = stateRef.current;
+    // A state older than the one on screen (a REST read sent before a socket update and answered after it) would roll the
+    // table back, and the next poll would replay the moves in between. Event numbers only grow, so a smaller one is stale.
+    if (previous && lastEventSeq(incoming) < lastEventSeq(previous)) return;
     // A reveal in the update starts its window. An update without one (a 4s poll, or a socket update) keeps the
     // reveal on screen until the window ends. The copy stops after that, so the reveal cannot come back on later polls.
     let next = incoming;
@@ -230,14 +234,18 @@ export default function GameTable() {
     }
     captureSwapStart(previous, next);
     stateRef.current = next;
-    setState(next);
-    if (!previous) return;
-    const pending = pendingRef.current;
-    if (pending && affectsOwnCardsOrTurn(previous, next)) {
-      setError(null);
-      setPendingAction(false);
-    }
-    setSelection((current) => reconcileSelection(previous, next, current, pending));
+    // flushSync: each update commits on its own, so the layout effect that animates the table sees every move. Without it,
+    // updates that arrive in one tick are batched and their moves are animated as one.
+    flushSync(() => {
+      setState(next);
+      if (!previous) return;
+      const pending = pendingRef.current;
+      if (pending && affectsOwnCardsOrTurn(previous, next)) {
+        setError(null);
+        setPendingAction(false);
+      }
+      setSelection((current) => reconcileSelection(previous, next, current, pending));
+    });
   }, [captureSwapStart]);
 
   const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
