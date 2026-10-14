@@ -26,11 +26,11 @@ public final class BotTurnRunner {
     public static final int MAX_BOT_MOVES = 2000;
 
     /** Pause before a paced bot move, long enough for the players to follow each play. */
-    public static final int BOT_MOVE_DELAY_MS = 1200;
+    public static final int BOT_MOVE_DELAY_MS = 3000;
 
     /**
      * Bot moves of one request that get a pause before them: the first PACED_BOT_MOVES of the request, counted across
-     * every bot turn the request runs. A request therefore waits for at most PACED_BOT_MOVES pauses (4.8 seconds).
+     * every bot turn the request runs. A request therefore waits for at most PACED_BOT_MOVES pauses (12 seconds).
      * Later moves run straight after each other.
      */
     public static final int PACED_BOT_MOVES = 4;
