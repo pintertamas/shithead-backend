@@ -8,6 +8,7 @@ import "../styles/player-panel.css";
 import "../styles/seat-panels.css";
 import "../styles/seat-indicators.css";
 import "../styles/voice-speaking.css";
+import "../styles/seat-box-size.css";
 
 type Props = {
   player: PlayerState;
@@ -218,7 +219,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
         {isCurrentTurn && <span className="seat-sr-only">Current turn</span>}
         {isNext && <span className="seat-sr-only">Plays next</span>}
         {speaking && <span className="seat-sr-only">Speaking</span>}
-        {!player.isYou && player.handCount > FAN_LIMIT && <div className="seat-card-counts">{player.handCount} in hand</div>}
+        {!player.isYou && <div className="seat-card-counts">{player.handCount} in hand</div>}
       </header>
       {!player.isYou && <OpponentFan count={player.handCount} name={player.username} />}
       <div className="game-seat-content">

@@ -1,0 +1,57 @@
+/*
+ * Opponent seat boxes keep one size: the same width and height whatever the hand holds (none, many), the face-up and
+ * face-down cards (0 to 3 stacks), the name length, the turn or next-player highlight and the speaking ring.
+ * Only the content inside changes, and the box never grows or shrinks because of it.
+ *
+ * Phones (the previous and next player beside the piles, PlayerPanel with `compact`): the width comes from the side
+ * column (table-mobile.css) and the height is set here from each breakpoint's card size.
+ * Height = 2px border + 10px padding (45px in all, with the header and gap below) + header 30px + the card row.
+ * Header: name 16px, "N in hand" 13px, 1px gap. The card row is the stack height of player-panel.css (card height
+ * plus back peek), so an empty seat keeps the same card row as a full one.
+ *
+ * Desktop (701px and wider, the row of opponents): the width is three stack slots plus the padding and border, from
+ * the card size of the breakpoint. The row's max-width (many-players.css) still caps it on narrow boards, and a
+ * fourth stack slot (not in the default layout) would overflow the box equally on both sides rather than resize it.
+ *
+ * Selectors use `.game-seat.game-seat-compact` and `.game-board .game-opponents > .game-seat` so they win over
+ * table.css, layout.css and table-mobile.css whatever the import order.
+ */
+
+.game-page.phone-table .game-board .game-seat.game-seat-compact {
+  box-sizing: border-box;
+  height: calc(var(--card-h) + var(--back-peek) + 45px);
+}
+
+.game-page.phone-table .game-board .game-seat.game-seat-compact .game-seat-header {
+  height: 30px;
+  min-height: 0;
+  margin-bottom: 3px;
+  grid-template-rows: 16px 13px;
+  align-content: start;
+}
+
+.game-page.phone-table .game-board .game-seat.game-seat-compact .game-seat-name {
+  height: 16px;
+  line-height: 16px;
+}
+
+.game-page.phone-table .game-board .game-seat.game-seat-compact .seat-card-counts {
+  height: 13px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.game-page.phone-table .game-board .game-seat.game-seat-compact .player-card-stacks {
+  height: calc(var(--card-h) + var(--back-peek));
+  min-height: 0;
+}
+
+@media (min-width: 701px) {
+  .game-board .game-opponents > .game-seat {
+    width: calc(3 * var(--card-w) + 2 * var(--card-stack-gap, 6px) + 22px);
+  }
+}
