@@ -366,6 +366,24 @@ class GameSessionLegalPlaysTest {
     void legalPlays_mixedOptionOnAndDeckEmpty_addsHandPlusFaceUpCombination() {
         // Given
         GameSession session = session(config(true, false));
+        hand(session, 5);
+        faceUp(session, 5, 12);
+        pile(session, 4);
+
+        // When
+        List<List<CardSelection>> plays = session.legalPlays();
+
+        // Then
+        assertEquals(List.of(
+                List.of(sel(CardSource.HAND, 0)),
+                List.of(sel(CardSource.HAND, 0), sel(CardSource.FACE_UP, 0))), plays);
+        assertEquals(PlayResult.SUCCESS, copy(session).playSelections(plays.get(1)));
+    }
+
+    @Test
+    void legalPlays_mixedOptionOnButHandHasOtherValues_hasNoCombination() {
+        // Given: the 5 is not the last value in hand, so the face-up 5 cannot join it
+        GameSession session = session(config(true, false));
         hand(session, 5, 9);
         faceUp(session, 5, 12);
         pile(session, 4);
@@ -376,9 +394,8 @@ class GameSessionLegalPlaysTest {
         // Then
         assertEquals(List.of(
                 List.of(sel(CardSource.HAND, 0)),
-                List.of(sel(CardSource.HAND, 1)),
-                List.of(sel(CardSource.HAND, 0), sel(CardSource.FACE_UP, 0))), plays);
-        assertEquals(PlayResult.SUCCESS, copy(session).playSelections(plays.get(2)));
+                List.of(sel(CardSource.HAND, 1))), plays);
+        assertEquals(PlayResult.INVALID, copy(session).playSelections(List.of(sel(CardSource.HAND, 0), sel(CardSource.FACE_UP, 0))));
     }
 
     @Test

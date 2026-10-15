@@ -535,7 +535,7 @@ public class GameSession {
 
     private PlayResult playMixedHandAndFaceUp(
             Player player, List<CardSelection> selections, List<Card> selectedCards) {
-        InvalidReason violation = mixedPlayViolation(selectedCards);
+        InvalidReason violation = mixedPlayViolation(player, selections, selectedCards);
         if (violation != null) {
             return invalid(violation);
         }
@@ -544,9 +544,13 @@ public class GameSession {
         return PlayResult.SUCCESS;
     }
 
-    /** Mixing hand and face-up cards is only allowed with the option on and the draw pile empty. */
-    private InvalidReason mixedPlayViolation(List<Card> selectedCards) {
-        if (!mixedPlayAllowed()) {
+    /**
+     * Mixing hand and face-up cards is only allowed with the option on and the draw pile empty, and only as the
+     * player's last hand cards: the whole hand must be selected (so it is all one value) along with matching face-up cards.
+     */
+    private InvalidReason mixedPlayViolation(Player player, List<CardSelection> selections, List<Card> selectedCards) {
+        long handSelected = selections.stream().filter(selection -> selection.source() == CardSource.HAND).count();
+        if (!mixedPlayAllowed() || handSelected != player.getHand().size()) {
             return InvalidReason.MIXED_HAND_FACEUP_NOT_ALLOWED;
         }
         return ruleViolation(selectedCards);
@@ -810,12 +814,13 @@ public class GameSession {
         return indexes.stream().map(index -> new CardSelection(source, index)).toList();
     }
 
-    /** With the option on and the draw pile empty: every hand and face-up card of one playable value together. */
+    /** With the option on and the draw pile empty: the whole hand, when it is one playable value, plus the face-up cards of that value. */
     private void addMixedPlays(List<List<CardSelection>> plays, List<Card> hand, List<Card> faceUp) {
         Map<Integer, List<Integer>> faceUpByValue = indexesByValue(faceUp);
         indexesByValue(hand).forEach((value, handIndexes) -> {
             List<Integer> faceUpIndexes = faceUpByValue.get(value);
-            if (faceUpIndexes == null || playerCannotPlayAllSelectedCards(List.of(hand.get(handIndexes.get(0))))) {
+            if (faceUpIndexes == null || handIndexes.size() != hand.size()
+                    || playerCannotPlayAllSelectedCards(List.of(hand.get(handIndexes.get(0))))) {
                 return;
             }
             List<CardSelection> selection = new ArrayList<>(selectionsOf(CardSource.HAND, handIndexes));
