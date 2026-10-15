@@ -114,7 +114,7 @@
 
   .game-page.phone-table .game-middle.phone-middle {
     display: grid;
-    grid-template-columns: minmax(0, 104px) minmax(0, 1fr) minmax(0, 104px);
+    grid-template-columns: minmax(0, 120px) minmax(0, 1fr) minmax(0, 120px);
     grid-template-rows: auto auto;
     align-items: center;
     gap: 6px;
@@ -210,8 +210,12 @@
 
   /* Compact opponent panels: a narrower card size and a short header. */
   .game-page.phone-table .game-board .game-seat-compact {
-    --card-w: 28px;
+    --card-w: 32px;
     --card-h: calc(var(--card-w) * 7 / 5);
+    /* The index and centre font sizes are computed on .game-board from its 52px cards and inherited as fixed lengths,
+       so they are set again here from this smaller card, or the J, Q, K and A overflow it. */
+    --card-corner-fs: calc(var(--card-w) * 0.22);
+    --card-center-fs: calc(var(--card-w) * 0.46);
     --card-stack-gap: 3px;
     width: 100%;
     max-width: 100%;
@@ -500,6 +504,8 @@
   .game-page.phone-table .game-board .game-seat-compact {
     --card-w: 24px;
     --card-h: calc(var(--card-w) * 7 / 5);
+    --card-corner-fs: calc(var(--card-w) * 0.22);
+    --card-center-fs: calc(var(--card-w) * 0.46);
     padding: 3px 4px;
   }
 
