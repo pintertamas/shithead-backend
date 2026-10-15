@@ -9,7 +9,7 @@ import { useAuth } from "../auth/useAuth";
 import { lastEventSeq, playTableTransitions } from "../lib/tableAnimations";
 import { useSwapFlights } from "../lib/swapFlight";
 import { useBotDriver } from "../lib/useBotDriver";
-import { CardFaceContent, isRedSuit } from "../components/CardFace";
+import { CardFaceContent, cardRank, isRedSuit, suitSymbol } from "../components/CardFace";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
 import ShitheadModal from "../components/ShitheadModal";
@@ -35,7 +35,7 @@ import "../styles/mobile-play-row.css";
 const PHONE_QUERY = "(max-width: 700px)";
 
 /** How long a failed blind-flip reveal stays on screen: long enough to read the revealed card. */
-const FAILED_FLIP_NOTICE_MS = 3500;
+const FAILED_FLIP_NOTICE_MS = 2000;
 
 function usePhoneLayout(): boolean {
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -514,7 +514,7 @@ export default function GameTable() {
                 </span>
               </span>
             </span>
-            Revealed {state.revealedCard.value} of {state.revealedCard.suit.toLowerCase()}.
+            Revealed {cardRank(state.revealedCard.value)}{suitSymbol(state.revealedCard.suit)}
           </div>
         )}
         {!phone && (
