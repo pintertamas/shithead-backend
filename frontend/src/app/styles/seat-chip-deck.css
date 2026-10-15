@@ -163,8 +163,8 @@
   color: #f5edda;
 }
 
-/* Dimmed: every group that is not the one the player can play from now. Darkened, not see-through, so cards stay solid. */
-.game-page.phone-table .phone-chips .seat-chip-wrap .is-dim {
+/* Dimmed: every group that is not the one the player can play from now. Darkened, not see-through, so cards stay solid. Face-up cards on top are never dimmed. */
+.game-page.phone-table .phone-chips .seat-chip-wrap .is-dim:not(.seat-chip-up) {
   filter: brightness(0.7);
 }
 

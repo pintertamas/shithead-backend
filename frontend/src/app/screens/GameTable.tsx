@@ -189,19 +189,22 @@ export default function GameTable() {
     }
     return null;
   }, [state, setupStage]);
-  // Phone layout: the players before and after the viewer in the server's order get full panels at the sides.
+  // Phone layout: the players before and after the viewer in the fixed seat order (not the server's turn order, which a
+  // REVERSE flips) get full panels at the sides, so nobody changes place. The next-turn indicator shows who plays next.
   // Everyone else is a chip. With two players the single opponent is both neighbours and takes the left slot.
   const phoneSeats = useMemo(() => {
     if (!state) return null;
     // Setup has no turn order yet and no piles, so every opponent is a chip until play starts.
     if (setupStage) return { leftId: null, rightId: null, chips: others };
-    const index = state.players.findIndex((player) => player.isYou);
-    const leftId = neighbourPlayerId(state.players, index, -1);
-    const after = neighbourPlayerId(state.players, index, 1);
+    const byId = new Map(state.players.map((player) => [player.playerId, player] as const));
+    const seated = seatOrder.map((id) => byId.get(id)).filter((player): player is PlayerState => Boolean(player));
+    const index = seated.findIndex((player) => player.isYou);
+    const leftId = neighbourPlayerId(seated, index, -1);
+    const after = neighbourPlayerId(seated, index, 1);
     const rightId = after !== leftId ? after : null;
     const chips = others.filter((player) => player.playerId !== leftId && player.playerId !== rightId);
     return { leftId, rightId, chips };
-  }, [state, others, setupStage]);
+  }, [state, others, setupStage, seatOrder]);
 
   const redirectIfGameMissing = useCallback((cause: unknown) => {
     if (cause instanceof ApiError && cause.status === 404) {
