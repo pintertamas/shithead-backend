@@ -33,7 +33,8 @@ class PlayErrorMessagesTest {
                 PlayErrorMessages.forReason(InvalidReason.FACE_DOWN_ONE_AT_A_TIME, 0));
         assertEquals("Cards played together must have the same value.",
                 PlayErrorMessages.forReason(InvalidReason.MIXED_VALUES, 0));
-        assertEquals("Hand and face-up cards can only be played together when the draw pile is empty and that option is on.",
+        assertEquals("Hand and face-up cards can only be played together when the draw pile is empty, that option is on,"
+                        + " and your whole hand is the same value as the face-up cards.",
                 PlayErrorMessages.forReason(InvalidReason.MIXED_HAND_FACEUP_NOT_ALLOWED, 0));
         assertEquals("There is nothing to pick up.",
                 PlayErrorMessages.forReason(InvalidReason.PILE_EMPTY, 0));
