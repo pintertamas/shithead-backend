@@ -52,7 +52,7 @@
   flex: 0 0 auto;
   width: calc(var(--mini-w) + 2 * var(--mini-step));
   height: var(--mini-h);
-  transition: opacity 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
 .game-page.phone-table .phone-chips .seat-chip-table {
@@ -102,7 +102,7 @@
   left: 0;
   width: calc(var(--mini-w) + 2 * var(--mini-step));
   height: var(--mini-h);
-  transition: opacity 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
 /* Face-up cards sit over the face-down backs, each one a little further right. */
@@ -112,7 +112,7 @@
   left: calc(4px + var(--chip-i) * var(--mini-up-step));
   width: var(--mini-w);
   height: var(--mini-h);
-  transition: opacity 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
 .game-page.phone-table .phone-chips .seat-chip-mini-face {
@@ -163,9 +163,9 @@
   color: #f5edda;
 }
 
-/* Dimmed: every group that is not the one the player can play from now. */
+/* Dimmed: every group that is not the one the player can play from now. Darkened, not see-through, so cards stay solid. */
 .game-page.phone-table .phone-chips .seat-chip-wrap .is-dim {
-  opacity: 0.4;
+  filter: brightness(0.7);
 }
 
 /* Landscape: the header is short, so the mini cards get smaller. */
