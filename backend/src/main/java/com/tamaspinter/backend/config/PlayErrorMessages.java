@@ -36,7 +36,8 @@ public final class PlayErrorMessages {
             case TOO_LOW -> "That card is too low: play " + rankName(requiredValue) + " or higher.";
             case TOO_HIGH -> "That card is too high: play " + rankName(requiredValue) + " or lower.";
             case MIXED_HAND_FACEUP_NOT_ALLOWED ->
-                    "Hand and face-up cards can only be played together when the draw pile is empty and that option is on.";
+                    "Hand and face-up cards can only be played together when the draw pile is empty, that option is on,"
+                    + " and your whole hand is the same value as the face-up cards.";
             case PILE_EMPTY -> "There is nothing to pick up.";
         };
     }

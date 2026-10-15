@@ -138,10 +138,12 @@ export default function GameTable() {
   const hand = you?.hand || [];
   const setupStage = Boolean(state && state.started && !state.setupComplete);
   const canSelectFaceUp = Boolean(you && (setupStage ? !you.ready : hand.length === 0));
-  const canMixHandAndFaceUp = Boolean(state?.allowMixedHandAndFaceUpWhenDeckEmpty && state.deckCount === 0);
-  const selectedHasHand = selected.some((item) => item.source === "hand");
+  // Face-up cards may join a hand selection only once the hand is down to one value (the last card(s) in hand).
+  const handIsOneValue = hand.every((card) => card.value === hand[0].value);
+  const canMixHandAndFaceUp = Boolean(state?.allowMixedHandAndFaceUpWhenDeckEmpty && state.deckCount === 0 && handIsOneValue);
   const selectedHasFaceUp = selected.some((item) => item.source === "faceUp");
-  const mixedSelectionIncomplete = canMixHandAndFaceUp && hand.length > 0 && selectedHasFaceUp && !selectedHasHand;
+  const mixedSelectionIncomplete = canMixHandAndFaceUp && hand.length > 0 && selectedHasFaceUp
+    && selected.filter((item) => item.source === "hand").length < hand.length;
   const selectedStartingHand = selected.filter((item) => item.source === "hand");
   const selectedStartingUp = selected.filter((item) => item.source === "faceUp");
   const canSwapStartingCards = selectedStartingHand.length > 0 && selectedStartingHand.length === selectedStartingUp.length;
