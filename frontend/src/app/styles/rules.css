@@ -1,20 +1,35 @@
 /* How-to-play popup on the game configuration screen. */
 
+/*
+ * The backdrop is a scroll container and the dialog uses margin: auto (not align-items: center), so the dialog
+ * is centred when it fits and any overflow only goes downward, never above the top edge where the header and
+ * close button live. The dialog height is capped with svh (the smallest viewport, i.e. with the phone browser
+ * toolbars shown) and falls back to vh where svh is unsupported.
+ */
 .howto-backdrop {
   position: fixed;
   inset: 0;
   z-index: 40;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding:
+    calc(16px + env(safe-area-inset-top))
+    calc(16px + env(safe-area-inset-right))
+    calc(16px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left));
   background: rgba(4, 6, 12, 0.72);
 }
 
 .howto-dialog {
   position: relative;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  margin: auto;
   width: min(640px, 100%);
+  min-height: 0;
   max-height: min(88vh, 900px);
+  max-height: min(88svh, 900px);
   display: flex;
   flex-direction: column;
   background: var(--card);
@@ -25,13 +40,19 @@
   outline: none;
 }
 
+/* Outside the scrolling body, so it stays visible while the rules scroll. */
 .howto-header {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   padding: 20px 22px 12px;
   border-bottom: 1px solid var(--card-border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--card);
 }
 
 .howto-header .title { margin: 4px 0 0; }
@@ -56,7 +77,10 @@
 }
 
 .howto-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 22px 22px;
   -webkit-overflow-scrolling: touch;
 }
@@ -109,9 +133,12 @@
 }
 
 @media (max-width: 520px) {
-  .howto-backdrop { padding: 8px; align-items: flex-end; }
-  .howto-dialog { max-height: 92vh; border-radius: 16px 16px 0 0; }
+  /* Bottom sheet: pinned to the bottom edge, overflow still goes downward only. */
+  .howto-backdrop {
+    padding: calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
+  }
+  .howto-dialog { margin: auto auto 0; max-height: 92vh; max-height: 92svh; border-radius: 16px 16px 0 0; }
   .howto-special-list li { grid-template-columns: 1fr; }
-  .howto-header { padding: 16px 16px 10px; }
+  .howto-header { padding: 16px 16px 10px; border-radius: 16px 16px 0 0; }
   .howto-body { padding: 14px 16px 20px; }
 }
