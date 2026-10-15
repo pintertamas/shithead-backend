@@ -43,6 +43,13 @@ class BotTurnLoopIntegrationTest {
                 if (HUMAN.equals(session.getCurrentPlayerId())) {
                     humanMove(session, random);
                 }
+                // While a human is in play the client paces the bots: one move per request. Once none is left, the
+                // rest of the bot turns run at once (the remaining call is a no-op while a human still has a turn).
+                int oneAtATime = 0;
+                while (session.hasHumanInPlay() && BotTurnRunner.playOneBotMove(session)) {
+                    oneAtATime++;
+                }
+                assertTrue(oneAtATime < BotTurnRunner.MAX_BOT_MOVES, "client-paced bot moves did not stop");
                 BotTurnRunner.playBotTurns(session);
                 stored = session.toEntity();
 

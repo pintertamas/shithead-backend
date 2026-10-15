@@ -6,7 +6,6 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayV2WebSocketEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tamaspinter.backend.bot.BotTurnRunner;
 import com.tamaspinter.backend.bot.BotType;
 import com.tamaspinter.backend.entity.EloChangeEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
@@ -425,7 +424,7 @@ class GameFunctionConfigBotsTest {
     }
 
     @Test
-    void saveAfterMove_playerMoveThenBot_broadcastsThePlayerMoveBeforeTheBotMove() {
+    void saveAfterMove_humanStillInPlay_savesOnceAndLeavesTheBotForTheClient() {
         // Given: the owner is to move, and the bot is next. The stored entity has the starting flag set.
         GameSession session = ownerThenBot();
         GameSessionEntity stored = SessionMapper.toEntity(session);
@@ -435,48 +434,182 @@ class GameFunctionConfigBotsTest {
         GameFunctionConfig recording = recordingConfig(log, OWNER);
         recordSaves(log);
 
-        // When: no pause is taken, since the test pacing does not wait
-        GameSessionEntity updated = recording.saveAfterMove(stored, session, SESSION_ID, ENDPOINT, null,
-                new BotTurnRunner.Pacing(millis -> { }));
+        // When
+        GameSessionEntity updated = recording.saveAfterMove(stored, session, SESSION_ID, ENDPOINT, null);
 
-        // Then: the player's move goes out on its own before the bot plays; then the bot's move, then the final save
-        assertEquals(List.of(
-                "save current=Beginner Bot 1 pile=1",
-                "broadcast current=Beginner Bot 1 pile=1",
-                "save current=owner pile=2",
-                "broadcast current=owner pile=2",
-                "save current=owner pile=2"), log);
+        // Then: one save, no bot move; the bot waits for the client's bot-turn request
+        assertEquals(List.of("save current=Beginner Bot 1 pile=1"), log);
         assertTrue(updated.isStarting());
-        assertEquals(OWNER, updated.getCurrentPlayerId());
+        assertEquals(BOT, updated.getCurrentPlayerId());
     }
 
     @Test
-    void playCardWS_botToMoveFirst_runsTheBotTurnBeforeTheActionIsJudged() {
-        // Given: a game left on a bot's turn (a save failed part way through the bot chain). The owner's play is
-        // only legal once the bot has played its 5.
+    void saveAfterMove_noHumanLeftInPlay_playsTheBotTurnsInThisInvocation() {
+        // Given: the owner has just played their last card and is out; only the bot is left in play
+        GameSession session = ownerThenBot();
+        GameSessionEntity stored = SessionMapper.toEntity(session);
+        session.playSelections(List.of(new CardSelection(CardSource.HAND, 0)));
+        Player owner = session.getPlayers().get(0);
+        owner.getFaceUp().clear();
+        owner.setOut(true);
+        List<String> log = new ArrayList<>();
+        GameFunctionConfig recording = recordingConfig(log, OWNER);
+        recordSaves(log);
+        stubRatings(1000, 1000, 1000);
+
+        // When
+        GameSessionEntity updated = recording.saveAfterMove(stored, session, SESSION_ID, ENDPOINT, null);
+
+        // Then: the bot's move is saved and broadcast here (save, broadcast, final save, then the Elo save: games a bot loses are rated now); the game then ends
+        // with the bot as shithead
+        assertEquals(4, log.size());
+        assertTrue(log.get(1).startsWith("broadcast"));
+        assertEquals(2, updated.getDiscardPile().size());
+        assertTrue(updated.isFinished());
+        assertEquals(BOT, updated.getShitheadId());
+    }
+
+    @Test
+    void playCardWS_humanPlaysWithBotNext_broadcastsOnceAndDoesNotMoveTheBot() {
+        // Given: the owner is to move, the bot is next, and the human after the owner is still in play
+        List<String> log = new ArrayList<>();
+        GameFunctionConfig recording = recordingConfig(log, OWNER);
+        recordSaves(log);
+        when(sessionRepo.get(SESSION_ID)).thenReturn(SessionMapper.toEntity(ownerThenBot()));
+
+        // When: the owner plays their 5 from the hand
+        APIGatewayProxyResponseEvent response = recording.playCardWS().apply(webSocketEvent(
+                "{\"action\":\"play\",\"sessionId\":\"" + SESSION_ID
+                        + "\",\"selections\":[{\"source\":\"HAND\",\"index\":0}]}"));
+
+        // Then: one save and one broadcast of the owner's move; the bot has not played
+        assertEquals(200, response.getStatusCode());
+        assertEquals(List.of(
+                "save current=Beginner Bot 1 pile=1",
+                "broadcast current=Beginner Bot 1 pile=1"), log);
+    }
+
+    @Test
+    void botTurn_route_isRegistered() {
+        // Given
+        ApiRoutes routes = new ApiRoutes(config, mock(AccountManagementFunctionConfig.class),
+                mock(VoiceFunctionConfig.class));
+
+        // When / Then
+        assertTrue(routes.findRest("POST", "/prod/games/ABC/bot-turn").isPresent());
+        assertFalse(routes.findRest("GET", "/prod/games/ABC/bot-turn").isPresent());
+    }
+
+    @Test
+    void botTurn_humanInPlayAndBotNext_playsExactlyOneBotMoveAndSavesOnce() {
+        // Given: the bot is to move with a human still in play, and the request carries the expected token
         List<String> log = new ArrayList<>();
         GameFunctionConfig recording = recordingConfig(log, OWNER);
         recordSaves(log);
         when(sessionRepo.get(SESSION_ID)).thenReturn(SessionMapper.toEntity(botThenOwnerThenHuman()));
 
-        // When: the owner plays their 14 from the hand
-        APIGatewayProxyResponseEvent response = recording.playCardWS().apply(webSocketEvent(
-                "{\"action\":\"play\",\"sessionId\":\"" + SESSION_ID
-                        + "\",\"selections\":[{\"source\":\"HAND\",\"index\":0}]}"));
+        // When
+        APIGatewayProxyResponseEvent response = recording.botTurn().apply(
+                request(OWNER, "{\"expectedPlayerId\":\"" + BOT + "\",\"expectedMoves\":0}"));
 
-        // Then: the bot plays first, the owner's play is accepted, and the human after the owner is next
+        // Then: the bot's 5 went out, once, and the owner is next; the state is returned
         assertEquals(200, response.getStatusCode());
-        assertEquals(List.of(
-                "save current=owner pile=1",
-                "broadcast current=owner pile=1",
-                "save current=owner pile=1",
-                "save current=human pile=2",
-                "broadcast current=human pile=2"), log);
+        assertEquals(List.of("save current=owner pile=1", "broadcast current=owner pile=1"), log);
+        assertEquals(OWNER, stateOf(response).get("currentPlayerId").asText());
     }
 
-    /** A config whose WebSocket broadcasts are recorded in {@code log} instead of posted, and whose bots do not wait. */
+    @Test
+    void botTurn_repeatedRequestAfterTheMove_changesNothing() {
+        // Given: the same request is sent twice (two clients, or a retry); the repository holds the latest save
+        List<String> log = new ArrayList<>();
+        GameFunctionConfig recording = recordingConfig(log, OWNER);
+        GameSessionEntity[] stored = {SessionMapper.toEntity(botThenOwnerThenHuman())};
+        when(sessionRepo.get(SESSION_ID)).thenAnswer(invocation -> stored[0]);
+        doAnswer(invocation -> {
+            stored[0] = invocation.getArgument(0);
+            log.add("save " + describe(stored[0]));
+            return null;
+        }).when(sessionRepo).save(any());
+        String body = "{\"expectedPlayerId\":\"" + BOT + "\",\"expectedMoves\":0}";
+        recording.botTurn().apply(request(OWNER, body));
+        int savesAfterFirst = log.size();
+
+        // When: the second request arrives with the old token
+        APIGatewayProxyResponseEvent second = recording.botTurn().apply(request(OWNER, body));
+
+        // Then: nothing is saved or broadcast again, and the state shows the owner to move
+        assertEquals(200, second.getStatusCode());
+        assertEquals(savesAfterFirst, log.size());
+        assertEquals(OWNER, stateOf(second).get("currentPlayerId").asText());
+    }
+
+    @Test
+    void botTurn_staleEventToken_changesNothing() {
+        // Given: the bot is to move, but the token names an older point of the game
+        List<String> log = new ArrayList<>();
+        GameFunctionConfig recording = recordingConfig(log, OWNER);
+        recordSaves(log);
+        when(sessionRepo.get(SESSION_ID)).thenReturn(SessionMapper.toEntity(botThenOwnerThenHuman()));
+
+        // When
+        APIGatewayProxyResponseEvent response = recording.botTurn().apply(
+                request(OWNER, "{\"expectedPlayerId\":\"" + BOT + "\",\"expectedMoves\":7}"));
+
+        // Then
+        assertEquals(200, response.getStatusCode());
+        assertTrue(log.isEmpty());
+        assertEquals(BOT, stateOf(response).get("currentPlayerId").asText());
+    }
+
+    @Test
+    void botTurn_callerNotSeatedAsHuman_isForbiddenAndNothingIsSaved() {
+        // Given: a stranger, and a bot's own id as the caller
+        when(sessionRepo.get(SESSION_ID)).thenReturn(SessionMapper.toEntity(botThenOwnerThenHuman()));
+        String body = "{\"expectedPlayerId\":\"" + BOT + "\",\"expectedMoves\":0}";
+
+        // When / Then
+        assertEquals(403, config.botTurn().apply(request("stranger", body)).getStatusCode());
+        assertEquals(403, config.botTurn().apply(request(BOT, body)).getStatusCode());
+        verify(sessionRepo, never()).save(any());
+    }
+
+    @Test
+    void botTurn_noHumanLeftInPlay_playsNothing() {
+        // Given: the owner is out, and a bot is to move
+        GameSession session = botThenOwnerThenHuman();
+        session.getPlayers().get(1).setOut(true);
+        session.getPlayers().get(2).setOut(true);
+        when(sessionRepo.get(SESSION_ID)).thenReturn(SessionMapper.toEntity(session));
+
+        // When
+        APIGatewayProxyResponseEvent response = config.botTurn().apply(
+                request(OWNER, "{\"expectedPlayerId\":\"" + BOT + "\",\"expectedMoves\":0}"));
+
+        // Then: the endpoint plays nothing
+        assertEquals(200, response.getStatusCode());
+        verify(sessionRepo, never()).save(any());
+    }
+
+    @Test
+    void botTurn_badBody_isBadRequest() {
+        // Given
+        when(sessionRepo.get(SESSION_ID)).thenReturn(SessionMapper.toEntity(botThenOwnerThenHuman()));
+
+        // When / Then
+        assertEquals(400, config.botTurn().apply(request(OWNER, "not json")).getStatusCode());
+    }
+
+    private JsonNode stateOf(APIGatewayProxyResponseEvent response) {
+        try {
+            return mapper.readTree(response.getBody());
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** A config whose WebSocket broadcasts are recorded in {@code log} instead of posted. */
     private GameFunctionConfig recordingConfig(List<String> log, String webSocketUserId) {
-        GameFunctionConfig recording = new GameFunctionConfig(sessionRepo, userRepo, blockedUserGuard, mapper) {
+        return new GameFunctionConfig(sessionRepo, userRepo, blockedUserGuard, mapper) {
             @Override
             String websocketUserId(APIGatewayV2WebSocketEvent event) {
                 return webSocketUserId;
@@ -487,8 +620,6 @@ class GameFunctionConfigBotsTest {
                 log.add("broadcast " + describe(state));
             }
         };
-        recording.setBotPause(millis -> { });
-        return recording;
     }
 
     /** Records each session save in {@code log}, in the order the saves happen. */
