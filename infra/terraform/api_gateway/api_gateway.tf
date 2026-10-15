@@ -679,6 +679,8 @@ resource "aws_api_gateway_deployment" "deployment" {
       aws_api_gateway_integration.options_decks.id,
       aws_api_gateway_integration.post_bots.id,
       aws_api_gateway_integration.options_bots.id,
+      aws_api_gateway_integration.post_bot_turn.id,
+      aws_api_gateway_integration.options_bot_turn.id,
     ]))
   }
 
