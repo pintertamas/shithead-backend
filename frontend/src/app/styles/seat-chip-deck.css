@@ -1,0 +1,191 @@
+/*
+ * Phone chip strip: each opponent's chip shows their cards as mini cards instead of numbers.
+ *
+ *   [hand slot] [face-down backs with face-up cards laid over them]
+ *
+ *   - Hand slot: a stack of card backs while the player holds cards, else an empty dashed slot ("no cards in hand").
+ *   - Table: face-down backs, with up to three face-up cards (real faces) laid over them, as on the table.
+ *   - Out: no hand, no face-up, no face-down: the table area says OUT and the chip is dimmed.
+ *   - The group the player can play from now (hand, else face-up, else face-down) stays bright, the others dim.
+ *
+ * The chip has a fixed width and a fixed deck height, so it never grows with the cards. Everything is scoped to
+ * `.game-page.phone-table .phone-chips` so it wins over the older chip rules in table-mobile.css.
+ */
+
+.game-page.phone-table .phone-chips .seat-chip-wrap {
+  --chip-w: 92px;
+  --mini-w: 16px;
+  --mini-h: 22px;
+  --mini-step: 3px;
+  --mini-up-step: 7px;
+  flex: 0 0 var(--chip-w);
+  width: var(--chip-w);
+  min-width: var(--chip-w);
+  max-width: var(--chip-w);
+}
+
+.game-page.phone-table .phone-chips .seat-chip-wrap .seat-chip {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  padding: 3px 5px 4px;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-wrap .seat-chip-name {
+  text-align: center;
+}
+
+/* The deck row has a fixed height, so the chip height is the same whatever the cards. */
+.game-page.phone-table .phone-chips .seat-chip-deck {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  height: var(--mini-h);
+}
+
+.game-page.phone-table .phone-chips .seat-chip-hand {
+  position: relative;
+  flex: 0 0 auto;
+  width: calc(var(--mini-w) + 2 * var(--mini-step));
+  height: var(--mini-h);
+  transition: opacity 0.2s ease;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-table {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: var(--mini-h);
+}
+
+/* Mini card backs. Hand backs are red, face-down backs blue, so the two groups read differently. */
+.game-page.phone-table .phone-chips .seat-chip-mini-back {
+  position: absolute;
+  top: 0;
+  left: calc(var(--chip-i) * var(--mini-step));
+  width: var(--mini-w);
+  height: var(--mini-h);
+  box-sizing: border-box;
+  border: 1px solid #2c4a3c;
+  border-radius: 2px;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-mini-back-hand {
+  border-color: #3d2320;
+  background: repeating-linear-gradient(45deg, #7a2d28 0 2px, #5a1f1b 2px 4px);
+}
+
+.game-page.phone-table .phone-chips .seat-chip-mini-back-down {
+  border-color: #1d3a4a;
+  background: repeating-linear-gradient(135deg, #3f7289 0 2px, #2a5468 2px 4px);
+}
+
+/* No hand: an empty dashed slot in the hand's place. */
+.game-page.phone-table .phone-chips .seat-chip-hand-empty {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--mini-w);
+  height: var(--mini-h);
+  box-sizing: border-box;
+  border: 1px dashed rgba(236, 232, 205, 0.5);
+  border-radius: 2px;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-down {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--mini-w) + 2 * var(--mini-step));
+  height: var(--mini-h);
+  transition: opacity 0.2s ease;
+}
+
+/* Face-up cards sit over the face-down backs, each one a little further right. */
+.game-page.phone-table .phone-chips .seat-chip-up {
+  position: absolute;
+  top: 0;
+  left: calc(4px + var(--chip-i) * var(--mini-up-step));
+  width: var(--mini-w);
+  height: var(--mini-h);
+  transition: opacity 0.2s ease;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-mini-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--mini-w);
+  height: var(--mini-h);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #b9b19a;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  font-family: Georgia, serif;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-mini-face .playing-card-corner {
+  top: 1px;
+  left: 1px;
+  font-size: calc(var(--mini-w) * 0.4);
+  line-height: 0.95;
+}
+
+/* Only the corner index is drawn on a mini card: the opposite corner and the centre pip would be unreadable. */
+.game-page.phone-table .phone-chips .seat-chip-mini-face .playing-card-corner-opposite,
+.game-page.phone-table .phone-chips .seat-chip-mini-face .playing-card-center {
+  display: none;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-mini-face.red-card {
+  color: #9b312e;
+}
+
+.game-page.phone-table .phone-chips .seat-chip-out-mark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px dashed rgba(236, 232, 205, 0.5);
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5edda;
+}
+
+/* Dimmed: every group that is not the one the player can play from now. */
+.game-page.phone-table .phone-chips .seat-chip-wrap .is-dim {
+  opacity: 0.4;
+}
+
+/* Landscape: the header is short, so the mini cards get smaller. */
+@media (max-width: 700px) and (orientation: landscape) {
+  .game-page.phone-table .phone-chips .seat-chip-wrap {
+    --mini-w: 13px;
+    --mini-h: 18px;
+    --mini-up-step: 6px;
+  }
+
+  .game-page.phone-table .phone-chips .seat-chip-wrap .seat-chip {
+    gap: 1px;
+    padding: 2px 5px 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-page.phone-table .phone-chips .seat-chip-hand,
+  .game-page.phone-table .phone-chips .seat-chip-down,
+  .game-page.phone-table .phone-chips .seat-chip-up {
+    transition: none;
+  }
+}
