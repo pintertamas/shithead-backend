@@ -13,6 +13,7 @@ import com.tamaspinter.backend.entity.GameConfigEntity;
 import com.tamaspinter.backend.entity.GameSessionEntity;
 import com.tamaspinter.backend.entity.PlayerEntity;
 import com.tamaspinter.backend.game.GameConfig;
+import com.tamaspinter.backend.game.GameEvent;
 import com.tamaspinter.backend.game.GameSession;
 import com.tamaspinter.backend.game.PlayResult;
 import com.tamaspinter.backend.mapper.SessionMapper;
@@ -31,9 +32,7 @@ import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
 import com.tamaspinter.backend.service.BlockedUserGuard;
 import com.tamaspinter.backend.service.EloService;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -54,6 +53,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -78,9 +78,8 @@ public class GameFunctionConfig {
     private final ObjectMapper mapper;
     private final DynamoDbClient dynamoClient = DynamoDbClient.create();
     private final String wsConnectionsTable = System.getenv("WS_CONNECTIONS_TABLE");
-    /** Wait before each paced bot move. Tests replace it, so they never sleep. */
-    @Setter(AccessLevel.PACKAGE)
-    private BotTurnRunner.Sleeper botPause = BotTurnRunner.THREAD_SLEEP;
+    /** Endpoint of the WebSocket API, used to broadcast from the REST bot-turn route (no request context there). */
+    private final String wsManagementEndpoint = System.getenv("WS_MANAGEMENT_ENDPOINT");
 
     private static APIGatewayProxyResponseEvent corsResponse(int statusCode) {
         return new APIGatewayProxyResponseEvent().withStatusCode(statusCode).withHeaders(CORS_HEADERS);
@@ -307,6 +306,73 @@ public class GameFunctionConfig {
         };
     }
 
+    /**
+     * Client-paced bot turn: {@code POST /games/{sessionId}/bot-turn} with {@code {"expectedPlayerId":"<bot id>",
+     * "expectedMoves":<seq of the newest event>}}. Plays exactly one bot move, and only when a human is still in play,
+     * that bot is to move and the newest event still has the expected seq; otherwise the state is returned unchanged,
+     * so a repeated or late request never moves twice. Only seated humans may call it (403).
+     */
+    @Bean
+    @SuppressWarnings("PMD.CognitiveComplexity")
+    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> botTurn() {
+        return req -> {
+            String sessionId = req.getPathParameters() == null ? null : req.getPathParameters().get("sessionId");
+            GameSessionEntity entity = sessionId == null ? null : sessionRepo.get(sessionId);
+            if (entity == null) {
+                return corsResponse(404);
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, String> claims = (Map<String, String>) req.getRequestContext().getAuthorizer().get("claims");
+            String userId = claims.get("sub");
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
+            if (!isSeatedHuman(entity, userId)) {
+                return corsResponse(403, "{\"message\":\"Join this game before sending actions.\"}");
+            }
+            JsonNode body = readJson(req.getBody());
+            if (body == null) {
+                return corsResponse(400);
+            }
+            GameSession session = SessionMapper.fromEntity(entity);
+            if (!isExpectedBotMove(session, body) || !BotTurnRunner.playOneBotMove(session)) {
+                return stateResponse(entity, userId);
+            }
+            GameSessionEntity updated = saveFinishedGame(entity, session);
+            broadcastState(sessionId, updated, wsManagementEndpoint);
+            return stateResponse(updated, userId);
+        };
+    }
+
+    private static boolean isSeatedHuman(GameSessionEntity entity, String userId) {
+        return userId != null && entity.getPlayers() != null && entity.getPlayers().stream()
+                .anyMatch(player -> userId.equals(player.getPlayerId()) && player.getBotType() == null);
+    }
+
+    /** True when a human is still in play and the expected bot is to move at the expected point of the game. */
+    private static boolean isExpectedBotMove(GameSession session, JsonNode body) {
+        String expectedPlayerId = body.path("expectedPlayerId").asText(null);
+        long expectedMoves = body.path("expectedMoves").asLong(-1L);
+        return session.hasHumanInPlay() && BotTurnRunner.isBotTurn(session)
+                && Objects.equals(expectedPlayerId, session.getCurrentPlayerId())
+                && lastEventSeq(session) == expectedMoves;
+    }
+
+    /** Seq of the newest activity-feed event; 0 while the game has no events. Changes with every move that records one. */
+    private static long lastEventSeq(GameSession session) {
+        List<GameEvent> events = session.getEvents();
+        return events.isEmpty() ? 0L : events.get(events.size() - 1).seq();
+    }
+
+    private APIGatewayProxyResponseEvent stateResponse(GameSessionEntity entity, String userId) {
+        try {
+            return corsResponse(200, mapper.writeValueAsString(buildGameStateView(entity, userId)));
+        } catch (JsonProcessingException e) {
+            log.error("Game state serialization failed", e);
+            return corsResponse(500);
+        }
+    }
+
     private JsonNode readJson(String body) {
         if (body == null) {
             return null;
@@ -438,8 +504,6 @@ public class GameFunctionConfig {
                 return handleSetupAction(ev, msg, entity, userId);
             }
             String endpoint = websocketEndpoint(ev);
-            BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(botPause);
-            entity = catchUpBotTurns(entity, msg.sessionId(), endpoint, pacing);
             if (!userId.equals(entity.getCurrentPlayerId())) {
                 return websocketError(ev, 400, PlayErrorMessages.NOT_YOUR_TURN);
             }
@@ -455,7 +519,7 @@ public class GameFunctionConfig {
             }
 
             Card broadcastCard = result == PlayResult.PICKUP ? revealedCard : null;
-            GameSessionEntity updated = saveAfterMove(entity, session, msg.sessionId(), endpoint, broadcastCard, pacing);
+            GameSessionEntity updated = saveAfterMove(entity, session, msg.sessionId(), endpoint, broadcastCard);
             broadcastState(msg.sessionId(), updated, endpoint, broadcastCard);
 
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
@@ -525,13 +589,11 @@ public class GameFunctionConfig {
         }
 
         String endpoint = websocketEndpoint(event);
-        BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(botPause);
-        GameSessionEntity current = catchUpBotTurns(entity, message.sessionId(), endpoint, pacing);
-        GameSession session = SessionMapper.fromEntity(current);
+        GameSession session = SessionMapper.fromEntity(entity);
         if (!applySetupAction(session, message, userId)) {
             return websocketError(event, 400, "That setup action is no longer available.");
         }
-        GameSessionEntity updated = saveAfterMove(current, session, message.sessionId(), endpoint, null, pacing);
+        GameSessionEntity updated = saveAfterMove(entity, session, message.sessionId(), endpoint, null);
         broadcastState(message.sessionId(), updated, endpoint);
         return new APIGatewayProxyResponseEvent().withStatusCode(200);
     }
@@ -615,8 +677,6 @@ public class GameFunctionConfig {
                 return websocketError(ev, 400, PlayErrorMessages.NOT_YOUR_TURN);
             }
             String endpoint = websocketEndpoint(ev);
-            BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(botPause);
-            entity = catchUpBotTurns(entity, msg.sessionId(), endpoint, pacing);
             if (!userId.equals(entity.getCurrentPlayerId())) {
                 return websocketError(ev, 400, PlayErrorMessages.NOT_YOUR_TURN);
             }
@@ -628,7 +688,7 @@ public class GameFunctionConfig {
                         PlayErrorMessages.forReason(session.getLastInvalidReason(), session.getLastRequiredPileValue()));
             }
 
-            GameSessionEntity updated = saveAfterMove(entity, session, msg.sessionId(), endpoint, null, pacing);
+            GameSessionEntity updated = saveAfterMove(entity, session, msg.sessionId(), endpoint, null);
             broadcastState(msg.sessionId(), updated, endpoint);
 
             return new APIGatewayProxyResponseEvent().withStatusCode(200);
@@ -739,30 +799,21 @@ public class GameFunctionConfig {
      */
     // package-private for tests
     GameSessionEntity saveAfterMove(GameSessionEntity stored, GameSession session, String gameSessionId,
-                                    String endpoint, Card revealedCard, BotTurnRunner.Pacing pacing) {
-        if (BotTurnRunner.isBotTurn(session)) {
-            saveAndBroadcast(stored, session, gameSessionId, endpoint, revealedCard);
+                                    String endpoint, Card revealedCard) {
+        if (session.hasHumanInPlay()) {
+            return saveFinishedGame(stored, session);
         }
-        return playBotTurnsAndSave(stored, session, gameSessionId, endpoint, revealedCard, pacing);
-    }
-
-    /**
-     * Runs the bot turns that are due before a player's play, pickup or setup is judged. A game can be left on a
-     * bot's turn when a save fails part way through a bot chain. Returns the stored entity after those turns, or the
-     * same entity when no bot is to move.
-     */
-    private GameSessionEntity catchUpBotTurns(GameSessionEntity entity, String gameSessionId, String endpoint,
-                                              BotTurnRunner.Pacing pacing) {
-        GameSession session = SessionMapper.fromEntity(entity);
-        if (!BotTurnRunner.isBotTurn(session)) {
-            return entity;
-        }
-        return playBotTurnsAndSave(entity, session, gameSessionId, endpoint, null, pacing);
+        return playBotTurnsAndSave(stored, session, gameSessionId, endpoint, revealedCard);
     }
 
     private GameSessionEntity playBotTurnsAndSave(GameSessionEntity stored, GameSession session, String gameSessionId,
-                                                  String endpoint, Card revealedCard, BotTurnRunner.Pacing pacing) {
-        BotTurnRunner.playBotTurns(session, pacing, botMoveListener(stored, gameSessionId, endpoint, revealedCard));
+                                                  String endpoint, Card revealedCard) {
+        BotTurnRunner.playBotTurns(session, botMoveListener(stored, gameSessionId, endpoint, revealedCard));
+        return saveFinishedGame(stored, session);
+    }
+
+    /** Saves the session as it now stands and records the Elo update once, when the game has just finished. */
+    private GameSessionEntity saveFinishedGame(GameSessionEntity stored, GameSession session) {
         GameSessionEntity updated = storedEntity(stored, session);
         sessionRepo.save(updated);
         if (session.isFinished() && !stored.isEloUpdated()) {
@@ -779,15 +830,11 @@ public class GameFunctionConfig {
     /** Saves and broadcasts the session after one bot move. The handler's final broadcast carries the same reveal. */
     private BotTurnRunner.BotMoveListener botMoveListener(GameSessionEntity stored, String gameSessionId,
                                                           String endpoint, Card revealedCard) {
-        return botSession -> saveAndBroadcast(stored, botSession, gameSessionId, endpoint, revealedCard);
-    }
-
-    /** Saves the session and broadcasts it, so the players get this state as an update of its own. */
-    private void saveAndBroadcast(GameSessionEntity stored, GameSession session, String gameSessionId,
-                                  String endpoint, Card revealedCard) {
-        GameSessionEntity state = storedEntity(stored, session);
-        sessionRepo.save(state);
-        broadcastState(gameSessionId, state, endpoint, revealedCard);
+        return botSession -> {
+            GameSessionEntity state = storedEntity(stored, botSession);
+            sessionRepo.save(state);
+            broadcastState(gameSessionId, state, endpoint, revealedCard);
+        };
     }
 
     /** The session as it is stored: keeps the stored starting flag and Elo bookkeeping. */

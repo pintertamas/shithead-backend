@@ -539,28 +539,72 @@ class BotTurnRunnerTest {
         assertEquals("b1", session.getShitheadId());
     }
 
-    // ---------------------------------------------------------------- pacing and the move listener
+    // ---------------------------------------------------------------- one move at a time and the move listener
 
     @Test
-    void playBotTurns_sixBotMoves_pausesBeforeTheFirstFourMovesOnly() {
-        // Given: six bots with one playable card each, then a human
-        GameSession session = botChain(3, 4, 5, 7, 11, 12);
-        List<Integer> pileWhenPaused = new ArrayList<>();
-        List<Long> pauses = new ArrayList<>();
-        BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> {
-            pauses.add(millis);
-            pileWhenPaused.add(session.getDiscardPile().size());
-        });
+    void playOneBotMove_humanStillInPlay_makesExactlyOneMove() {
+        // Given: three bots with a playable card each, then a human
+        GameSession session = botChain(3, 4, 5);
 
         // When
-        int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()), pacing, s -> { });
+        boolean moved = BotTurnRunner.playOneBotMove(session, new Random(1), always(firstLegal()));
 
-        // Then: all six moves are made; a pause precedes the first four (pile of 0 to 3), none the last two
-        assertEquals(6, moves);
-        assertEquals(List.of(0, 1, 2, 3), pileWhenPaused);
-        long delay = BotTurnRunner.BOT_MOVE_DELAY_MS;
-        assertEquals(List.of(delay, delay, delay, delay), pauses);
+        // Then: only the first bot played; the second bot is now to move
+        assertTrue(moved);
+        assertEquals(List.of(3), values(session.getDiscardPile()));
+        assertEquals("b2", session.getCurrentPlayerId());
+    }
+
+    @Test
+    void playOneBotMove_humanTurn_makesNoMove() {
+        // Given
+        Player alice = human("h1");
+        Player other = bot("b1");
+        GameSession session = running(DEFAULTS, alice, other);
+        give(session, alice, 4);
+        give(session, other, 5);
+
+        // When / Then
+        assertFalse(BotTurnRunner.playOneBotMove(session));
         assertEquals("h1", session.getCurrentPlayerId());
+        assertTrue(session.getDiscardPile().isEmpty());
+    }
+
+    @Test
+    void playOneBotMove_setupNotComplete_makesNoMove() {
+        // Given: started, bots not yet set up
+        GameSession session = lobbyWithBots(2, false);
+        startDeterministic(session, 5);
+
+        // When / Then
+        assertFalse(BotTurnRunner.playOneBotMove(session));
+        assertTrue(session.getDiscardPile().isEmpty());
+    }
+
+    @Test
+    void playOneBotMove_repeatedUntilHumanTurn_endsWhereOneCallWouldEnd() {
+        for (long seed = 1; seed <= 20; seed++) {
+            // Given: two identical all-bot tables from the same seed
+            GameSession oneCall = lobbyWithBots(2 + (int) (seed % 4), false);
+            startDeterministic(oneCall, seed);
+            BotTurnRunner.completeSetup(oneCall);
+            GameSession stepped = lobbyWithBots(2 + (int) (seed % 4), false);
+            startDeterministic(stepped, seed);
+            BotTurnRunner.completeSetup(stepped);
+            Random random = new Random(seed);
+
+            // When: one call runs every bot turn; the other takes one move per call until no bot is to move
+            int oneCallMoves = BotTurnRunner.playBotTurns(oneCall, new Random(seed));
+            int steppedMoves = 0;
+            while (steppedMoves < BotTurnRunner.MAX_BOT_MOVES
+                    && BotTurnRunner.playOneBotMove(stepped, random, BotStrategies::forType)) {
+                steppedMoves++;
+            }
+
+            // Then
+            assertEquals(oneCallMoves, steppedMoves, "seed " + seed);
+            assertEquals(snapshot(oneCall), snapshot(stepped), "seed " + seed);
+        }
     }
 
     @Test
@@ -571,75 +615,11 @@ class BotTurnRunnerTest {
 
         // When
         int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()),
-                new BotTurnRunner.Pacing(millis -> { }),
                 s -> seenAfterEachMove.add(s.getCurrentPlayerId() + " " + values(s.getDiscardPile())));
 
         // Then: one call per move, each showing the table after that move
         assertEquals(3, moves);
         assertEquals(List.of("b2 [3]", "b3 [3, 4]", "h1 [3, 4, 5]"), seenAfterEachMove);
-    }
-
-    @Test
-    void playBotTurns_oneBotMove_pausesOnceBeforeIt() {
-        // Given: one bot with a playable card, then a human
-        GameSession session = botChain(4);
-        List<Long> pauses = new ArrayList<>();
-        List<String> seen = new ArrayList<>();
-
-        // When
-        int moves = BotTurnRunner.playBotTurns(session, new Random(1), always(firstLegal()),
-                new BotTurnRunner.Pacing(millis -> pauses.add(millis)), s -> seen.add(s.getCurrentPlayerId()));
-
-        // Then: the first bot move waits like the others
-        assertEquals(1, moves);
-        assertEquals(List.of((long) BotTurnRunner.BOT_MOVE_DELAY_MS), pauses);
-        assertEquals(List.of("h1"), seen);
-    }
-
-    @Test
-    void playBotTurns_twoChainsInOneRequest_shareTheFourPauses() {
-        // Given: two tables of three bots each, both run under the pacing of one request
-        GameSession first = botChain(3, 4, 5);
-        GameSession second = botChain(7, 11, 12);
-        List<Long> pauses = new ArrayList<>();
-        BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> pauses.add(millis));
-
-        // When
-        int firstMoves = BotTurnRunner.playBotTurns(first, new Random(1), always(firstLegal()), pacing, s -> { });
-        int secondMoves = BotTurnRunner.playBotTurns(second, new Random(1), always(firstLegal()), pacing, s -> { });
-
-        // Then: the request waits for four pauses in all, not four per chain
-        assertEquals(3, firstMoves);
-        assertEquals(3, secondMoves);
-        assertEquals(BotTurnRunner.PACED_BOT_MOVES, pauses.size());
-    }
-
-    @Test
-    void playBotTurns_pacedAndUnpaced_sameSeed_endInTheSameState() {
-        for (long seed = 1; seed <= 20; seed++) {
-            // Given: two identical all-bot tables from the same seed
-            GameSession unpaced = lobbyWithBots(2 + (int) (seed % 4), false);
-            startDeterministic(unpaced, seed);
-            BotTurnRunner.completeSetup(unpaced);
-            GameSession paced = lobbyWithBots(2 + (int) (seed % 4), false);
-            startDeterministic(paced, seed);
-            BotTurnRunner.completeSetup(paced);
-            List<Long> pauses = new ArrayList<>();
-            List<GameSession> listened = new ArrayList<>();
-            BotTurnRunner.Pacing pacing = new BotTurnRunner.Pacing(millis -> pauses.add(millis));
-
-            // When
-            int unpacedMoves = BotTurnRunner.playBotTurns(unpaced, new Random(seed));
-            int pacedMoves = BotTurnRunner.playBotTurns(paced, new Random(seed), BotStrategies::forType, pacing,
-                    listened::add);
-
-            // Then
-            String context = "seed " + seed;
-            assertEquals(unpacedMoves, pacedMoves, context);
-            assertEquals(pacedMoves, listened.size(), context);
-            assertEquals(Math.min(BotTurnRunner.PACED_BOT_MOVES, pacedMoves), pauses.size(), context);
-            assertEquals(snapshot(unpaced), snapshot(paced), context);
-        }
     }
 
     /**

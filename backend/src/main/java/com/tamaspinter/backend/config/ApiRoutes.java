@@ -50,6 +50,7 @@ public class ApiRoutes {
         rest("POST", "/games/{sessionId}/voice-token", voice.voiceToken());
         rest("POST", "/games/{sessionId}/decks", game.raiseDecks());
         rest("POST", "/games/{sessionId}/bots", game.manageBots());
+        rest("POST", "/games/{sessionId}/bot-turn", game.botTurn());
 
         websocket("play", game.playCardWS());
         websocket("setup", game.playCardWS());

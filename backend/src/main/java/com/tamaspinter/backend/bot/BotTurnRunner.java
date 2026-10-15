@@ -12,9 +12,10 @@ import java.util.Random;
 import java.util.function.Function;
 
 /**
- * Plays the bot seats of a game in memory, inside the invocation that changed the state. A caller that passes a
- * {@link BotMoveListener} also gets the state after every bot move, so the moves can be shown one at a time. Every
- * move goes through {@link GameSession}, the same code that checks human moves.
+ * Plays the bot seats of a game. Two entry points: {@link #playOneBotMove} makes exactly one bot move (the client
+ * paces the bot turns while a human is still in the game), and {@link #playBotTurns} runs every consecutive bot
+ * turn in memory (once no human is left in play). A caller that passes a {@link BotMoveListener} gets the state
+ * after every bot move. Every move goes through {@link GameSession}, the same code that checks human moves.
  */
 @Slf4j
 public final class BotTurnRunner {
@@ -25,58 +26,15 @@ public final class BotTurnRunner {
      */
     public static final int MAX_BOT_MOVES = 2000;
 
-    /** Pause before a paced bot move, long enough for the players to follow each play. */
-    public static final int BOT_MOVE_DELAY_MS = 3000;
-
-    /**
-     * Bot moves of one request that get a pause before them: the first PACED_BOT_MOVES of the request, counted across
-     * every bot turn the request runs. A request therefore waits for at most PACED_BOT_MOVES pauses (12 seconds).
-     * Later moves run straight after each other.
-     */
-    public static final int PACED_BOT_MOVES = 4;
-
-    /** The real pause: blocks the thread. */
-    public static final Sleeper THREAD_SLEEP = BotTurnRunner::sleepOnThread;
-    private static final Sleeper NO_PAUSE = millis -> { };
     private static final BotMoveListener NO_LISTENER = session -> { };
 
     private BotTurnRunner() {
-    }
-
-    /** Waits between two bot moves. The real one blocks the thread; tests pass a fake that records the waits. */
-    @FunctionalInterface
-    public interface Sleeper {
-        void sleep(long millis);
     }
 
     /** Told after every bot move, with the session as it is after that move. */
     @FunctionalInterface
     public interface BotMoveListener {
         void onBotMove(GameSession session);
-    }
-
-    /**
-     * The pauses of one request. Shared by every bot turn the request runs, so the request waits for at most
-     * {@link #PACED_BOT_MOVES} pauses in total, however many turns it runs.
-     */
-    public static final class Pacing {
-        private final Sleeper sleeper;
-        private int pausesLeft = PACED_BOT_MOVES;
-
-        /**
-         * Pauses through {@code sleeper} before the first {@link #PACED_BOT_MOVES} bot moves of the request.
-         */
-        public Pacing(Sleeper sleeper) {
-            this.sleeper = sleeper;
-        }
-
-        /** Pauses before the next bot move while the request still has pauses left. */
-        private void beforeBotMove() {
-            if (pausesLeft > 0) {
-                pausesLeft--;
-                sleeper.sleep(BOT_MOVE_DELAY_MS);
-            }
-        }
     }
 
     /** Lets every bot that is not ready yet make its setup swap and mark itself ready. */
@@ -117,46 +75,61 @@ public final class BotTurnRunner {
     }
 
     /**
+     * Makes exactly one bot move when a bot is to move in a started game (client-paced turns).
+     *
+     * @return true when a bot moved; false when no bot was to move or the bot could not move at all
+     */
+    public static boolean playOneBotMove(GameSession session) {
+        return playOneBotMove(session, new Random(), BotStrategies::forType);
+    }
+
+    /**
+     * Test seam: {@link #playOneBotMove(GameSession)} with the strategies and randomness supplied by the caller.
+     */
+    static boolean playOneBotMove(GameSession session, Random random, Function<BotType, BotStrategy> strategies) {
+        return isBotTurn(session) && playOneMove(session, random, strategies);
+    }
+
+    /**
      * Plays while it is a bot's turn and the game is running, up to {@link #MAX_BOT_MOVES} moves, without pauses.
      *
      * @return the number of bot moves made
      */
     public static int playBotTurns(GameSession session) {
-        return playBotTurns(session, new Random());
+        return playBotTurns(session, new Random(), BotStrategies::forType, NO_LISTENER);
     }
 
     /**
      * As {@link #playBotTurns(GameSession)}, with the strategies' randomness taken from {@code random}.
      */
     public static int playBotTurns(GameSession session, Random random) {
-        return playBotTurns(session, random, BotStrategies::forType);
+        return playBotTurns(session, random, BotStrategies::forType, NO_LISTENER);
     }
 
     /**
-     * Plays the bot turns of a WebSocket request: {@code pacing} decides the pause before each bot move, and
-     * {@code listener} is called after every bot move with the session as it is after that move.
+     * As {@link #playBotTurns(GameSession)}, calling {@code listener} after every bot move with the session as it is
+     * after that move.
      *
      * @return the number of bot moves made
      */
-    public static int playBotTurns(GameSession session, Pacing pacing, BotMoveListener listener) {
-        return playBotTurns(session, new Random(), BotStrategies::forType, pacing, listener);
+    public static int playBotTurns(GameSession session, BotMoveListener listener) {
+        return playBotTurns(session, new Random(), BotStrategies::forType, listener);
     }
 
     /**
      * Test seam: {@link #playBotTurns(GameSession, Random)} with the strategy of each bot type supplied by the caller.
      */
     static int playBotTurns(GameSession session, Random random, Function<BotType, BotStrategy> strategies) {
-        return playBotTurns(session, random, strategies, new Pacing(NO_PAUSE), NO_LISTENER);
+        return playBotTurns(session, random, strategies, NO_LISTENER);
     }
 
     /**
-     * Test seam: the whole bot loop, with the pacing and the move listener supplied by the caller.
+     * Test seam: the whole bot loop, with the move listener supplied by the caller.
      */
     static int playBotTurns(GameSession session, Random random, Function<BotType, BotStrategy> strategies,
-                            Pacing pacing, BotMoveListener listener) {
+                            BotMoveListener listener) {
         int moves = 0;
         while (isBotTurn(session) && moves < MAX_BOT_MOVES) {
-            pacing.beforeBotMove();
             if (!playOneMove(session, random, strategies)) {
                 log.error("Bot could not move in game {}; stopping the bot loop", session.getSessionId());
                 break;
@@ -169,15 +142,6 @@ public final class BotTurnRunner {
             session.finishStalledBotGame();
         }
         return moves;
-    }
-
-    /** Real pause for the production loop; an interrupted wait just ends early and keeps the interrupt flag. */
-    private static void sleepOnThread(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     /** True when a bot is to move in a started, set-up, unfinished game. */

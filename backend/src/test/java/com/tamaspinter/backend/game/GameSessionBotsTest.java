@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -72,5 +73,39 @@ class GameSessionBotsTest {
 
         // When / Then
         assertThrows(IllegalStateException.class, () -> session.addBot(BotType.BEGINNER));
+    }
+
+    @Test
+    void hasHumanInPlay_humanStillPlaying_isTrue() {
+        // Given: a human and a bot
+        GameSession session = GameSession.builder().sessionId("S").ownerId(OWNER).build();
+        session.addPlayer(OWNER, "owner");
+        session.addBot(BotType.BEGINNER);
+
+        // When / Then
+        assertTrue(session.hasHumanInPlay());
+    }
+
+    @Test
+    void hasHumanInPlay_everyHumanOut_isFalseEvenWithBotsLeft() {
+        // Given: the only human has gone out
+        GameSession session = GameSession.builder().sessionId("S").ownerId(OWNER).build();
+        session.addPlayer(OWNER, "owner");
+        session.addBot(BotType.BEGINNER);
+        session.getPlayers().get(0).setOut(true);
+
+        // When / Then
+        assertFalse(session.hasHumanInPlay());
+    }
+
+    @Test
+    void hasHumanInPlay_onlyBotsSeated_isFalse() {
+        // Given
+        GameSession session = GameSession.builder().sessionId("S").ownerId(OWNER).build();
+        session.addBot(BotType.BEGINNER);
+        session.addBot(BotType.BEGINNER);
+
+        // When / Then
+        assertFalse(session.hasHumanInPlay());
     }
 }

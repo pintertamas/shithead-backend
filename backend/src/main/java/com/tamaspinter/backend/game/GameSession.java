@@ -825,12 +825,20 @@ public class GameSession {
     }
 
     /**
+     * True while a human who is not out still has a seat in the game. Bot turns are client-paced only then; once
+     * no human is left in play, the remaining bot turns run in the invocation that made the last human move.
+     */
+    public boolean hasHumanInPlay() {
+        return players.stream().anyMatch(player -> !player.isOut() && !player.isBot());
+    }
+
+    /**
      * Ends a game that can no longer progress on its own: only bots are left and they hit the move cap of one
      * invocation. The still-active player holding the most cards becomes the shithead. Does nothing while
      * a human is still playing or the game is over.
      */
     public void finishStalledBotGame() {
-        if (finished || players.stream().anyMatch(player -> !player.isOut() && !player.isBot())) {
+        if (finished || hasHumanInPlay()) {
             return;
         }
         players.stream()
