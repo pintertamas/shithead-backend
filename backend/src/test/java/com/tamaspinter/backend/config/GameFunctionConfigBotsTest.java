@@ -296,46 +296,91 @@ class GameFunctionConfigBotsTest {
     }
 
     @Test
-    void updateElo_botIsShithead_skipsEverythingAndTouchesNoProfile() {
+    void updateElo_botIsShithead_humansGainAndBotTypeLoses() {
         // Given: a finished game where the bot lost
         GameSession session = finishedGame(BOT);
+        stubRatings(1000, 1000, 1000);
+
+        // When
+        Map<String, EloChangeEntity> changes = config.updateElo(session);
+
+        // Then: both humans gain, the bot seat shows its type's loss, and the type row is written once
+        assertEquals(3, changes.size());
+        assertTrue(changes.get(OWNER).getAfter() > changes.get(OWNER).getBefore());
+        assertTrue(changes.get(HUMAN).getAfter() > changes.get(HUMAN).getBefore());
+        assertTrue(changes.get(BOT).getAfter() < changes.get(BOT).getBefore());
+        verify(userRepo).updateBotTypeRating(
+                org.mockito.ArgumentMatchers.eq(BotType.BEGINNER),
+                org.mockito.ArgumentMatchers.eq(1000.0),
+                org.mockito.ArgumentMatchers.eq(changes.get(BOT).getAfter()));
+    }
+
+    @Test
+    void updateElo_humanIsShithead_botTypeWinsAndSeatShowsTypeRating() {
+        // Given: a finished game where the owner lost, with a bot at the table
+        GameSession session = finishedGame(OWNER);
+        stubRatings(1000, 1000, 1100);
 
         // When
         Map<String, EloChangeEntity> changes = config.updateElo(session);
 
         // Then
-        assertTrue(changes.isEmpty());
+        assertEquals(3, changes.size());
+        assertTrue(changes.get(OWNER).getAfter() < changes.get(OWNER).getBefore());
+        assertTrue(changes.get(HUMAN).getAfter() > changes.get(HUMAN).getBefore());
+        assertEquals(1100.0, changes.get(BOT).getBefore(), 0.001);
+        assertTrue(changes.get(BOT).getAfter() > 1100.0);
+    }
+
+    @Test
+    void updateElo_onlyBots_changesNothing() {
+        // Given: a game with bots only
+        GameSession session = GameSession.builder().sessionId(SESSION_ID).ownerId(OWNER).build();
+        session.getPlayers().add(Player.builder().playerId("b1").username("b1").botType(BotType.BEGINNER).build());
+        session.getPlayers().add(Player.builder().playerId("b2").username("b2").botType(BotType.INTERMEDIATE).build());
+        session.setFinished(true);
+        session.setShitheadId("b1");
+
+        // When / Then
+        assertTrue(config.updateElo(session).isEmpty());
         verifyNoInteractions(userRepo);
     }
 
     @Test
-    void updateElo_humanIsShithead_ratesOnlyHumans() {
-        // Given: a finished game where the owner lost, with a bot at the table
+    void updateElo_ratingRaceOnTheBotType_recomputesBeforeWritingAnyHuman() {
+        // Given: the first conditional write loses a race, the second wins
         GameSession session = finishedGame(OWNER);
-        when(userRepo.batchGet(anyList())).thenReturn(List.of(profile(OWNER), profile(HUMAN)));
-        when(userRepo.get(OWNER)).thenReturn(profile(OWNER));
-        when(userRepo.get(HUMAN)).thenReturn(profile(HUMAN));
+        stubRatings(1000, 1000, 1000);
+        when(userRepo.updateBotTypeRating(any(), org.mockito.ArgumentMatchers.anyDouble(),
+                org.mockito.ArgumentMatchers.anyDouble())).thenReturn(false, true);
 
         // When
         Map<String, EloChangeEntity> changes = config.updateElo(session);
 
-        // Then
-        assertEquals(2, changes.size());
-        assertTrue(changes.keySet().containsAll(List.of(OWNER, HUMAN)));
-        assertNull(changes.get(BOT));
-        assertTrue(changes.get(OWNER).getAfter() < changes.get(OWNER).getBefore());
-        assertTrue(changes.get(HUMAN).getAfter() > changes.get(HUMAN).getBefore());
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<String>> ids = ArgumentCaptor.forClass(List.class);
-        verify(userRepo).batchGet(ids.capture());
-        assertEquals(List.of(OWNER, HUMAN), ids.getValue());
+        // Then: humans are saved once, after the successful type write
+        assertEquals(3, changes.size());
+        verify(userRepo, org.mockito.Mockito.times(2)).getOrCreateBotType(BotType.BEGINNER);
+        verify(userRepo, org.mockito.Mockito.times(2)).save(any());
     }
 
     @Test
-    void leaderboardSession_botSeat_isShownUnderItsSeatNameWithoutProfileLookup() throws JsonProcessingException {
-        // Given: the owner and a bot
+    void updateElo_ratingRaceKeepsLosing_givesUpWithoutTouchingHumans() {
+        GameSession session = finishedGame(OWNER);
+        stubRatings(1000, 1000, 1000);
+        when(userRepo.updateBotTypeRating(any(), org.mockito.ArgumentMatchers.anyDouble(),
+                org.mockito.ArgumentMatchers.anyDouble())).thenReturn(false);
+
+        assertTrue(config.updateElo(session).isEmpty());
+        verify(userRepo, never()).save(any());
+    }
+
+    @Test
+    void leaderboardSession_botSeat_isShownUnderItsSeatNameWithItsTypeRating() throws JsonProcessingException {
+        // Given: the owner and a bot whose type is rated 1234
         when(sessionRepo.get(SESSION_ID)).thenReturn(lobbyWithBot());
-        when(userRepo.batchGet(List.of(OWNER))).thenReturn(List.of(profile(OWNER)));
+        UserProfile typeRow = UserProfile.builder().userId("bot-type-BEGINNER").username("Beginner Bot")
+                .eloScore(1234).bot(true).games(7L).build();
+        when(userRepo.batchGet(anyList())).thenReturn(List.of(profile(OWNER), typeRow));
 
         // When
         JsonNode rows = mapper.readTree(config.leaderboardSession().apply(stateRequest(OWNER)).getBody());
@@ -343,7 +388,39 @@ class GameFunctionConfigBotsTest {
         // Then
         assertEquals(2, rows.size());
         assertEquals("Beginner Bot 1", rows.get(1).get("username").asText());
-        assertEquals(GameSession.DEFAULT_RATING, rows.get(1).get("eloScore").asDouble(), 0.001);
+        assertEquals(1234.0, rows.get(1).get("eloScore").asDouble(), 0.001);
+        assertTrue(rows.get(1).get("bot").asBoolean());
+        assertNull(rows.get(0).get("bot"));
+    }
+
+    @Test
+    void leaderboardTop_botTypeRow_isFlaggedAsBotWithGames() throws JsonProcessingException {
+        when(userRepo.topLeaderboard(20)).thenReturn(List.of(
+                UserProfile.builder().userId("bot-type-BEGINNER").username("Beginner Bot").eloScore(1010)
+                        .bot(true).games(3L).build(),
+                profile(OWNER)));
+
+        JsonNode rows = mapper.readTree(config.leaderboardTop().apply(new APIGatewayProxyRequestEvent()).getBody());
+
+        assertTrue(rows.get(0).get("bot").asBoolean());
+        assertEquals(3, rows.get(0).get("games").asInt());
+        assertNull(rows.get(1).get("bot"));
+        assertNull(rows.get(1).get("games"));
+    }
+
+    /** Stubs the profiles of the owner and the human and the BEGINNER type row with the given ratings. */
+    private void stubRatings(double owner, double human, double beginnerType) {
+        when(userRepo.batchGet(anyList())).thenReturn(List.of(ratedProfile(OWNER, owner), ratedProfile(HUMAN, human)));
+        when(userRepo.get(OWNER)).thenReturn(ratedProfile(OWNER, owner));
+        when(userRepo.get(HUMAN)).thenReturn(ratedProfile(HUMAN, human));
+        when(userRepo.getOrCreateBotType(BotType.BEGINNER)).thenReturn(UserProfile.builder()
+                .userId("bot-type-BEGINNER").username("Beginner Bot").eloScore(beginnerType).bot(true).build());
+        when(userRepo.updateBotTypeRating(any(), org.mockito.ArgumentMatchers.anyDouble(),
+                org.mockito.ArgumentMatchers.anyDouble())).thenReturn(true);
+    }
+
+    private static UserProfile ratedProfile(String userId, double rating) {
+        return UserProfile.builder().userId(userId).username(userId).eloScore(rating).build();
     }
 
     @Test
@@ -378,13 +455,14 @@ class GameFunctionConfigBotsTest {
         List<String> log = new ArrayList<>();
         GameFunctionConfig recording = recordingConfig(log, OWNER);
         recordSaves(log);
+        stubRatings(1000, 1000, 1000);
 
         // When
         GameSessionEntity updated = recording.saveAfterMove(stored, session, SESSION_ID, ENDPOINT, null);
 
-        // Then: the bot's move is saved and broadcast here (save, broadcast, then the final save); the game then ends
+        // Then: the bot's move is saved and broadcast here (save, broadcast, final save, then the Elo save: games a bot loses are rated now); the game then ends
         // with the bot as shithead
-        assertEquals(3, log.size());
+        assertEquals(4, log.size());
         assertTrue(log.get(1).startsWith("broadcast"));
         assertEquals(2, updated.getDiscardPile().size());
         assertTrue(updated.isFinished());

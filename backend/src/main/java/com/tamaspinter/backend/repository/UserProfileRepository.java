@@ -1,6 +1,8 @@
 package com.tamaspinter.backend.repository;
 
+import com.tamaspinter.backend.bot.BotType;
 import com.tamaspinter.backend.model.UserProfile;
+import com.tamaspinter.backend.service.EloService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
@@ -19,6 +21,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.ArrayList;
@@ -29,6 +32,8 @@ import java.util.Map;
 @Repository
 public class UserProfileRepository {
     public static final String LEADERBOARD_PARTITION = "global";
+    /** Rating a bot type starts with, like a new player. */
+    public static final double BOT_START_RATING = 1000.0;
     private final DynamoDbTable<UserProfile> table;
     private final DynamoDbEnhancedClient enhancedClient;
     private final UsernameReservationRepository usernameRepository;
@@ -80,6 +85,57 @@ public class UserProfileRepository {
         }
         try {
             dynamoClient.updateItem(request.build());
+            return true;
+        } catch (ConditionalCheckFailedException e) {
+            return false;
+        }
+    }
+
+    /**
+     * The rating row of a bot type, created on first use with {@link #BOT_START_RATING} (a conditional put, so
+     * concurrent games cannot overwrite each other's row).
+     */
+    public UserProfile getOrCreateBotType(BotType type) {
+        String id = EloService.botTypeId(type);
+        UserProfile row = get(id);
+        if (row != null) {
+            return row;
+        }
+        try {
+            dynamoClient.putItem(PutItemRequest.builder()
+                    .tableName(tableName)
+                    .item(Map.of(
+                            "user_id", AttributeValue.fromS(id),
+                            "username", AttributeValue.fromS(type.getDisplayName()),
+                            "leaderboard_pk", AttributeValue.fromS(LEADERBOARD_PARTITION),
+                            "elo_score", AttributeValue.fromN(Double.toString(BOT_START_RATING)),
+                            "bot", AttributeValue.fromBool(true),
+                            "games", AttributeValue.fromN("0")))
+                    .conditionExpression("attribute_not_exists(user_id)")
+                    .build());
+        } catch (ConditionalCheckFailedException ignored) {
+            // Another game created it first.
+        }
+        return get(id);
+    }
+
+    /**
+     * Sets a bot type's rating and counts the game, only if the stored rating is still {@code expected}.
+     *
+     * @return false when another game changed the rating meanwhile (the caller recomputes)
+     */
+    public boolean updateBotTypeRating(BotType type, double expected, double updated) {
+        try {
+            dynamoClient.updateItem(UpdateItemRequest.builder()
+                    .tableName(tableName)
+                    .key(Map.of("user_id", AttributeValue.fromS(EloService.botTypeId(type))))
+                    .updateExpression("SET elo_score = :new ADD games :one")
+                    .conditionExpression("elo_score = :old")
+                    .expressionAttributeValues(Map.of(
+                            ":new", AttributeValue.fromN(Double.toString(updated)),
+                            ":old", AttributeValue.fromN(Double.toString(expected)),
+                            ":one", AttributeValue.fromN("1")))
+                    .build());
             return true;
         } catch (ConditionalCheckFailedException e) {
             return false;
