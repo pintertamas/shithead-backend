@@ -3,6 +3,7 @@ import { Card } from "../api/game";
 import { CardFaceContent, cardRank, isRedSuit } from "./CardFace";
 import PeekWrap from "./PeekWrap";
 import "../styles/piles.css";
+import "../styles/pile-eight-offset.css";
 
 const MAX_DRAW_LAYERS = 6;
 

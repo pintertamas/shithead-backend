@@ -9,8 +9,8 @@
 
 /* Both piles get the same width: the wider of the card area and the title ("Discard pile" at 11px), plus the
    side padding (and the 1px border on each side). The width does not depend on the title or on the cards, so
-   the draw and discard piles match at every card size. Height is the same too, except with a transparent card
-   on top (its overlap is taller, see .pile-overlap). */
+   the draw and discard piles match at every card size. The height is the same with a transparent card on top
+   (it is drawn beside the card beneath, see pile-eight-offset.css). */
 .game-board .game-piles .pile.pile-box {
   --pile-title-w: 66px;
   --pile-pad-x: 10px;
@@ -87,7 +87,7 @@
   height: var(--card-h);
 }
 
-/* Discard pile with a transparent card on top: the body grows to show the card beneath. */
+/* Discard pile with a transparent card on top: the pair is laid out in pile-eight-offset.css. */
 .game-board .game-piles .pile-box .pile-overlap {
   margin: 0 auto;
 }
