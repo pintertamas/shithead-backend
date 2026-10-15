@@ -1,12 +1,14 @@
 import { CSSProperties, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { PlayerState } from "../api/game";
+import { Card, PlayerState } from "../api/game";
 import ChatBubble from "./ChatBubble";
 import SeatTableView from "./SeatTableView";
+import { CardFaceContent, isRedSuit } from "./CardFace";
 import "../styles/overlays.css";
 import "../styles/table-mobile.css";
 import "../styles/seat-indicators.css";
 import "../styles/voice-speaking.css";
+import "../styles/seat-chip-deck.css";
 
 /** Phones only: other players who are not the neighbours of the viewer are shown as small chips. */
 type ChipProps = {
@@ -19,16 +21,67 @@ type ChipProps = {
   onOpen: (playerId: string) => void;
 };
 
-const CHIP_FAN_LIMIT = 3;
+/** Mini cards drawn per group. Larger groups are still counted in the aria-label, just not drawn in full. */
+const MINI_STACK_LIMIT = 3;
+
+/** Which group the player can play from now: hand first, then face-up, then face-down (the server's source order). */
+type PlayGroup = "hand" | "faceUp" | "faceDown";
+
+function playGroup(player: PlayerState): PlayGroup | null {
+  if (player.handCount > 0) return "hand";
+  if (player.faceUp.length > 0) return "faceUp";
+  if (player.faceDownCount > 0) return "faceDown";
+  return null;
+}
+
+const GROUP_WORDS: Record<PlayGroup, string> = { hand: "hand", faceUp: "face-up cards", faceDown: "face-down cards" };
+
+/** The screen reader's summary of the chip. Counts are words here only: the chip itself shows cards, not numbers. */
+function chipLabel(player: PlayerState, group: PlayGroup | null, isCurrentTurn: boolean, isNext: boolean, speaking: boolean): string {
+  const parts: string[] = [];
+  if (group === null) {
+    parts.push("out of cards");
+  } else {
+    parts.push(player.handCount > 0 ? `${player.handCount} in hand` : "no cards in hand");
+    if (player.faceUp.length > 0) parts.push(`${player.faceUp.length} face-up`);
+    if (player.faceDownCount > 0) parts.push(`${player.faceDownCount} face-down`);
+    parts.push(`can play from ${GROUP_WORDS[group]}`);
+  }
+  if (isCurrentTurn) parts.push("current turn");
+  if (isNext) parts.push("plays next");
+  if (speaking) parts.push("speaking");
+  return `${player.username}: ${parts.join(", ")}. Show cards`;
+}
+
+function MiniBacks({ count, className }: { count: number; className: string }) {
+  return (
+    <>
+      {Array.from({ length: Math.min(MINI_STACK_LIMIT, count) }, (_, index) => (
+        <span key={index} className={`seat-chip-mini-back ${className}`} style={{ "--chip-i": index } as CSSProperties} />
+      ))}
+    </>
+  );
+}
+
+function MiniFace({ card }: { card: Card }) {
+  return (
+    <span className={`playing-card seat-chip-mini-face${isRedSuit(card.suit) ? " red-card" : ""}`}>
+      <CardFaceContent card={card} />
+    </span>
+  );
+}
 
 export function SeatChip({ player, isCurrentTurn, isNext, speaking = false, chatBubble, onOpen }: ChipProps) {
-  const backs = Math.min(CHIP_FAN_LIMIT, player.handCount);
-  const out = player.handCount === 0 && player.faceDownCount === 0 && player.faceUp.length === 0;
+  const group = playGroup(player);
+  const out = group === null;
+  /** Groups other than the playable one are dimmed; nothing is dimmed when the player is out. */
+  const dim = (target: PlayGroup) => (group !== null && group !== target ? " is-dim" : "");
   const classes = ["seat-chip-wrap"];
   if (isCurrentTurn) classes.push("seat-chip-playing");
   if (isNext) classes.push("seat-next");
   if (out) classes.push("seat-chip-out");
   if (speaking) classes.push("seat-speaking");
+  const faceUpShown = player.faceUp.slice(-MINI_STACK_LIMIT);
   return (
     <div className={classes.join(" ")} data-seat-id={player.playerId}>
       {chatBubble && <ChatBubble key={chatBubble.ts} text={chatBubble.text} />}
@@ -36,18 +89,31 @@ export function SeatChip({ player, isCurrentTurn, isNext, speaking = false, chat
         type="button"
         className="seat-chip"
         onClick={() => onOpen(player.playerId)}
-        aria-label={`${player.username}: ${player.handCount} in hand, ${player.faceDownCount} face-down, ${player.faceUp.length} face-up${isCurrentTurn ? ", current turn" : ""}${isNext ? ", plays next" : ""}${speaking ? ", speaking" : ""}. Show cards`}
+        aria-label={chipLabel(player, group, isCurrentTurn, isNext, speaking)}
       >
-        <span className="seat-chip-name">
+        <span className="seat-chip-name" aria-hidden="true">
           {player.username}
         </span>
-        <span className="seat-chip-line">
-          <span className="seat-chip-fan" aria-hidden="true">
-            {Array.from({ length: backs }, (_, index) => (
-              <span key={index} className="seat-chip-back" style={{ "--chip-i": index } as CSSProperties} />
-            ))}
+        <span className="seat-chip-deck" aria-hidden="true">
+          <span className={`seat-chip-hand${dim("hand")}`}>
+            {player.handCount > 0
+              ? <MiniBacks count={player.handCount} className="seat-chip-mini-back-hand" />
+              : <span className="seat-chip-hand-empty" />}
           </span>
-          <span className="seat-chip-counts">{player.handCount}·{player.faceDownCount}</span>
+          <span className="seat-chip-table">
+            {player.faceDownCount > 0 && (
+              <span className={`seat-chip-down${dim("faceDown")}`}>
+                <MiniBacks count={player.faceDownCount} className="seat-chip-mini-back-down" />
+              </span>
+            )}
+            {faceUpShown.map((card, index) => (
+              <span key={`${card.suit}-${card.value}-${index}`} className={`seat-chip-up${dim("faceUp")}`}
+                style={{ "--chip-i": index } as CSSProperties}>
+                <MiniFace card={card} />
+              </span>
+            ))}
+            {out && <span className="seat-chip-out-mark">Out</span>}
+          </span>
         </span>
       </button>
     </div>
