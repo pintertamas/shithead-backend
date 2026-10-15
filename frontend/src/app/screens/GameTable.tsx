@@ -8,6 +8,7 @@ import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { lastEventSeq, playTableTransitions } from "../lib/tableAnimations";
 import { useSwapFlights } from "../lib/swapFlight";
+import { useBotDriver } from "../lib/useBotDriver";
 import { CardFaceContent, isRedSuit } from "../components/CardFace";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
@@ -247,6 +248,8 @@ export default function GameTable() {
       setSelection((current) => reconcileSelection(previous, next, current, pending));
     });
   }, [captureSwapStart]);
+  // Plays the bots' moves while a human is still in the game (client-paced; see lib/useBotDriver.ts).
+  useBotDriver(sessionId, token, state, applyState);
 
   const toggleCard = useCallback((source: CardSelection["source"], index: number) => {
     setSelection((prev) => nextSelection(prev, { source, index }, { hand: you?.hand, faceUp: you?.faceUp }, setupStage ? "setup" : "play"));

@@ -151,6 +151,19 @@ export async function removeBot(token: string, sessionId: string, botId: string)
   await throwForError(res, "remove the bot");
 }
 
+/**
+ * Asks the server to play one bot move. The server plays it only when that bot is still to move and the newest
+ * event is still `expectedMoves`; otherwise it answers with the unchanged state, so repeated calls are harmless.
+ */
+export async function playBotTurn(token: string, sessionId: string, expectedPlayerId: string, expectedMoves: number) {
+  const res = await apiFetch(`/games/${sessionId}/bot-turn`, token, {
+    method: "POST",
+    body: JSON.stringify({ expectedPlayerId, expectedMoves })
+  });
+  await throwForError(res, "play the bot's turn");
+  return res.json() as Promise<GameStateView>;
+}
+
 export async function fetchState(token: string, sessionId: string) {
   const res = await apiFetch(`/state/${sessionId}`, token, { method: "GET" });
   await throwForError(res, "load game state");
