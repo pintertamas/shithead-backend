@@ -30,7 +30,7 @@ import com.tamaspinter.backend.model.websocket.PlayMessage;
 import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
 import com.tamaspinter.backend.service.BlockedUserGuard;
-import com.tamaspinter.backend.service.EloService;
+import com.tamaspinter.backend.service.GameEloService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -643,25 +643,12 @@ public class GameFunctionConfig {
             if (entity == null) {
                 return corsResponse(404);
             }
+            Map<String, UserProfile> profiles = entity.getPlayers() == null
+                    ? new HashMap<>()
+                    : new GameEloService(userRepo).sessionProfiles(entity.getPlayers());
             List<String> playerIds = entity.getPlayers() == null
                     ? List.of()
-                    : entity.getPlayers().stream().map(PlayerEntity::getPlayerId)
-                            .collect(Collectors.toList());
-            List<String> humanIds = entity.getPlayers() == null
-                    ? List.of()
-                    : entity.getPlayers().stream().filter(player -> player.getBotType() == null)
-                            .map(PlayerEntity::getPlayerId).collect(Collectors.toList());
-            Map<String, UserProfile> profiles = new HashMap<>();
-            userRepo.batchGet(humanIds).forEach(profile -> profiles.put(profile.getUserId(), profile));
-            // Bots have no profile; show them under their seat name with the default rating.
-            if (entity.getPlayers() != null) {
-                entity.getPlayers().stream().filter(player -> player.getBotType() != null)
-                        .forEach(bot -> profiles.put(bot.getPlayerId(), UserProfile.builder()
-                                .userId(bot.getPlayerId())
-                                .username(bot.getUsername())
-                                .eloScore(GameSession.DEFAULT_RATING)
-                                .build()));
-            }
+                    : entity.getPlayers().stream().map(PlayerEntity::getPlayerId).collect(Collectors.toList());
             List<LeaderboardEntry> entries = sessionEntries(
                     playerIds, profiles, entity.getEloChanges(), entity.isFinished(), entity.getShitheadId());
             try {
@@ -696,6 +683,7 @@ public class GameFunctionConfig {
                             .eloBefore(change == null ? null : change.getBefore())
                             .eloAfter(change == null ? null : change.getAfter())
                             .shithead(finished && shitheadId != null && shitheadId.equals(playerId))
+                            .bot(Boolean.TRUE.equals(profile.getBot()) ? Boolean.TRUE : null)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -720,6 +708,8 @@ public class GameFunctionConfig {
                             .userId(profile.getUserId())
                             .username(profile.getUsername())
                             .eloScore(profile.getEloScore())
+                            .bot(Boolean.TRUE.equals(profile.getBot()) ? Boolean.TRUE : null)
+                            .games(profile.getGames())
                             .build())
                     .collect(Collectors.toList());
             try {
@@ -799,53 +789,12 @@ public class GameFunctionConfig {
     }
 
     /**
-     * Applies the Elo update for a finished game and returns each player's before/after rating. Returns an empty
-     * map when nothing was updated (fewer than two profiles, or a DynamoDB failure); the caller then leaves
-     * {@code eloUpdated} unset so the update can be retried.
+     * Applies the Elo update for a finished game (see {@link GameEloService#update}) and returns each seat's
+     * before/after rating, or an empty map when nothing was updated so {@code eloUpdated} stays unset and it retries.
      */
     // package-private for tests
     Map<String, EloChangeEntity> updateElo(GameSession session) {
-        String shitheadId = session.getShitheadId();
-        // Bots have no rating. Only humans are rated, and only when a human lost: a bot shithead would let every
-        // human gain without anyone losing.
-        List<Player> humans = session.getPlayers().stream().filter(player -> !player.isBot()).toList();
-        if (humans.stream().noneMatch(player -> player.getPlayerId().equals(shitheadId))) {
-            log.info("Skipping Elo update for session {} because no human lost", session.getSessionId());
-            return Map.of();
-        }
-        Map<String, Double> results = new HashMap<>();
-        for (var player : humans) {
-            results.put(player.getPlayerId(), player.getPlayerId().equals(shitheadId) ? 0.0 : 1.0);
-        }
-        List<String> playerIds = humans.stream()
-                .map(Player::getPlayerId)
-                .collect(Collectors.toList());
-        try {
-            List<UserProfile> profiles = userRepo.batchGet(playerIds);
-            Map<String, Double> current = profiles.stream()
-                    .collect(Collectors.toMap(UserProfile::getUserId, UserProfile::getEloScore));
-            if (current.size() < 2) {
-                log.warn("Skipping Elo update for session {} because fewer than two profiles exist", session.getSessionId());
-                return Map.of();
-            }
-            Map<String, EloService.EloChange> changes = EloService.calculateChanges(current, results);
-            changes.forEach((id, change) -> {
-                UserProfile userProfile = userRepo.get(id);
-                if (userProfile != null) {
-                    userProfile.setEloScore(change.after());
-                    userRepo.save(userProfile);
-                }
-            });
-            Map<String, EloChangeEntity> recorded = new HashMap<>();
-            changes.forEach((id, change) -> recorded.put(id, EloChangeEntity.builder()
-                    .before(change.before())
-                    .after(change.after())
-                    .build()));
-            return recorded;
-        } catch (SdkException e) {
-            log.error("Elo update failed for session {}", session.getSessionId(), e);
-            return Map.of();
-        }
+        return new GameEloService(userRepo).update(session);
     }
 
     private void broadcastState(String gameSessionId, GameSessionEntity state, String endpoint) {

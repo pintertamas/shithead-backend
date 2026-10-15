@@ -33,6 +33,16 @@ public class UserProfile {
     private String leaderboardPk;
     @Getter(AccessLevel.NONE)
     private Boolean blocked;
+    /**
+     * True only on a bot type's rating row (id {@code bot-type-<TYPE>}); null on every user row.
+     */
+    @Getter(AccessLevel.NONE)
+    private Boolean bot;
+    /**
+     * Games counted into a bot type's rating; null on user rows.
+     */
+    @Getter(AccessLevel.NONE)
+    private Long games;
 
     @DynamoDbPartitionKey
     @DynamoDbAttribute("user_id")
@@ -61,6 +71,16 @@ public class UserProfile {
         return blocked;
     }
 
+    @DynamoDbAttribute("bot")
+    public Boolean getBot() {
+        return bot;
+    }
+
+    @DynamoDbAttribute("games")
+    public Long getGames() {
+        return games;
+    }
+
     /**
      * Returns a copy without the block flag, so a full-item save can never overwrite it.
      * Used together with an UpdateItem that ignores null attributes.
@@ -73,6 +93,8 @@ public class UserProfile {
                 .avatarUrl(avatarUrl)
                 .eloScore(eloScore)
                 .leaderboardPk(leaderboardPk)
+                .bot(bot)
+                .games(games)
                 .build();
     }
 }

@@ -60,6 +60,18 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void botTypeRows_areHiddenFromTheListAndCannotBeBlocked() {
+        when(userRepo.scanAll()).thenReturn(List.of(
+                profile("bot-type-BEGINNER", "Beginner Bot", 1000, null),
+                profile("u-alice", "Alice", 1000, null)));
+
+        assertEquals(1, service.listUsers().size());
+        assertEquals(AdminUserService.BlockOutcome.NOT_FOUND,
+                service.setBlocked(ADMIN, "bot-type-BEGINNER", true).outcome());
+        verify(userRepo, never()).setBlocked(anyString(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
     void listUsers_excludesVoiceBookkeepingRows() {
         // Given
         UserProfile alice = profile("u-alice", "Alice", 1000, null);
