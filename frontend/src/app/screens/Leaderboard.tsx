@@ -11,6 +11,7 @@ import { useGlobalLeaderboardQuery, useSessionLeaderboardQuery } from "../data/q
 import "../styles/leaderboard.css";
 import "../styles/rankings.css";
 import "../styles/elo-change.css";
+import "../styles/leaderboard-bots.css";
 
 /** Players shown per page of the leaderboard, on every screen size. */
 const PAGE_SIZE = 10;
@@ -232,6 +233,13 @@ export default function Leaderboard() {
                               <td><span className={`lobby-rank${rank <= 3 ? ` top-${rank}` : ""}`}>{rank}</span></td>
                               <td>
                                 {entry.username}
+                                {entry.bot && (
+                                  <>
+                                    {" "}
+                                    <span className="badge badge-bot rankings-bot-badge">Bot</span>
+                                    {entry.games != null && <span className="rankings-bot-games">{entry.games} games</span>}
+                                  </>
+                                )}
                                 {tab === "Session" && lostGame(entry) && (
                                   <>
                                     {" "}

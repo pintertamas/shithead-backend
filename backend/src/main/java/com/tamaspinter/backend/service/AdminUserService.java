@@ -51,6 +51,9 @@ public class AdminUserService {
     }
 
     public BlockResult setBlocked(String adminId, String targetId, boolean blocked) {
+        if (EloService.isBotTypeId(targetId)) {
+            return BlockResult.of(BlockOutcome.NOT_FOUND);
+        }
         if (blocked && adminId.equals(targetId)) {
             return BlockResult.of(BlockOutcome.SELF_BLOCK_REFUSED);
         }
@@ -84,7 +87,8 @@ public class AdminUserService {
     /** Profiles only: skips username claim rows and voice bookkeeping rows (usage, open markers). */
     private static boolean isUserRow(UserProfile profile) {
         String userId = profile.getUserId();
-        return userId != null && !userId.startsWith(CLAIM_ROW_PREFIX) && !userId.startsWith(VOICE_ROW_PREFIX);
+        return userId != null && !userId.startsWith(CLAIM_ROW_PREFIX) && !userId.startsWith(VOICE_ROW_PREFIX)
+                && !EloService.isBotTypeId(userId);
     }
 
     private static AdminUserView toView(UserProfile profile) {

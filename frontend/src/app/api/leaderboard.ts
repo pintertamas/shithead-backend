@@ -9,6 +9,10 @@ export type LeaderboardEntry = {
   eloBefore?: number | null;
   /** Rating after the session's game, present together with eloBefore. */
   eloAfter?: number | null;
+  /** True for a bot type's rating row (global) or a bot seat (session); omitted for humans. */
+  bot?: boolean;
+  /** Games a bot type's rating is based on; only on bot type rows of the global leaderboard. */
+  games?: number;
 };
 
 export async function fetchSessionLeaderboard(token: string, sessionId: string) {
