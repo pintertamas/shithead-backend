@@ -65,7 +65,7 @@ function MiniBacks({ count, className }: { count: number; className: string }) {
 
 function MiniFace({ card }: { card: Card }) {
   return (
-    <span className={`playing-card seat-chip-mini-face${isRedSuit(card.suit) ? " red-card" : ""}`}>
+    <span className={`playing-card seat-chip-mini-face${isRedSuit(card.suit) ? " red-card" : ""}${card.value === 10 ? " ten-card" : ""}`}>
       <CardFaceContent card={card} />
     </span>
   );

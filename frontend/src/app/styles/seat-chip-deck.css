@@ -17,7 +17,7 @@
   --mini-w: 16px;
   --mini-h: 22px;
   --mini-step: 3px;
-  --mini-up-step: 7px;
+  --mini-up-step: 8px;
   flex: 0 0 var(--chip-w);
   width: var(--chip-w);
   min-width: var(--chip-w);
@@ -137,6 +137,12 @@
   line-height: 0.95;
 }
 
+/* The "10" index has two digits, so it is set a little smaller and tighter to stay clear of the card on top of it. */
+.game-page.phone-table .phone-chips .seat-chip-mini-face.ten-card .playing-card-corner {
+  font-size: calc(var(--mini-w) * 0.34);
+  letter-spacing: -0.08em;
+}
+
 /* Only the corner index is drawn on a mini card: the opposite corner and the centre pip would be unreadable. */
 .game-page.phone-table .phone-chips .seat-chip-mini-face .playing-card-corner-opposite,
 .game-page.phone-table .phone-chips .seat-chip-mini-face .playing-card-center {
@@ -173,7 +179,7 @@
   .game-page.phone-table .phone-chips .seat-chip-wrap {
     --mini-w: 13px;
     --mini-h: 18px;
-    --mini-up-step: 6px;
+    --mini-up-step: 7px;
   }
 
   .game-page.phone-table .phone-chips .seat-chip-wrap .seat-chip {
