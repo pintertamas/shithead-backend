@@ -26,6 +26,7 @@ import java.util.function.Function;
  * Path templates use {@code {name}} segments; they are matched against the end of the request path.
  */
 @Component
+@SuppressWarnings("PMD.NcssCount")
 public class ApiRoutes {
 
     private final List<RestRoute> restRoutes = new ArrayList<>();
@@ -50,6 +51,7 @@ public class ApiRoutes {
         rest("POST", "/games/{sessionId}/voice-token", voice.voiceToken());
         rest("POST", "/games/{sessionId}/decks", game.raiseDecks());
         rest("POST", "/games/{sessionId}/bots", game.manageBots());
+        rest("POST", "/games/{sessionId}/rematch", game.rematch());
         rest("POST", "/games/{sessionId}/bot-turn", game.botTurn());
 
         websocket("play", game.playCardWS());

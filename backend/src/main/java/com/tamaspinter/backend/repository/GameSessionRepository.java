@@ -4,11 +4,15 @@ import com.tamaspinter.backend.entity.GameSessionEntity;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbIndex;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.PutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -41,6 +45,32 @@ public class GameSessionRepository {
     public void save(GameSessionEntity session) {
         session.setUpdatedAt(Instant.now().getEpochSecond());
         table.putItem(session);
+    }
+
+    /**
+     * Points a finished game at its rematch lobby, only if the pointer still holds {@code expected}
+     * (null for "no pointer yet"), so two simultaneous callers cannot both win.
+     *
+     * @return true when this call set the pointer, false when another caller got there first
+     */
+    public boolean claimRematch(GameSessionEntity finished, String expected, String rematchSessionId) {
+        finished.setRematchSessionId(rematchSessionId);
+        finished.setUpdatedAt(Instant.now().getEpochSecond());
+        Expression condition = expected == null
+                ? Expression.builder().expression("attribute_not_exists(rematchSessionId)").build()
+                : Expression.builder()
+                        .expression("rematchSessionId = :expected")
+                        .putExpressionValue(":expected", AttributeValue.fromS(expected))
+                        .build();
+        try {
+            table.putItem(PutItemEnhancedRequest.builder(GameSessionEntity.class)
+                    .item(finished)
+                    .conditionExpression(condition)
+                    .build());
+            return true;
+        } catch (ConditionalCheckFailedException e) {
+            return false;
+        }
     }
 
     public GameSessionEntity get(String sessionId) {

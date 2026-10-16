@@ -35,6 +35,14 @@ public class GameSessionEntity {
     private boolean setupComplete = true;
     private boolean finished;
     private boolean eloUpdated;
+    /** Epoch millis at which the game finished. Null until finished and for games finished before this was recorded. */
+    private Long finishedAt;
+    /** Id of the rematch lobby created from this finished game; null while none exists. */
+    private String rematchSessionId;
+    /** Set on a rematch lobby: the id of the finished game it continues. Plain attribute, null otherwise. */
+    private String rematchOf;
+    /** True once the rematch lobby has been started (dealt). Best effort, set on this finished game's item. */
+    private boolean rematchStarted;
     /** Per-player rating change of the Elo update. Null for games finished before this was recorded. */
     private Map<String, EloChangeEntity> eloChanges;
     private String shitheadId;

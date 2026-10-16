@@ -28,6 +28,10 @@ public class SessionMapper {
                 .started(session.isStarted())
                 .setupComplete(session.isSetupComplete())
                 .finished(session.isFinished())
+                .finishedAt(session.getFinishedAt())
+                .rematchSessionId(session.getRematchSessionId())
+                .rematchOf(session.getRematchOf())
+                .rematchStarted(session.isRematchStarted())
                 .shitheadId(session.getShitheadId())
                 .ownerId(session.getOwnerId())
                 .currentPlayerId(session.getPlayers().isEmpty() ? null : session.getCurrentPlayerId())
@@ -57,6 +61,10 @@ public class SessionMapper {
         if (entity.isFinished()) {
             session.setFinished(true);
         }
+        session.setFinishedAt(entity.getFinishedAt());
+        session.setRematchSessionId(entity.getRematchSessionId());
+        session.setRematchOf(entity.getRematchOf());
+        session.setRematchStarted(entity.isRematchStarted());
         session.setShitheadId(entity.getShitheadId());
         session.getEvents().addAll(entitiesToEvents(entity.getEvents()));
         Deque<Card> discard = entitiesToCards(entity.getDiscardPile());
