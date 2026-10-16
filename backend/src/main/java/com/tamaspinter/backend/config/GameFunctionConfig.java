@@ -72,6 +72,8 @@ public class GameFunctionConfig {
     /** Deck count of a game that raised its deck, and the burn count the glue sets for two decks too. */
     private static final int TWO_DECKS = 2;
     private static final int TWO_DECKS_BURN_COUNT = 6;
+    private static final int ONE_DECK = 1;
+    private static final int ONE_DECK_BURN_COUNT = 4;
     private static final int REMATCH_ATTEMPTS = 3;
     private static final String REMATCH_STARTED_BODY = "{\"error\":\"Rematch already started\"}";
 
@@ -337,6 +339,8 @@ public class GameFunctionConfig {
     /**
      * Owner-only, before the start: raises a one-deck lobby to two decks so it can seat more players.
      * Body {@code {"decksCount": 2}}; the burn count becomes 6, as for any two-deck game.
+     * Body {@code {"decksCount": 1}} lowers a two-deck lobby back to one deck (burn count 4) when its players
+     * and bots still fit one deck.
      */
     @Bean
     @SuppressWarnings("PMD.CognitiveComplexity")
@@ -356,15 +360,19 @@ public class GameFunctionConfig {
             if (userId == null || !userId.equals(entity.getOwnerId())) {
                 return corsResponse(403);
             }
-            if (entity.isStarted()) {
+            if (entity.isStarted() || entity.isStarting()) {
                 return conflictResponse("Game already started");
             }
-            if (!isRaiseToTwoDecks(req.getBody())) {
+            int requested = requestedDecks(req.getBody());
+            if (requested != ONE_DECK && requested != TWO_DECKS) {
                 return corsResponse(400);
             }
             GameConfigEntity config = entity.getConfig() != null
                     ? entity.getConfig()
                     : GameConfig.defaultGameConfig().toEntity();
+            if (requested == ONE_DECK) {
+                return lowerToOneDeck(entity, config);
+            }
             if (config.getDecksCount() >= TWO_DECKS) {
                 return conflictResponse("This game already uses two decks");
             }
@@ -374,6 +382,27 @@ public class GameFunctionConfig {
             sessionRepo.save(entity);
             return corsResponse(200, "{\"decksCount\":" + TWO_DECKS + ",\"burnCount\":" + TWO_DECKS_BURN_COUNT + "}");
         };
+    }
+
+    private APIGatewayProxyResponseEvent lowerToOneDeck(GameSessionEntity entity, GameConfigEntity config) {
+        if (config.getDecksCount() < TWO_DECKS) {
+            return errorConflict("This game already uses one deck");
+        }
+        int seats = GameSession.seatCapacity(ONE_DECK, config.getFaceDownCount(), config.getFaceUpCount(),
+                config.getHandCount());
+        int players = entity.getPlayers() == null ? 0 : entity.getPlayers().size();
+        if (players > seats) {
+            return errorConflict("Too many players for one deck: one deck seats " + seats + " players.");
+        }
+        config.setDecksCount(ONE_DECK);
+        config.setBurnCount(ONE_DECK_BURN_COUNT);
+        entity.setConfig(config);
+        sessionRepo.save(entity);
+        return corsResponse(200, "{\"decksCount\":" + ONE_DECK + ",\"burnCount\":" + ONE_DECK_BURN_COUNT + "}");
+    }
+
+    private static APIGatewayProxyResponseEvent errorConflict(String message) {
+        return corsResponse(409, "{\"error\":\"" + message + "\"}");
     }
 
     /**
@@ -518,18 +547,18 @@ public class GameFunctionConfig {
     }
 
     /**
-     * True only for a body whose {@code decksCount} is the integer 2. Any other value, or no body, is false.
+     * The integer {@code decksCount} of the body, or 0 when the body is not JSON or the value is not an integer.
      */
-    private boolean isRaiseToTwoDecks(String body) {
+    private int requestedDecks(String body) {
         if (body == null) {
-            return false;
+            return 0;
         }
         try {
             JsonNode root = mapper.readTree(body);
             JsonNode requested = root == null ? null : root.get("decksCount");
-            return requested != null && requested.isInt() && requested.intValue() == TWO_DECKS;
+            return requested != null && requested.isInt() ? requested.intValue() : 0;
         } catch (JsonProcessingException e) {
-            return false;
+            return 0;
         }
     }
 

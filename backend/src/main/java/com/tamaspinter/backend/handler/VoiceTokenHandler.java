@@ -26,7 +26,8 @@ import java.util.Optional;
  * HTTP mapping for {@code POST /games/{sessionId}/voice-token}.
  *
  * <p>Answers 404 for an unknown game, 403 when the caller is not a player or voice is off for the game,
- * and 503 when the LiveKit settings are empty. Before a token is minted it reads this month's voice usage
+ * and 503 when the LiveKit settings are empty. A human of the just-finished predecessor of a rematch lobby
+ * counts as a guest player. Before a token is minted it reads this month's voice usage
  * (users item {@code __voice_usage#YYYY-MM}, UTC) and answers 503 once it reaches the free LiveKit allowance,
  * or when that usage cannot be read (fail closed). Otherwise returns {@code {url, token, room}}.
  */
@@ -37,6 +38,9 @@ public class VoiceTokenHandler {
     static final String NOT_CONFIGURED_BODY = "{\"message\":\"Voice chat is not configured\"}";
     static final String PAUSED_BODY = "{\"message\":\"Voice chat is paused until next month to stay within the free LiveKit allowance.\"}";
     static final String UNAVAILABLE_BODY = "{\"message\":\"Voice chat is unavailable right now.\"}";
+
+    /** Rematch window of 60 s on the results screen plus a 30 s grace. */
+    static final long REMATCH_GUEST_WINDOW_MS = 90_000L;
 
     private static final double MONTHLY_LIMIT_MINUTES = 5000;
     private static final String USAGE_KEY_PREFIX = "__voice_usage#";
@@ -80,8 +84,8 @@ public class VoiceTokenHandler {
         if (game == null) {
             return JsonResponses.text(404, "{\"message\":\"Game not found.\"}");
         }
-        Optional<PlayerEntity> player = findPlayer(game, userId);
-        if (player.isEmpty()) {
+        Optional<PlayerEntity> seat = findPlayer(game, userId).or(() -> rematchGuest(game, userId));
+        if (seat.isEmpty()) {
             return JsonResponses.text(403, "{\"message\":\"Only players in this game can join voice chat.\"}");
         }
         if (game.getConfig() == null || !game.getConfig().isVoiceEnabled()) {
@@ -91,7 +95,7 @@ public class VoiceTokenHandler {
         if (unavailable.isPresent()) {
             return unavailable.get();
         }
-        String token = tokens.createToken(sessionId, userId, player.get().getUsername());
+        String token = tokens.createToken(sessionId, userId, seat.get().getUsername());
         return JsonResponses.json(mapper, 200, Map.of(
                 "url", tokens.serverUrl(),
                 "token", token,
@@ -142,6 +146,29 @@ public class VoiceTokenHandler {
 
     private static String usageKey() {
         return USAGE_KEY_PREFIX + YearMonth.now(ZoneOffset.UTC);
+    }
+
+    /**
+     * The caller's seat in the finished predecessor of a rematch lobby, when they may join its voice room as a
+     * guest: the predecessor finished at most {@link #REMATCH_GUEST_WINDOW_MS} ago. Empty otherwise, and on any
+     * read error (fail closed).
+     */
+    private Optional<PlayerEntity> rematchGuest(GameSessionEntity game, String userId) {
+        String previousId = game.getRematchOf();
+        if (previousId == null || previousId.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            GameSessionEntity previous = sessionRepo.get(previousId);
+            if (previous == null || previous.getFinishedAt() == null
+                    || System.currentTimeMillis() > previous.getFinishedAt() + REMATCH_GUEST_WINDOW_MS) {
+                return Optional.empty();
+            }
+            return findPlayer(previous, userId).filter(seat -> seat.getBotType() == null);
+        } catch (SdkException | IllegalStateException e) {
+            log.warn("Could not read rematch predecessor {} for voice guest check", previousId, e);
+            return Optional.empty();
+        }
     }
 
     private static Optional<PlayerEntity> findPlayer(GameSessionEntity game, String userId) {

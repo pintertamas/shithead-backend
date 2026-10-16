@@ -160,8 +160,8 @@ class GameFunctionConfigTest {
         // Given: an unstarted one-deck lobby
         when(sessionRepo.get(SESSION_ID)).thenReturn(lobby(1, 2));
 
-        // When / Then: a deck count of one or three, a string, a missing value and a non-JSON body are refused
-        assertEquals(400, raiseDecks.apply(request(OWNER, "{\"decksCount\":1}")).getStatusCode());
+        // When / Then: a deck count of three, zero, a string, a missing value and a non-JSON body are refused
+        assertEquals(400, raiseDecks.apply(request(OWNER, "{\"decksCount\":0}")).getStatusCode());
         assertEquals(400, raiseDecks.apply(request(OWNER, "{\"decksCount\":3}")).getStatusCode());
         assertEquals(400, raiseDecks.apply(request(OWNER, "{\"decksCount\":\"2\"}")).getStatusCode());
         assertEquals(400, raiseDecks.apply(request(OWNER, "{}")).getStatusCode());
@@ -180,6 +180,64 @@ class GameFunctionConfigTest {
         // Then
         assertEquals(409, response.getStatusCode());
         assertEquals("{\"message\":\"This game already uses two decks\"}", response.getBody());
+        verify(sessionRepo, never()).save(any(GameSessionEntity.class));
+    }
+
+    @Test
+    void lowerDecks_ownerWithFivePlayers_setsOneDeckAndBurnCount() {
+        when(sessionRepo.get(SESSION_ID)).thenReturn(lobby(2, 5));
+
+        APIGatewayProxyResponseEvent response = raiseDecks.apply(request(OWNER, "{\"decksCount\":1}"));
+
+        assertEquals(200, response.getStatusCode());
+        assertEquals("{\"decksCount\":1,\"burnCount\":4}", response.getBody());
+        ArgumentCaptor<GameSessionEntity> saved = ArgumentCaptor.forClass(GameSessionEntity.class);
+        verify(sessionRepo).save(saved.capture());
+        assertEquals(1, saved.getValue().getConfig().getDecksCount());
+        assertEquals(4, saved.getValue().getConfig().getBurnCount());
+        assertEquals(5, saved.getValue().getPlayers().size());
+    }
+
+    @Test
+    void lowerDecks_sixPlayers_isConflictWithSeatsMessage() {
+        when(sessionRepo.get(SESSION_ID)).thenReturn(lobby(2, 6));
+
+        APIGatewayProxyResponseEvent response = raiseDecks.apply(request(OWNER, "{\"decksCount\":1}"));
+
+        assertEquals(409, response.getStatusCode());
+        assertEquals("{\"error\":\"Too many players for one deck: one deck seats 5 players.\"}", response.getBody());
+        verify(sessionRepo, never()).save(any(GameSessionEntity.class));
+    }
+
+    @Test
+    void lowerDecks_alreadyOneDeck_isConflict() {
+        when(sessionRepo.get(SESSION_ID)).thenReturn(lobby(1, 2));
+
+        APIGatewayProxyResponseEvent response = raiseDecks.apply(request(OWNER, "{\"decksCount\":1}"));
+
+        assertEquals(409, response.getStatusCode());
+        assertEquals("{\"error\":\"This game already uses one deck\"}", response.getBody());
+        verify(sessionRepo, never()).save(any(GameSessionEntity.class));
+    }
+
+    @Test
+    void lowerDecks_nonOwner_isForbidden() {
+        when(sessionRepo.get(SESSION_ID)).thenReturn(lobby(2, 2));
+
+        assertEquals(403, raiseDecks.apply(request(OTHER, "{\"decksCount\":1}")).getStatusCode());
+        verify(sessionRepo, never()).save(any(GameSessionEntity.class));
+    }
+
+    @Test
+    void lowerDecks_afterStartOrWhileStarting_isConflict() {
+        GameSessionEntity started = lobby(2, 2);
+        started.setStarted(true);
+        GameSessionEntity starting = lobby(2, 2);
+        starting.setStarting(true);
+        when(sessionRepo.get(SESSION_ID)).thenReturn(started, starting);
+
+        assertEquals(409, raiseDecks.apply(request(OWNER, "{\"decksCount\":1}")).getStatusCode());
+        assertEquals(409, raiseDecks.apply(request(OWNER, "{\"decksCount\":1}")).getStatusCode());
         verify(sessionRepo, never()).save(any(GameSessionEntity.class));
     }
 
