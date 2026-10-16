@@ -6,7 +6,7 @@ export type VoiceToken = {
   room: string;
 };
 
-/** Requests a LiveKit join token for the game. Only called when the player presses "Join voice". */
+/** Requests a LiveKit join token for a game's room (`sessionId` is the room's game id, e.g. a rematch game). */
 export async function fetchVoiceToken(token: string, sessionId: string): Promise<VoiceToken> {
   const response = await apiFetch(`/games/${encodeURIComponent(sessionId)}/voice-token`, token, { method: "POST" });
   await throwForError(response, "join voice chat");

@@ -45,9 +45,12 @@
 
 .results-note { margin: 0 0 14px; color: var(--ink-dim); }
 .results-error { margin: 0 0 12px; padding: 8px 12px; border: 1px solid rgba(255, 107, 107, 0.5); border-radius: 12px; background: rgba(255, 107, 107, 0.1); color: #ffb4b4; font-size: 14px; }
+.results-alert { margin: 0 0 12px; padding: 8px 12px; border: 1px solid rgba(229, 189, 112, 0.6); border-radius: 12px; background: rgba(229, 189, 112, 0.12); color: var(--accent); font-size: 14px; font-weight: 600; }
 
 .results-actions { display: grid; gap: 10px; }
 .results-actions .button { min-height: 44px; width: 100%; }
+/* Rematch already started: still visible and focusable, but clearly inactive. Clicks show the alert instead. */
+.results-actions .button[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .results-actions .button:focus-visible,
 .results-pill:focus-visible,
 .results-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

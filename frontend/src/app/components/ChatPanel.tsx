@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ChatMessage } from "../api/game";
 import { CHAT_MAX_LENGTH } from "../lib/sessionChat";
+import { useAuth } from "../auth/useAuth";
 import { useVoiceSession, VOICE_AFTER_GAME_MS } from "../lib/voice";
 import Icon from "./Icon";
 import VoicePanel from "./VoicePanel";
@@ -109,10 +110,13 @@ type Props = {
   finishedAt?: number | null;
   /** A rematch lobby was started without this player. */
   rematchStarted?: boolean;
+  /** Game id of the started rematch; a viewer still in voice is moved into its room. */
+  rematchSessionId?: string | null;
 };
 
 /** Session chat. Messages live in React state only, so a refresh clears them by design. */
-export default function ChatPanel({ messages, currentUserId, connected, onSend, voiceEnabled, sessionId, players, finished, finishedAt, rematchStarted }: Props) {
+export default function ChatPanel({ messages, currentUserId, connected, onSend, voiceEnabled, sessionId, players, finished, finishedAt, rematchStarted, rematchSessionId }: Props) {
+  const { token } = useAuth();
   const phone = useIsPhone();
   // Only the phone popup has an open state. The inline panel on wider screens is always shown.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -134,7 +138,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend, 
     const base = finishedAt == null || finishedAt > now ? now : finishedAt;
     return base + VOICE_AFTER_GAME_MS;
   }, [finished, finishedAt]);
-  const voice = useVoiceSession(voiceGameId, Boolean(finished), leaveAtMs, rematchStarted);
+  const voice = useVoiceSession(voiceGameId, Boolean(finished), leaveAtMs, rematchStarted, rematchSessionId, token);
   const voiceLive = voice.status === "connected" || voice.status === "connecting" || voice.status === "reconnecting";
   const voiceDot: VoiceDot | null = !voiceLive
     ? null

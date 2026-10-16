@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import { disconnectVoice, enableVoiceAudio, joinVoice, toggleVoiceMic, useVoiceSnapshot, VoiceStatus } from "../lib/voice";
 import Icon from "./Icon";
@@ -6,6 +6,31 @@ import "../styles/voice.css";
 
 const NOTICE_TEXT = "Audio runs through LiveKit. Nothing is recorded.";
 const FREE_ALLOWANCE_TEXT = "Voice uses the free monthly allowance while you are connected; leave when you are done.";
+
+const WARN_MS = 10_000;
+
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Live "Voice closes in M:SS" line. The visible text ticks every second; the spoken label changes every 10 s. */
+function VoiceCountdown({ endsAt }: { endsAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [endsAt]);
+  const left = Math.max(0, endsAt - now);
+  const spokenSeconds = Math.ceil(left / 10_000) * 10;
+  const spoken = `Voice closes in about ${spokenSeconds >= 60 ? `${Math.floor(spokenSeconds / 60)} minute${spokenSeconds >= 120 ? "s" : ""}${spokenSeconds % 60 ? ` ${spokenSeconds % 60} seconds` : ""}` : `${spokenSeconds} seconds`}`;
+  return (
+    <p className={`voice-notice voice-after-game voice-countdown${left <= WARN_MS ? " is-warning" : ""}`} role="timer" aria-label={spoken}>
+      <span aria-hidden="true">Voice closes in <span className="voice-countdown-time">{formatCountdown(left)}</span></span>
+    </p>
+  );
+}
 
 type Props = {
   sessionId: string;
@@ -17,7 +42,7 @@ type Props = {
 export default function VoicePanel({ sessionId, players, finished }: Props) {
   const { token } = useAuth();
   const voice = useVoiceSnapshot(sessionId);
-  const { status, joining, micOn, micBusy, speakers, localIdentity, participants, audioBlocked, notice } = voice;
+  const { status, joining, micOn, micBusy, speakers, localIdentity, participants, audioBlocked, notice, endsAt } = voice;
 
   const names = useMemo(() => new Map(players.map((player) => [player.playerId, player.username])), [players]);
 
@@ -65,7 +90,8 @@ export default function VoicePanel({ sessionId, players, finished }: Props) {
           <p className="voice-notice voice-allowance">{FREE_ALLOWANCE_TEXT}</p>
         </>
       )}
-      {finished && inCall && <p className="voice-notice voice-after-game">Voice stays open for a minute after the game.</p>}
+      {finished && inCall && endsAt !== null && <VoiceCountdown endsAt={endsAt} />}
+      {finished && inCall && endsAt === null && <p className="voice-notice voice-after-game">Voice stays open for a minute after the game.</p>}
       {audioBlocked && inCall && (
         <div className="voice-unlock">
           <p className="voice-error">Your browser blocked voice audio. Tap to hear the table.</p>

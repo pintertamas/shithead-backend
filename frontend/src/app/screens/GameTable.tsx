@@ -617,7 +617,7 @@ export default function GameTable() {
         {!phone && <GameFeed events={state.events} />}
         <ChatPanel messages={chatMessages} currentUserId={you.playerId} connected={socketOpen} onSend={sendChat}
           voiceEnabled={state.voiceEnabled === true} sessionId={state.sessionId} players={state.players} finished={state.finished}
-          finishedAt={state.finishedAt} rematchStarted={state.rematchStarted} />
+          finishedAt={state.finishedAt} rematchSessionId={state.rematchSessionId} rematchStarted={state.rematchStarted} />
       </div>
       </div>
 

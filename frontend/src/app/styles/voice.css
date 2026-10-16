@@ -209,3 +209,9 @@
     animation: none;
   }
 }
+
+.voice-countdown { color: var(--gold, #e6c36a); transition: color 0.3s ease; font-variant-numeric: tabular-nums; }
+.voice-countdown.is-warning { color: var(--danger); }
+@media (prefers-reduced-motion: reduce) {
+  .voice-countdown { transition: none; }
+}

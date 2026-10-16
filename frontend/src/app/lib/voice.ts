@@ -1,6 +1,7 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import type { Participant, RemoteParticipant, RemoteTrack, RemoteTrackPublication, Room } from "livekit-client";
 import { fetchVoiceToken } from "../api/voice";
+import type { VoiceToken } from "../api/voice";
 import { ApiError } from "../api/client";
 import { onAuthCleared } from "../auth/authStore";
 
@@ -32,6 +33,10 @@ export type VoiceSession = {
 export type VoiceSnapshot = {
   /** The game the state belongs to. Kept after leaving so a notice can still be shown on that screen. */
   sessionId: string | null;
+  /** The LiveKit room (a game id) actually joined. Differs from sessionId after switching into a rematch room. */
+  roomId: string | null;
+  /** Epoch ms when the post-game timer will end the call; null when no such timer is armed. */
+  endsAt: number | null;
   /** null when not in a call. */
   status: VoiceStatus | null;
   joining: boolean;
@@ -73,7 +78,6 @@ export const VOICE_CONNECTED_CAP_MS = 90 * 60 * 1000;
 
 const UNAVAILABLE_TEXT = "Voice chat is not available right now.";
 const FINISHED_TEXT = "Voice chat closed because the game has ended.";
-const REMATCH_WITHOUT_YOU_TEXT = "The rematch started without you, so voice chat closed.";
 const HIDDEN_TEXT = "Voice left because this tab was hidden for 5 minutes.";
 const ALONE_TEXT = "Left voice because nobody else was in it.";
 const CAP_TEXT = "Voice left after 90 minutes so the free allowance lasts.";
@@ -86,6 +90,8 @@ const MIC_OPTIONS = { echoCancellation: true, noiseSuppression: true, autoGainCo
 
 const IDLE: VoiceSnapshot = {
   sessionId: null,
+  roomId: null,
+  endsAt: null,
   status: null,
   joining: false,
   micOn: false,
@@ -101,6 +107,8 @@ let snapshot: VoiceSnapshot = IDLE;
 let session: VoiceSession | null = null;
 /** Incremented on every join and disconnect; stale async work compares against it and bails out. */
 let attempt = 0;
+/** True while switchVoiceRoom is running, so a second switch cannot start. */
+let switching = false;
 let hiddenTimer: number | null = null;
 let aloneTimer: number | null = null;
 let capTimer: number | null = null;
@@ -334,7 +342,10 @@ export async function disconnectVoice(notice: string | null = null): Promise<voi
   const current = session;
   session = null;
   if (current || snapshot.status !== null || snapshot.joining) console.info("[voice] left");
+  switching = false;
   setSnapshot({
+    roomId: null,
+    endsAt: null,
     status: null,
     joining: false,
     micOn: false,
@@ -366,18 +377,80 @@ function joinFailureText(cause: unknown): string {
   return "Couldn't connect to voice: unknown error. Please try again.";
 }
 
-/** Requests a token and connects. Only called from the "Join voice" button. */
-export async function joinVoice(sessionId: string, token: string, options: { startMuted?: boolean } = {}): Promise<void> {
+/** Fetches a token for roomId and connects; on success stores the session and arms the timers. Throws on failure. */
+async function establishConnection(
+  id: number,
+  roomId: string,
+  token: string,
+  startMuted: boolean,
+  prefetched?: VoiceToken
+): Promise<boolean> {
+  const voice = prefetched ?? (await fetchVoiceToken(token, roomId));
+  if (id !== attempt) return false;
+  console.info("[voice] token received, connecting to LiveKit");
+  const connection = await connectVoice(voice.url, voice.token, getAudioHost(), {
+    onStatus: (next) => {
+      if (id !== attempt) return;
+      console.info(`[voice] status: ${next}`);
+      setSnapshot({ status: next });
+    },
+    onSpeakers: (ids) => { if (id === attempt) setSnapshot({ speakers: ids }); },
+    onParticipants: (list) => {
+      if (id !== attempt) return;
+      console.info(`[voice] remote participants: ${list.length}`);
+      setSnapshot({ participants: list });
+      updateAloneTimer();
+    },
+    onAudioBlocked: (blocked) => {
+      if (id !== attempt || snapshot.audioBlocked === blocked) return;
+      console.info(`[voice] audio blocked: ${blocked}`);
+      setSnapshot({ audioBlocked: blocked });
+    }
+  }, startMuted);
+  if (id !== attempt) {
+    await connection.disconnect();
+    return false;
+  }
+  session = connection;
+  setSnapshot({
+    localIdentity: connection.identity,
+    micOn: connection.micEnabled,
+    status: "connected",
+    notice: connection.micError ? `${connection.micError} Others cannot hear you until it is on.` : null
+  });
+  console.info(`[voice] connected, microphone ${connection.micEnabled ? "on" : "off"}`);
+  clearCapTimer();
+  capTimer = window.setTimeout(() => {
+    capTimer = null;
+    console.info("[voice] auto-leave: connection cap reached");
+    void disconnectVoice(CAP_TEXT);
+  }, VOICE_CONNECTED_CAP_MS);
+  updateAloneTimer();
+  return true;
+}
+
+/**
+ * Requests a token and connects. Only called from the "Join voice" button. `roomId` is the LiveKit room (a game id)
+ * and defaults to sessionId, the screen the call belongs to.
+ */
+export async function joinVoice(
+  sessionId: string,
+  token: string,
+  options: { startMuted?: boolean; roomId?: string } = {}
+): Promise<void> {
   // Runs synchronously inside the click, before the first await.
   unlockAudioInGesture();
   if (snapshot.joining) return;
   if (session && snapshot.sessionId === sessionId) return;
   await disconnectVoice(null);
 
+  const roomId = options.roomId ?? sessionId;
   const id = ++attempt;
   console.info("[voice] joining");
   setSnapshot({
     sessionId,
+    roomId,
+    endsAt: null,
     joining: true,
     status: "connecting",
     notice: null,
@@ -389,47 +462,7 @@ export async function joinVoice(sessionId: string, token: string, options: { sta
     audioBlocked: false
   });
   try {
-    const voice = await fetchVoiceToken(token, sessionId);
-    if (id !== attempt) return;
-    console.info("[voice] token received, connecting to LiveKit");
-    const connection = await connectVoice(voice.url, voice.token, getAudioHost(), {
-      onStatus: (next) => {
-        if (id !== attempt) return;
-        console.info(`[voice] status: ${next}`);
-        setSnapshot({ status: next });
-      },
-      onSpeakers: (ids) => { if (id === attempt) setSnapshot({ speakers: ids }); },
-      onParticipants: (list) => {
-        if (id !== attempt) return;
-        console.info(`[voice] remote participants: ${list.length}`);
-        setSnapshot({ participants: list });
-        updateAloneTimer();
-      },
-      onAudioBlocked: (blocked) => {
-        if (id !== attempt || snapshot.audioBlocked === blocked) return;
-        console.info(`[voice] audio blocked: ${blocked}`);
-        setSnapshot({ audioBlocked: blocked });
-      }
-    }, Boolean(options.startMuted));
-    if (id !== attempt) {
-      await connection.disconnect();
-      return;
-    }
-    session = connection;
-    setSnapshot({
-      localIdentity: connection.identity,
-      micOn: connection.micEnabled,
-      status: "connected",
-      notice: connection.micError ? `${connection.micError} Others cannot hear you until it is on.` : null
-    });
-    console.info(`[voice] connected, microphone ${connection.micEnabled ? "on" : "off"}`);
-    clearCapTimer();
-    capTimer = window.setTimeout(() => {
-      capTimer = null;
-      console.info("[voice] auto-leave: connection cap reached");
-      void disconnectVoice(CAP_TEXT);
-    }, VOICE_CONNECTED_CAP_MS);
-    updateAloneTimer();
+    await establishConnection(id, roomId, token, Boolean(options.startMuted));
   } catch (cause) {
     if (id !== attempt) return;
     const notice = joinFailureText(cause);
@@ -438,6 +471,66 @@ export async function joinVoice(sessionId: string, token: string, options: { sta
   } finally {
     if (id === attempt) setSnapshot({ joining: false });
   }
+}
+
+/**
+ * Moves the running call for sessionId into another LiveKit room (the rematch room), keeping the mic state and the
+ * screen key. The token is fetched first, so if that fails the old call simply continues. Does nothing when not in a
+ * call for sessionId or already in roomId.
+ */
+export async function switchVoiceRoom(sessionId: string, roomId: string, token: string): Promise<void> {
+  if (switching || snapshot.joining || !session) return;
+  if (snapshot.sessionId !== sessionId || snapshot.roomId === roomId) return;
+  const startAttempt = attempt;
+  const micWasOn = snapshot.micOn;
+  switching = true;
+  try {
+    let voice;
+    try {
+      voice = await fetchVoiceToken(token, roomId);
+    } catch {
+      console.info("[voice] room switch skipped: token request failed");
+      return;
+    }
+    if (startAttempt !== attempt || !session || snapshot.sessionId !== sessionId) return;
+    console.info("[voice] switching room");
+    const old = session;
+    session = null;
+    const id = ++attempt;
+    clearAloneTimer();
+    setSnapshot({
+      roomId,
+      joining: true,
+      status: "connecting",
+      micOn: false,
+      micBusy: false,
+      speakers: [],
+      localIdentity: null,
+      participants: [],
+      audioBlocked: false
+    });
+    await old.disconnect();
+    if (id !== attempt) return;
+    try {
+      await establishConnection(id, roomId, token, !micWasOn, voice);
+    } catch (cause) {
+      if (id !== attempt) return;
+      const notice = joinFailureText(cause);
+      console.info(`[voice] room switch failed: ${notice}`);
+      setSnapshot({ status: null, roomId: null, endsAt: null, notice });
+    } finally {
+      if (id === attempt) setSnapshot({ joining: false });
+    }
+  } finally {
+    switching = false;
+  }
+}
+
+/** Shows (or clears, with null) the post-game countdown for the call of sessionId. */
+export function setVoiceEndsAt(sessionId: string, endsAt: number | null): void {
+  if (snapshot.sessionId !== sessionId || snapshot.endsAt === endsAt) return;
+  if (endsAt !== null && !session && !snapshot.joining) return;
+  setSnapshot({ endsAt });
 }
 
 export async function toggleVoiceMic(): Promise<void> {
@@ -454,7 +547,7 @@ export async function toggleVoiceMic(): Promise<void> {
   });
 }
 
-/** Ends the call for this game (finished, or the rematch started without the player). */
+/** Ends the call for this game (finished). */
 function endVoiceFor(sessionId: string, notice: string) {
   if (snapshot.sessionId !== sessionId) return;
   if (!session && !snapshot.joining && snapshot.status === null) return;
@@ -542,8 +635,14 @@ export function useVoiceSession(
   sessionId: string | undefined,
   finished: boolean,
   leaveAtMs?: number | null,
-  rematchStarted?: boolean
+  rematchStarted?: boolean,
+  rematchSessionId?: string | null,
+  token?: string | null
 ): VoiceSnapshot {
+  const voice = useVoiceSnapshot(sessionId);
+  const inCall = voice.status === "connected" || voice.status === "reconnecting";
+  const switchTried = useRef<string | null>(null);
+
   useEffect(() => {
     if (!sessionId) return undefined;
     releaseOtherSessions(sessionId);
@@ -558,15 +657,22 @@ export function useVoiceSession(
       endVoiceFor(sessionId, FINISHED_TEXT);
       return undefined;
     }
+    setVoiceEndsAt(sessionId, leaveAtMs ?? null);
     const timer = window.setTimeout(() => endVoiceFor(sessionId, FINISHED_TEXT), delay);
     return () => window.clearTimeout(timer);
-  }, [sessionId, finished, leaveAtMs]);
+  }, [sessionId, finished, leaveAtMs, inCall]);
 
+  // A rematch started without this viewer: move the call into the rematch room until the timer above ends it.
   useEffect(() => {
-    if (sessionId && rematchStarted) endVoiceFor(sessionId, REMATCH_WITHOUT_YOU_TEXT);
-  }, [sessionId, rematchStarted]);
+    if (!sessionId || !finished || !rematchStarted || !rematchSessionId || !token || !inCall) return;
+    if (leaveAtMs == null || leaveAtMs <= Date.now()) return;
+    const key = `${sessionId}:${rematchSessionId}`;
+    if (switchTried.current === key) return;
+    switchTried.current = key;
+    void switchVoiceRoom(sessionId, rematchSessionId, token);
+  }, [sessionId, finished, rematchStarted, rematchSessionId, token, inCall, leaveAtMs]);
 
-  return useVoiceSnapshot(sessionId);
+  return voice;
 }
 
 // Module-level: sign-out always ends the call.

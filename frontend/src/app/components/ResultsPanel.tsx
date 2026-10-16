@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ApiError } from "../api/client";
 import { rematch } from "../api/game";
 import { startVoiceHandoff } from "../lib/voice";
 import "../styles/results-panel.css";
 
 export const REMATCH_WINDOW_MS = 60_000;
+const REMATCH_STARTED_MESSAGE = "The game has already started.";
 
 type Props = {
   sessionId: string;
@@ -47,6 +49,7 @@ export default function ResultsPanel({
   const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const remaining = useRematchRemaining(finishedAt);
   const windowOpen = remaining > 0;
   const panelRef = useRef<HTMLElement>(null);
@@ -60,12 +63,15 @@ export default function ResultsPanel({
     (open ? panelRef.current : pillRef.current)?.focus();
   }, [open]);
 
-  const toggle = useCallback((next: boolean) => { moveFocus.current = true; setOpen(next); }, []);
+  // Showing or hiding the panel also clears any inline alert, so it never lingers.
+  const toggle = useCallback((next: boolean) => { moveFocus.current = true; setNotice(null); setOpen(next); }, []);
 
   const playAgain = async () => {
+    if (rematchStarted) { setNotice(REMATCH_STARTED_MESSAGE); return; }
     if (busy || !token) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     // Must run synchronously in the click: it captures the current voice call before navigation tears it down.
     const handoff = startVoiceHandoff(sessionId);
     try {
@@ -77,7 +83,11 @@ export default function ResultsPanel({
       }
       navigate(`/room/${newId}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't start a rematch.");
+      if (cause instanceof ApiError && cause.status === 409 && /rematch already started/i.test(cause.message)) {
+        setNotice(REMATCH_STARTED_MESSAGE);
+      } else {
+        setError(cause instanceof Error ? cause.message : "Couldn't start a rematch.");
+      }
       setBusy(false);
     }
   };
@@ -120,21 +130,21 @@ export default function ResultsPanel({
             <span className="results-bar-fill" style={{ transform: `scaleX(${remaining / REMATCH_WINDOW_MS})` }} />
           </span>
         </div>
-      ) : windowOpen ? (
-        <p className="results-note" role="status">The rematch has already started.</p>
-      ) : (
+      ) : windowOpen ? null : (
         <p className="results-note">Time to head to the leaderboard.</p>
       )}
 
       {error && <p className="results-error" role="alert">{error}</p>}
+      {notice && <p className="results-alert" role="alert">{notice}</p>}
 
       <div className="results-actions">
-        {joinable && (
-          <button type="button" className="button" disabled={busy || !token} onClick={() => void playAgain()}>
+        {windowOpen && (
+          <button type="button" className="button" aria-disabled={rematchStarted ? "true" : undefined}
+            disabled={!rematchStarted && (busy || !token)} onClick={() => void playAgain()}>
             {playLabel}
           </button>
         )}
-        <button type="button" className={joinable ? "button secondary" : "button"}
+        <button type="button" className={windowOpen ? "button secondary" : "button"}
           onClick={() => navigate(`/leaderboard/${sessionId}`)}>
           View leaderboard
         </button>
