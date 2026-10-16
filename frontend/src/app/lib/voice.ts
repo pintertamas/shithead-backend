@@ -66,11 +66,14 @@ class VoiceConnectError extends Error {
 export const VOICE_HIDDEN_LIMIT_MS = 5 * 60 * 1000;
 /** Leave voice after being alone in the room this long. */
 export const VOICE_ALONE_LIMIT_MS = 3 * 60 * 1000;
+/** Players may keep talking this long after the game ends (the caller derives leaveAtMs from it). */
+export const VOICE_AFTER_GAME_MS = 60_000;
 /** Hard cap on one connection, so a forgotten call cannot run all day. */
 export const VOICE_CONNECTED_CAP_MS = 90 * 60 * 1000;
 
 const UNAVAILABLE_TEXT = "Voice chat is not available right now.";
 const FINISHED_TEXT = "Voice chat closed because the game has ended.";
+const REMATCH_WITHOUT_YOU_TEXT = "The rematch started without you, so voice chat closed.";
 const HIDDEN_TEXT = "Voice left because this tab was hidden for 5 minutes.";
 const ALONE_TEXT = "Left voice because nobody else was in it.";
 const CAP_TEXT = "Voice left after 90 minutes so the free allowance lasts.";
@@ -193,7 +196,8 @@ async function connectVoice(
   url: string,
   token: string,
   audioHostElement: HTMLElement,
-  handlers: Handlers
+  handlers: Handlers,
+  startMuted = false
 ): Promise<VoiceSession> {
   const { Room: RoomClass, RoomEvent, Track, ConnectionState, ConnectionError, ConnectionErrorReason } = await import("livekit-client");
   const room: Room = new RoomClass({ adaptiveStream: false, dynacast: false });
@@ -283,8 +287,10 @@ async function connectVoice(
   let micEnabled = false;
   let micError: string | null = null;
   try {
-    await room.localParticipant.setMicrophoneEnabled(true, MIC_OPTIONS);
-    micEnabled = true;
+    if (!startMuted) {
+      await room.localParticipant.setMicrophoneEnabled(true, MIC_OPTIONS);
+      micEnabled = true;
+    }
   } catch (cause) {
     // Microphone denied or unavailable: stay connected to listen only.
     micError = micErrorText(cause);
@@ -361,7 +367,7 @@ function joinFailureText(cause: unknown): string {
 }
 
 /** Requests a token and connects. Only called from the "Join voice" button. */
-export async function joinVoice(sessionId: string, token: string): Promise<void> {
+export async function joinVoice(sessionId: string, token: string, options: { startMuted?: boolean } = {}): Promise<void> {
   // Runs synchronously inside the click, before the first await.
   unlockAudioInGesture();
   if (snapshot.joining) return;
@@ -404,7 +410,7 @@ export async function joinVoice(sessionId: string, token: string): Promise<void>
         console.info(`[voice] audio blocked: ${blocked}`);
         setSnapshot({ audioBlocked: blocked });
       }
-    });
+    }, Boolean(options.startMuted));
     if (id !== attempt) {
       await connection.disconnect();
       return;
@@ -448,23 +454,63 @@ export async function toggleVoiceMic(): Promise<void> {
   });
 }
 
-/** Ends the call when the game has finished. */
-function endVoiceIfFinished(sessionId: string) {
+/** Ends the call for this game (finished, or the rematch started without the player). */
+function endVoiceFor(sessionId: string, notice: string) {
   if (snapshot.sessionId !== sessionId) return;
   if (!session && !snapshot.joining && snapshot.status === null) return;
-  void disconnectVoice(FINISHED_TEXT);
+  void disconnectVoice(notice);
+}
+
+/** Session whose call is being handed to a rematch room; its screens must not end the call meanwhile. */
+let handoffFrom: string | null = null;
+let handoffTimer: number | null = null;
+
+function clearHandoff() {
+  handoffFrom = null;
+  if (handoffTimer !== null) {
+    window.clearTimeout(handoffTimer);
+    handoffTimer = null;
+  }
+}
+
+/**
+ * Call synchronously inside the "Play again" click. Returns null when not in a call for oldSessionId. Otherwise the
+ * returned function (call it once the rematch API resolved) leaves the old room and joins the new one with the mic
+ * in the state it had, so the chat seems to continue.
+ */
+export function startVoiceHandoff(oldSessionId: string): ((newSessionId: string, token: string) => Promise<void>) | null {
+  const inCall = snapshot.status === "connecting" || snapshot.status === "connected" || snapshot.status === "reconnecting";
+  if (snapshot.sessionId !== oldSessionId || !inCall) return null;
+  unlockAudioInGesture();
+  const micWasOn = snapshot.status === "connecting" ? true : snapshot.micOn;
+  clearHandoff();
+  handoffFrom = oldSessionId;
+  // If the rematch call fails and the function is never used, stop shielding the old call after a while.
+  handoffTimer = window.setTimeout(clearHandoff, 30_000);
+  let used = false;
+  return async (newSessionId: string, token: string) => {
+    if (used) return;
+    used = true;
+    try {
+      if (snapshot.sessionId !== oldSessionId) return; // the call already ended (left, timed out)
+      await disconnectVoice(null);
+      await joinVoice(newSessionId, token, { startMuted: !micWasOn });
+    } finally {
+      if (handoffFrom === oldSessionId) clearHandoff();
+    }
+  };
 }
 
 /** Another game's voice must not keep running once this game's screen is shown. */
 function releaseOtherSessions(sessionId: string) {
-  if (snapshot.sessionId && snapshot.sessionId !== sessionId && (session || snapshot.joining)) {
+  if (snapshot.sessionId && snapshot.sessionId !== sessionId && snapshot.sessionId !== handoffFrom && (session || snapshot.joining)) {
     void disconnectVoice(null);
   }
 }
 
 /** Leaves when the URL is no longer this game's room or table (leave button, lobby, another game). */
 function leaveIfOffScreen(sessionId: string) {
-  if (snapshot.sessionId !== sessionId) return;
+  if (snapshot.sessionId !== sessionId || sessionId === handoffFrom) return;
   if (!session && !snapshot.joining) return;
   if (isOnSessionScreen(sessionId)) return;
   void disconnectVoice(null);
@@ -492,16 +538,33 @@ export function useVoiceSnapshot(sessionId: string | undefined): VoiceSnapshot {
  * Mount this once per chat panel (always mounted on the room and the table). It keeps the connection's lifecycle in
  * step with the screens: it ends on finish and when the player leaves the game, and returns the game's voice state.
  */
-export function useVoiceSession(sessionId: string | undefined, finished: boolean): VoiceSnapshot {
+export function useVoiceSession(
+  sessionId: string | undefined,
+  finished: boolean,
+  leaveAtMs?: number | null,
+  rematchStarted?: boolean
+): VoiceSnapshot {
   useEffect(() => {
     if (!sessionId) return undefined;
     releaseOtherSessions(sessionId);
     return () => leaveIfOffScreen(sessionId);
   }, [sessionId]);
 
+  // After the game: stay until leaveAtMs, or leave at once without a (future) deadline.
   useEffect(() => {
-    if (sessionId && finished) endVoiceIfFinished(sessionId);
-  }, [sessionId, finished]);
+    if (!sessionId || !finished) return undefined;
+    const delay = leaveAtMs == null ? 0 : leaveAtMs - Date.now();
+    if (delay <= 0) {
+      endVoiceFor(sessionId, FINISHED_TEXT);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => endVoiceFor(sessionId, FINISHED_TEXT), delay);
+    return () => window.clearTimeout(timer);
+  }, [sessionId, finished, leaveAtMs]);
+
+  useEffect(() => {
+    if (sessionId && rematchStarted) endVoiceFor(sessionId, REMATCH_WITHOUT_YOU_TEXT);
+  }, [sessionId, rematchStarted]);
 
   return useVoiceSnapshot(sessionId);
 }

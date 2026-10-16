@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { ChatMessage } from "../api/game";
 import { CHAT_MAX_LENGTH } from "../lib/sessionChat";
-import { useVoiceSession } from "../lib/voice";
+import { useVoiceSession, VOICE_AFTER_GAME_MS } from "../lib/voice";
 import Icon from "./Icon";
 import VoicePanel from "./VoicePanel";
 import "../styles/feed.css";
@@ -105,10 +105,14 @@ type Props = {
   sessionId?: string;
   players?: { playerId: string; username: string }[];
   finished?: boolean;
+  /** Epoch ms when the game ended; voice stays open VOICE_AFTER_GAME_MS after it. */
+  finishedAt?: number | null;
+  /** A rematch lobby was started without this player. */
+  rematchStarted?: boolean;
 };
 
 /** Session chat. Messages live in React state only, so a refresh clears them by design. */
-export default function ChatPanel({ messages, currentUserId, connected, onSend, voiceEnabled, sessionId, players, finished }: Props) {
+export default function ChatPanel({ messages, currentUserId, connected, onSend, voiceEnabled, sessionId, players, finished, finishedAt, rematchStarted }: Props) {
   const phone = useIsPhone();
   // Only the phone popup has an open state. The inline panel on wider screens is always shown.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -122,7 +126,15 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend, 
   // Owns the voice connection's lifecycle for this game. The chat is always mounted on the room and the table,
   // so this keeps working while the phone sheet is closed.
   const voiceGameId = voiceEnabled && sessionId ? sessionId : undefined;
-  const voice = useVoiceSession(voiceGameId, Boolean(finished));
+  // Computed once per finish so the deadline does not drift between renders. A finishedAt in the future (clock
+  // skew) or a missing one counts as "now".
+  const leaveAtMs = useMemo(() => {
+    if (!finished) return null;
+    const now = Date.now();
+    const base = finishedAt == null || finishedAt > now ? now : finishedAt;
+    return base + VOICE_AFTER_GAME_MS;
+  }, [finished, finishedAt]);
+  const voice = useVoiceSession(voiceGameId, Boolean(finished), leaveAtMs, rematchStarted);
   const voiceLive = voice.status === "connected" || voice.status === "connecting" || voice.status === "reconnecting";
   const voiceDot: VoiceDot | null = !voiceLive
     ? null

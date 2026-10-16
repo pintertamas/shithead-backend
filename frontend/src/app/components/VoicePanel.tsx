@@ -65,6 +65,7 @@ export default function VoicePanel({ sessionId, players, finished }: Props) {
           <p className="voice-notice voice-allowance">{FREE_ALLOWANCE_TEXT}</p>
         </>
       )}
+      {finished && inCall && <p className="voice-notice voice-after-game">Voice stays open for a minute after the game.</p>}
       {audioBlocked && inCall && (
         <div className="voice-unlock">
           <p className="voice-error">Your browser blocked voice audio. Tap to hear the table.</p>
