@@ -1,0 +1,97 @@
+/* Non-blocking game-over panel and its floating "Results" pill. No backdrop: the table stays visible and usable. */
+.results-panel {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 850;
+  width: min(340px, calc(100vw - 32px));
+  padding: 20px 20px 18px;
+  text-align: center;
+  border-color: rgba(229, 189, 112, 0.45);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(229, 189, 112, 0.14) 0%, rgba(229, 189, 112, 0) 60%),
+    rgba(20, 46, 35, 0.96);
+  animation: results-in 0.28s ease-out;
+}
+.results-panel:focus { outline: none; }
+.results-panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.results-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.results-close:hover { background: rgba(245, 245, 245, 0.08); color: var(--ink); }
+
+.results-title { margin: 12px 0 14px; display: grid; gap: 2px; font-weight: 600; }
+.results-label { font-family: "Space Grotesk", system-ui, sans-serif; font-size: 12px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--ink-dim); }
+.results-name { font-size: 28px; line-height: 1.15; color: var(--accent); overflow-wrap: anywhere; }
+
+.results-countdown { display: grid; gap: 6px; justify-items: center; margin-bottom: 14px; }
+.results-time { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.results-hint { font-size: 13px; color: var(--ink-dim); }
+.results-bar { width: 100%; height: 4px; border-radius: 999px; background: rgba(245, 245, 245, 0.12); overflow: hidden; }
+.results-bar-fill { display: block; height: 100%; background: var(--accent); transform-origin: left center; transition: transform 0.5s linear; }
+
+.results-note { margin: 0 0 14px; color: var(--ink-dim); }
+.results-error { margin: 0 0 12px; padding: 8px 12px; border: 1px solid rgba(255, 107, 107, 0.5); border-radius: 12px; background: rgba(255, 107, 107, 0.1); color: #ffb4b4; font-size: 14px; }
+.results-alert { margin: 0 0 12px; padding: 8px 12px; border: 1px solid rgba(229, 189, 112, 0.6); border-radius: 12px; background: rgba(229, 189, 112, 0.12); color: var(--accent); font-size: 14px; font-weight: 600; }
+
+.results-actions { display: grid; gap: 10px; }
+.results-actions .button { min-height: 44px; width: 100%; }
+/* Rematch already started: still visible and focusable, but clearly inactive. Clicks show the alert instead. */
+.results-actions .button[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.results-actions .button:focus-visible,
+.results-pill:focus-visible,
+.results-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.results-pill {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 850;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(229, 189, 112, 0.55);
+  border-radius: 999px;
+  background: rgba(20, 46, 35, 0.96);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  animation: results-in 0.2s ease-out;
+}
+.results-pill:hover { background: rgba(40, 83, 63, 0.98); }
+.results-pill-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: results-pulse 1.8s ease-in-out infinite; }
+.results-pill-time { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 500; }
+
+@media (max-width: 700px) {
+  /* Bottom-left leaves the chat button (bottom right) free; a compact panel keeps most of the table visible. */
+  .results-panel { width: calc(100vw - 32px - 70px); min-width: 250px; padding: 16px 16px 14px; }
+  .results-name { font-size: 22px; }
+  .results-time { font-size: 24px; }
+  .results-title { margin: 8px 0 10px; }
+  .results-countdown { margin-bottom: 10px; }
+}
+
+@keyframes results-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes results-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .results-panel, .results-pill, .results-pill-dot { animation: none; }
+  .results-bar-fill { transition: none; }
+}

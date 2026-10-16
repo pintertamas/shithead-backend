@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
 @Getter
 @Setter
 @Builder
-@SuppressWarnings({"PMD.TooManyMethods", "PMD.CyclomaticComplexity", "PMD.GodClass"})
+@SuppressWarnings({"PMD.TooManyMethods", "PMD.CyclomaticComplexity", "PMD.GodClass", "PMD.TooManyFields"})
 public class GameSession {
     /** Activity feed keeps only the most recent entries so the persisted item stays small. */
     public static final int MAX_EVENTS = 30;
@@ -79,6 +79,14 @@ public class GameSession {
     private boolean setupComplete = true;
     private boolean lastPlayBurned;
     private boolean finished;
+    /** Epoch millis at which the game finished; null until then. */
+    private Long finishedAt;
+    /** Id of the rematch lobby of this finished game; null while none exists. */
+    private String rematchSessionId;
+    /** On a rematch lobby: the id of the finished game it continues. */
+    private String rematchOf;
+    /** True once the rematch lobby of this finished game has been started. */
+    private boolean rematchStarted;
     private String shitheadId;
     private String ownerId;
     private String createdAt;
@@ -746,7 +754,7 @@ public class GameSession {
     private void checkGameEnd() {
         long activePlayers = players.stream().filter(pl -> !pl.isOut()).count();
         if (activePlayers <= 1) {
-            finished = true;
+            markFinished();
             Optional<Player> remainingPlayer = players.stream()
                     .filter(pl -> !pl.isOut())
                     .findFirst();
@@ -854,7 +862,15 @@ public class GameSession {
                     shitheadId = loser.getPlayerId();
                     recordEvent(GameEventType.FINISHED, loser, List.of(), 0);
                 });
+        markFinished();
+    }
+
+    /** Marks the game finished and stamps the finish time once. */
+    private void markFinished() {
         finished = true;
+        if (finishedAt == null) {
+            finishedAt = System.currentTimeMillis();
+        }
     }
 
     public String getCurrentPlayerId() {

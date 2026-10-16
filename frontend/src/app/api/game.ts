@@ -80,6 +80,12 @@ export type GameStateView = {
   /** Whether this game has voice chat (LiveKit) turned on. Older servers omit it. */
   voiceEnabled?: boolean;
   revealedCard?: Card | null;
+  /** Epoch ms when the game finished. Starts the 60 s rematch window. */
+  finishedAt?: number | null;
+  /** Session id of the open rematch lobby, once someone has asked for one. */
+  rematchSessionId?: string | null;
+  /** True once the rematch game has started. */
+  rematchStarted?: boolean;
   players: PlayerState[];
   events?: GameEvent[];
 };
@@ -141,6 +147,12 @@ export async function lowerDecks(token: string, sessionId: string) {
   });
   await throwForError(res, "use one deck");
   return res.json() as Promise<{ decksCount: number; burnCount: number }>;
+}
+
+export async function rematch(token: string, sessionId: string) {
+  const res = await apiFetch(`/games/${sessionId}/rematch`, token, { method: "POST" });
+  await throwForError(res, "start a rematch");
+  return res.json() as Promise<{ sessionId: string; created: boolean }>;
 }
 
 export async function addBot(token: string, sessionId: string, botType: string) {

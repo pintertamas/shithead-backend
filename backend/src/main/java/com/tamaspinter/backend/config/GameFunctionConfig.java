@@ -32,6 +32,7 @@ import com.tamaspinter.backend.repository.GameSessionRepository;
 import com.tamaspinter.backend.repository.UserProfileRepository;
 import com.tamaspinter.backend.service.BlockedUserGuard;
 import com.tamaspinter.backend.service.GameEloService;
+import com.tamaspinter.backend.service.RematchLobbies;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -73,6 +74,8 @@ public class GameFunctionConfig {
     private static final int TWO_DECKS_BURN_COUNT = 6;
     private static final int ONE_DECK = 1;
     private static final int ONE_DECK_BURN_COUNT = 4;
+    private static final int REMATCH_ATTEMPTS = 3;
+    private static final String REMATCH_STARTED_BODY = "{\"error\":\"Rematch already started\"}";
 
     private final GameSessionRepository sessionRepo;
     private final UserProfileRepository userRepo;
@@ -208,8 +211,129 @@ public class GameFunctionConfig {
                 return conflictResponse(e.getMessage());
             }
             sessionRepo.save(session.toEntity());
+            markRematchStarted(session);
             return corsResponse(200);
         };
+    }
+
+    /** Best effort: flags the finished game that this started game is the rematch of. Never fails the start. */
+    private void markRematchStarted(GameSession started) {
+        if (started.getRematchOf() == null) {
+            return;
+        }
+        try {
+            GameSessionEntity previous = sessionRepo.get(started.getRematchOf());
+            if (previous != null && started.getSessionId().equals(previous.getRematchSessionId())) {
+                previous.setRematchStarted(true);
+                sessionRepo.save(previous);
+            }
+        } catch (SdkException e) {
+            log.warn("Could not mark rematch of game {} as started", started.getRematchOf(), e);
+        }
+    }
+
+    /**
+     * Play again: {@code POST /games/{sessionId}/rematch}. The first human player of a finished game creates an
+     * unstarted lobby with the same settings and bots and gets {@code {"sessionId","created":true}}; later callers
+     * join that lobby like /join-game and get {@code created:false}. 409 while the game is not finished or once the
+     * rematch lobby has started; 403 for anyone who did not play.
+     */
+    @Bean
+    @SuppressWarnings("PMD.CognitiveComplexity")
+    public Function<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> rematch() {
+        return req -> {
+            String userId = subjectOf(req);
+            if (userId == null) {
+                return corsResponse(401, "{\"message\":\"Unauthorized\"}");
+            }
+            if (blockedUserGuard.isBlocked(userId)) {
+                return corsResponse(403, BlockedUserGuard.BLOCKED_BODY);
+            }
+            String sessionId = req.getPathParameters() == null ? null : req.getPathParameters().get("sessionId");
+            GameSessionEntity finished = sessionId == null ? null : sessionRepo.get(sessionId);
+            if (finished == null) {
+                return corsResponse(404);
+            }
+            if (!isSeatedHuman(finished, userId)) {
+                return corsResponse(403, "{\"message\":\"Only players of this game can start a rematch.\"}");
+            }
+            if (!finished.isFinished()) {
+                return corsResponse(409, "{\"error\":\"Game has not finished\"}");
+            }
+            for (int attempt = 0; attempt < REMATCH_ATTEMPTS; attempt++) {
+                if (finished.isRematchStarted()) {
+                    return corsResponse(409, REMATCH_STARTED_BODY);
+                }
+                GameSessionEntity lobby = finished.getRematchSessionId() == null
+                        ? null : sessionRepo.get(finished.getRematchSessionId());
+                if (lobby != null) {
+                    return joinRematchLobby(lobby, userId);
+                }
+                String created = createRematchLobby(finished, userId);
+                if (created != null) {
+                    return corsResponse(200, rematchBody(created, true));
+                }
+                finished = sessionRepo.get(sessionId);
+                if (finished == null) {
+                    return corsResponse(404);
+                }
+            }
+            return conflictResponse("Could not start the rematch, please try again");
+        };
+    }
+
+    private static String rematchBody(String sessionId, boolean created) {
+        return "{\"sessionId\":\"" + sessionId + "\",\"created\":" + created + "}";
+    }
+
+    private static String subjectOf(APIGatewayProxyRequestEvent req) {
+        if (req.getRequestContext() == null || req.getRequestContext().getAuthorizer() == null) {
+            return null;
+        }
+        Object claims = req.getRequestContext().getAuthorizer().get("claims");
+        if (claims instanceof Map<?, ?> values && values.get("sub") instanceof String sub && !sub.isBlank()) {
+            return sub;
+        }
+        return null;
+    }
+
+    /** Joins an existing rematch lobby exactly like the join-game route (idempotent, capacity 409). */
+    private APIGatewayProxyResponseEvent joinRematchLobby(GameSessionEntity lobby, String userId) {
+        if (lobby.isStarted()) {
+            return corsResponse(409, REMATCH_STARTED_BODY);
+        }
+        String lobbyId = lobby.getSessionId();
+        if (lobby.getPlayers() != null
+                && lobby.getPlayers().stream().anyMatch(player -> userId.equals(player.getPlayerId()))) {
+            return corsResponse(200, rematchBody(lobbyId, false));
+        }
+        cleanupOldSessions(userId, lobbyId);
+        UserProfile user = userRepo.get(userId);
+        GameSession session = SessionMapper.fromEntity(lobby);
+        try {
+            session.addPlayer(userId, user != null ? user.getUsername() : "Unknown");
+        } catch (IllegalStateException e) {
+            return conflictResponse(e.getMessage());
+        }
+        sessionRepo.save(session.toEntity());
+        return corsResponse(200, rematchBody(lobbyId, false));
+    }
+
+    /**
+     * Writes a new lobby and then claims the finished game's pointer to it with a conditional write. Returns the
+     * new lobby id, or null (after deleting the lobby again) when another caller claimed the pointer first.
+     */
+    private String createRematchLobby(GameSessionEntity finished, String userId) {
+        UserProfile user = userRepo.get(userId);
+        String newId = RematchLobbies.newCode(code -> sessionRepo.get(code) != null);
+        GameSession lobby = RematchLobbies.newLobby(newId, finished, userId, user != null ? user.getUsername() : "Unknown");
+        sessionRepo.save(lobby.toEntity());
+        if (!sessionRepo.claimRematch(finished, finished.getRematchSessionId(), newId)) {
+            sessionRepo.delete(newId);
+            return null;
+        }
+        cleanupOldSessions(userId, newId);
+        return newId;
     }
 
     /**
@@ -1017,6 +1141,9 @@ public class GameFunctionConfig {
                 .starting(entity.isStarting())
                 .setupComplete(entity.isSetupComplete())
                 .finished(entity.isFinished())
+                .finishedAt(entity.getFinishedAt())
+                .rematchSessionId(entity.getRematchSessionId())
+                .rematchStarted(entity.isRematchStarted())
                 .currentPlayerId(entity.getCurrentPlayerId())
                 .shitheadId(entity.getShitheadId())
                 .isOwner(viewerId != null && viewerId.equals(entity.getOwnerId()))

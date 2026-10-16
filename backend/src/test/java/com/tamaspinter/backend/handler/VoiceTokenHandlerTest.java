@@ -239,6 +239,94 @@ class VoiceTokenHandlerTest {
                 captor.getValue().key());
     }
 
+    @Test
+    void rematchGuest_fromRecentlyFinishedPredecessor_getsTokenWithOwnName() {
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(true, "OLD001"));
+        when(sessions.get("OLD001")).thenReturn(oldGame(System.currentTimeMillis() - 30_000L, OUTSIDER));
+
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(OUTSIDER, SESSION));
+
+        assertEquals(200, response.getStatusCode());
+        verify(tokens).createToken(SESSION, OUTSIDER, "Guest");
+    }
+
+    @Test
+    void rematchGuest_afterWindow_isForbidden() {
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(true, "OLD001"));
+        when(sessions.get("OLD001")).thenReturn(oldGame(
+                System.currentTimeMillis() - VoiceTokenHandler.REMATCH_GUEST_WINDOW_MS - 5_000L, OUTSIDER));
+
+        assertEquals(403, handler.issueToken(request(OUTSIDER, SESSION)).getStatusCode());
+        verify(tokens, never()).createToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void rematchGuest_unfinishedPredecessor_isForbidden() {
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(true, "OLD001"));
+        when(sessions.get("OLD001")).thenReturn(oldGame(null, OUTSIDER));
+
+        assertEquals(403, handler.issueToken(request(OUTSIDER, SESSION)).getStatusCode());
+    }
+
+    @Test
+    void rematchGuest_wrongPredecessor_isForbidden() {
+        // The new game points at OLD001, but the caller only played in OTHER1.
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(true, "OLD001"));
+        when(sessions.get("OLD001")).thenReturn(oldGame(System.currentTimeMillis(), "someone-else"));
+        when(sessions.get("OTHER1")).thenReturn(oldGame(System.currentTimeMillis(), OUTSIDER));
+
+        assertEquals(403, handler.issueToken(request(OUTSIDER, SESSION)).getStatusCode());
+        verify(sessions, never()).get("OTHER1");
+    }
+
+    @Test
+    void rematchGuest_notRematchLobby_isForbidden() {
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(true, null));
+
+        assertEquals(403, handler.issueToken(request(OUTSIDER, SESSION)).getStatusCode());
+    }
+
+    @Test
+    void rematchGuest_nonPlayerOfPredecessor_isForbidden() {
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(true, "OLD001"));
+        when(sessions.get("OLD001")).thenReturn(oldGame(System.currentTimeMillis(), PLAYER));
+
+        assertEquals(403, handler.issueToken(request(OUTSIDER, SESSION)).getStatusCode());
+    }
+
+    @Test
+    void rematchGuest_voiceDisabled_isForbidden() {
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(false, "OLD001"));
+        when(sessions.get("OLD001")).thenReturn(oldGame(System.currentTimeMillis(), OUTSIDER));
+
+        APIGatewayProxyResponseEvent response = handler.issueToken(request(OUTSIDER, SESSION));
+
+        assertEquals(403, response.getStatusCode());
+        verify(tokens, never()).createToken(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void rematchGuest_predecessorReadFails_isForbidden() {
+        when(sessions.get(SESSION)).thenReturn(rematchLobby(true, "OLD001"));
+        when(sessions.get("OLD001")).thenThrow(DynamoDbException.builder().message("boom").build());
+
+        assertEquals(403, handler.issueToken(request(OUTSIDER, SESSION)).getStatusCode());
+    }
+
+    private static GameSessionEntity rematchLobby(boolean voiceEnabled, String rematchOf) {
+        GameSessionEntity lobby = game(voiceEnabled, PLAYER);
+        lobby.setRematchOf(rematchOf);
+        return lobby;
+    }
+
+    private static GameSessionEntity oldGame(Long finishedAt, String humanId) {
+        return GameSessionEntity.builder()
+                .sessionId("OLD001")
+                .players(List.of(PlayerEntity.builder().playerId(humanId).username("Guest").build()))
+                .finishedAt(finishedAt)
+                .build();
+    }
+
     private void usageMinutesAre(String minutes) {
         when(dynamoClient.getItem(any(GetItemRequest.class)))
                 .thenReturn(GetItemResponse.builder().item(Map.of("minutes", AttributeValue.fromN(minutes))).build());

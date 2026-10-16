@@ -12,7 +12,7 @@ import { useBotDriver } from "../lib/useBotDriver";
 import { CardFaceContent, cardRank, isRedSuit, suitSymbol } from "../components/CardFace";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
-import ShitheadModal from "../components/ShitheadModal";
+import ResultsPanel from "../components/ResultsPanel";
 import ErrorAlert from "../components/ErrorAlert";
 import GameFeed from "../components/GameFeed";
 import ChatPanel from "../components/ChatPanel";
@@ -616,7 +616,8 @@ export default function GameTable() {
       <div className="game-companion">
         {!phone && <GameFeed events={state.events} />}
         <ChatPanel messages={chatMessages} currentUserId={you.playerId} connected={socketOpen} onSend={sendChat}
-          voiceEnabled={state.voiceEnabled === true} sessionId={state.sessionId} players={state.players} finished={state.finished} />
+          voiceEnabled={state.voiceEnabled === true} sessionId={state.sessionId} players={state.players} finished={state.finished}
+          finishedAt={state.finishedAt} rematchSessionId={state.rematchSessionId} rematchStarted={state.rematchStarted} />
       </div>
       </div>
 
@@ -625,9 +626,14 @@ export default function GameTable() {
       )}
 
       {showModal && state.shitheadId && (
-        <ShitheadModal
-          name={state.players.find((p) => p.playerId === state.shitheadId)?.username || "Unknown"}
-          onClose={() => navigate(`/leaderboard/${state.sessionId}`)}
+        <ResultsPanel
+          sessionId={state.sessionId}
+          token={token}
+          shitheadName={state.players.find((p) => p.playerId === state.shitheadId)?.username || "Unknown"}
+          youAreShithead={state.shitheadId === you.playerId}
+          finishedAt={state.finishedAt}
+          rematchSessionId={state.rematchSessionId}
+          rematchStarted={state.rematchStarted}
         />
       )}
     </div>
