@@ -134,6 +134,15 @@ export async function raiseDecks(token: string, sessionId: string) {
   return res.json() as Promise<{ decksCount: number; burnCount: number }>;
 }
 
+export async function lowerDecks(token: string, sessionId: string) {
+  const res = await apiFetch(`/games/${sessionId}/decks`, token, {
+    method: "POST",
+    body: JSON.stringify({ decksCount: 1 })
+  });
+  await throwForError(res, "use one deck");
+  return res.json() as Promise<{ decksCount: number; burnCount: number }>;
+}
+
 export async function addBot(token: string, sessionId: string, botType: string) {
   const res = await apiFetch(`/games/${sessionId}/bots`, token, {
     method: "POST",
