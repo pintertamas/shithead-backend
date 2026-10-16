@@ -1,4 +1,4 @@
-/* Owner's "Add a second deck" control in the waiting room (screens/Room.tsx), shown under the player list. */
+/* Owner's deck-count controls ("Add a second deck" / "Use one deck") in the waiting room (screens/Room.tsx), shown under the player list. */
 
 .room-raise-decks {
   display: flex;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchState, startGame, leaveGame, raiseDecks, addBot, removeBot, ChatMessage, GameStateView, openGameSocket } from "../api/game";
+import { fetchState, startGame, leaveGame, raiseDecks, lowerDecks, addBot, removeBot, ChatMessage, GameStateView, openGameSocket } from "../api/game";
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import ErrorAlert from "../components/ErrorAlert";
@@ -35,6 +35,9 @@ export default function Room() {
   const [raiseError, setRaiseError] = useState<string | null>(null);
   const [raisingDecks, setRaisingDecks] = useState(false);
   const raiseRequestInProgress = useRef(false);
+  const [lowerError, setLowerError] = useState<string | null>(null);
+  const [loweringDecks, setLoweringDecks] = useState(false);
+  const lowerRequestInProgress = useRef(false);
   const [botError, setBotError] = useState<string | null>(null);
   const [botType, setBotType] = useState<string>(BOT_TYPES[0].value);
   const [botBusy, setBotBusy] = useState(false);
@@ -152,6 +155,13 @@ export default function Room() {
       && state.decksCount === 1 && state.players.length >= ONE_DECK_SEATS;
   }, [state]);
 
+  // Only the owner of an unstarted two-deck game that fits one deck can drop back to one deck.
+  const canLowerDecks = useMemo(() => {
+    if (!state) return false;
+    return state.isOwner && !state.started && !state.starting
+      && state.decksCount === 2 && state.players.length <= ONE_DECK_SEATS;
+  }, [state]);
+
   const onStart = async () => {
     if (!sessionId) return;
     startRequestInProgress.current = true;
@@ -197,6 +207,24 @@ export default function Room() {
     }
   };
 
+  const onLowerDecks = async () => {
+    if (!sessionId || lowerRequestInProgress.current) return;
+    lowerRequestInProgress.current = true;
+    setLoweringDecks(true);
+    setLowerError(null);
+    try {
+      await lowerDecks(token, sessionId);
+      // Refetch now so the new decksCount and capacity show at once; a failed refetch is covered by the poll.
+      const next = await fetchState(token, sessionId).catch(() => null);
+      if (next) setState(next);
+    } catch (cause) {
+      setLowerError(cause instanceof ApiError ? cause.message : "Couldn't switch to one deck. Please try again.");
+    } finally {
+      lowerRequestInProgress.current = false;
+      setLoweringDecks(false);
+    }
+  };
+
   const canManageBots = !!state && state.isOwner && !state.started && !state.starting;
   // Custom card layouts can seat more than ONE_DECK_SEATS with one deck, so only the hard cap disables the button;
   // the server answers 409 with the real limit.
@@ -227,6 +255,7 @@ export default function Room() {
     <div className="page fade-in room-page">
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       <ErrorAlert message={raiseError} onDismiss={() => setRaiseError(null)} />
+      <ErrorAlert message={lowerError} onDismiss={() => setLowerError(null)} />
       <ErrorAlert message={botError} onDismiss={() => setBotError(null)} />
       <header className="room-bar">
         <div className="room-bar-title">
@@ -305,6 +334,14 @@ export default function Room() {
                 {raisingDecks ? "Adding..." : "Add a second deck"}
               </button>
               <p className="room-raise-decks-hint">This lets up to 10 players join.</p>
+            </div>
+          )}
+          {canLowerDecks && (
+            <div className="room-raise-decks">
+              <button className="button secondary" type="button" onClick={onLowerDecks} disabled={loweringDecks}>
+                {loweringDecks ? "Switching..." : "Use one deck"}
+              </button>
+              <p className="room-raise-decks-hint">One deck seats up to {ONE_DECK_SEATS} players.</p>
             </div>
           )}
         </div>
