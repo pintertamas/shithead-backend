@@ -19,13 +19,30 @@
   box-sizing: border-box;
 }
 
+/* Mobile browsers: no rubber-band bounce at the root (it shakes the page and can leave the top offset),
+   and the page background is a fixed layer instead of background-attachment: fixed (ignored or costly on iOS). */
+html {
+  height: 100%;
+  background: #10291f;
+  overscroll-behavior-y: none;
+}
+
 body {
   margin: 0;
   font-family: "Space Grotesk", system-ui, sans-serif;
-  background: radial-gradient(ellipse at 50% 0%, #315a43 0%, #1d4334 44%, #10291f 100%);
-  background-attachment: fixed;
   color: #f5edda;
   min-height: 100vh;
+  min-height: 100svh;
+  overscroll-behavior-y: none;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 0%, #315a43 0%, #1d4334 44%, #10291f 100%);
 }
 
 a {
@@ -43,6 +60,7 @@ input, select {
 
 .app-shell {
   min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
 }

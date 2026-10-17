@@ -8,13 +8,13 @@
 
 body:has(.game-page) {
   height: 100vh;
-  height: 100dvh;
+  height: 100svh;
   overflow: hidden;
 }
 
 .app-shell:has(> .game-page) {
   height: 100vh;
-  height: 100dvh;
+  height: 100svh;
   min-height: 0;
   overflow: hidden;
 }
@@ -24,7 +24,7 @@ body:has(.game-page) {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  height: 100dvh;
+  height: 100svh;
   min-height: 0;
   padding: 8px clamp(8px, 1.6vw, 20px) 10px;
   overflow: hidden;
@@ -99,7 +99,7 @@ body:has(.game-page) {
 /* ---------- Table: fills the rest of the height; cards scale with it ---------- */
 
 .game-page .game-board {
-  --card-w: clamp(40px, calc((100dvh - 300px) / 4.6), 72px);
+  --card-w: clamp(40px, calc((100svh - 300px) / 4.6), 72px);
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -205,7 +205,7 @@ body:has(.game-page) {
 @media (max-width: 899px) {
   .game-page .game-companion {
     flex: 0 1 auto;
-    max-height: 22dvh;
+    max-height: 22svh;
     overflow-y: auto;
   }
 
@@ -228,7 +228,7 @@ body:has(.game-page) {
   }
 
   .game-page .game-board {
-    --card-w: clamp(34px, min(calc((100dvh - 330px) / 6.2), calc((100vw - 64px) / 5.6)), 48px);
+    --card-w: clamp(34px, min(calc((100svh - 330px) / 6.2), calc((100vw - 64px) / 5.6)), 48px);
     --card-stack-gap: 4px;
     padding: 6px;
     border-radius: 14px;
