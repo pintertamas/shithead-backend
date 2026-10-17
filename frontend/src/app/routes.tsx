@@ -37,7 +37,6 @@ export default function AppRoutes() {
           <Route path="/profile" element={<LazyRoute><Profile /></LazyRoute>} />
           <Route path="/config" element={<LazyRoute><GameConfig /></LazyRoute>} />
           <Route path="/leaderboard" element={<LazyRoute><Leaderboard /></LazyRoute>} />
-          <Route path="/leaderboard/:sessionId" element={<LazyRoute><Leaderboard /></LazyRoute>} />
           <Route path="/games" element={<LazyRoute><Games /></LazyRoute>} />
           <Route path="/admin" element={<LazyRoute><Admin /></LazyRoute>} />
         </Route>
