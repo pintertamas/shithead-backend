@@ -597,7 +597,7 @@ button.playing-card { cursor: pointer; }
   white-space: nowrap;
   padding: 8px 14px;
   border: 1px solid rgba(229, 189, 112, .52);
-  border-radius: 999px;
+  border-radius: 14px;
   background: rgba(13, 35, 26, .94);
   color: #f0d99e;
   box-shadow: 0 8px 22px rgba(0, 0, 0, .3);
