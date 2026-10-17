@@ -80,3 +80,12 @@
     min-height: 0;
   }
 }
+
+/* Phones: the whole waiting room, with five seats and the bot and deck controls, fits a short visible viewport
+   (browser toolbars shrink it to about 660px). Only the spacing shrinks; the controls keep their 40-44px targets. */
+@media (max-width: 700px) {
+  .room-page.page { padding: 10px 12px 16px; }
+  .room-bar { margin-bottom: 12px; }
+  .room-page .room-players { padding: 12px; }
+  .room-page .player-item { padding: 10px 14px; }
+}

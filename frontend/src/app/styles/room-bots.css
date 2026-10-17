@@ -47,3 +47,7 @@
   padding: 6px 12px;
   font-size: 14px;
 }
+
+@media (max-width: 700px) {
+  .room-bots { margin-top: 12px; padding-top: 12px; }
+}
