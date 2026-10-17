@@ -28,7 +28,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   border: 1px solid rgba(229, 213, 164, 0.4);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(9, 29, 22, 0.97);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
   color: #f5edda;
@@ -67,7 +67,7 @@
   height: 30px;
   padding: 0;
   border: 1px solid rgba(229, 213, 164, 0.45);
-  border-radius: 50%;
+  border-radius: 8px;
   background: rgba(9, 29, 22, 0.9);
   color: #f0d99e;
   font: inherit;
