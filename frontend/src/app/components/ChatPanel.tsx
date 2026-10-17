@@ -75,36 +75,110 @@ function useUnreadCount(messages: ChatMessage[], open: boolean, currentUserId?: 
   return unread;
 }
 
+/** True when the element (below the sheet) is a scroller that can still move in the finger's direction. */
+function canScrollWithin(target: EventTarget | null, boundary: Element, dy: number): boolean {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== boundary.parentElement) {
+    if (node instanceof HTMLElement && node.scrollHeight > node.clientHeight + 1) {
+      const overflowY = window.getComputedStyle(node).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") {
+        // Finger moving down (dy > 0) scrolls content towards the top.
+        if (dy > 0 && node.scrollTop > 0) return true;
+        if (dy < 0 && node.scrollTop + node.clientHeight < node.scrollHeight - 1) return true;
+      }
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
 /**
- * While the phone sheet is open, mirrors the visual viewport (the area above the on-screen keyboard) into
- * --vv-top and --vvh on the root element. The sheet backdrop is positioned from them, so the sheet always ends at
- * the top of the keyboard. iOS changes the visual viewport by resizing it (keyboard), panning it (offsetTop, when it
- * scrolls the focused input into view) and scrolling; all three are tracked, coalesced to one update per frame.
+ * While the phone sheet is open, the sheet is a fixed box that mirrors the visual viewport (the area above the
+ * on-screen keyboard) and nothing behind it can move.
+ * - --vv-top / --vvh on the root element carry the visual viewport's offsetTop and height. They are written
+ *   synchronously on every visualViewport resize/scroll, window scroll/resize and input focus change (plus a few
+ *   timed re-reads, because iOS pans the viewport during the keyboard animation without always firing events).
+ * - The "chat-sheet-open" class on the root locks the document (overflow hidden), and "chat-kb" is set while a
+ *   keyboard covers part of the screen.
+ * - iOS ignores overflow:hidden for touch panning, so a non-passive touchmove handler cancels every gesture that is not
+ *   scrolling a scroller that can still move in that direction (no chaining to the page), and window scroll is put
+ *   back to where it was when the sheet opened (a focused input makes iOS scroll the layout viewport).
  * Without the visual viewport API the variables stay unset and the CSS fallbacks (full screen) apply.
  */
-function useVisualViewportVars(active: boolean): void {
+function useChatSheetLock(active: boolean): void {
   useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!active || !viewport) return undefined;
+    if (!active) return undefined;
     const root = document.documentElement;
-    let frame = 0;
+    const viewport = window.visualViewport;
+    const savedX = window.scrollX;
+    const savedY = window.scrollY;
+    root.classList.add("chat-sheet-open");
+
     const apply = () => {
-      frame = 0;
-      root.style.setProperty("--vv-top", `${viewport.offsetTop}px`);
-      root.style.setProperty("--vvh", `${viewport.height}px`);
+      if (!viewport) return;
+      const top = Math.max(0, viewport.offsetTop);
+      const height = viewport.height;
+      root.style.setProperty("--vv-top", `${top}px`);
+      root.style.setProperty("--vvh", `${height}px`);
+      const keyboard = window.innerHeight - height - top > 80;
+      root.classList.toggle("chat-kb", keyboard);
     };
-    const schedule = () => {
-      if (!frame) frame = window.requestAnimationFrame(apply);
+    const holdPage = () => {
+      if (window.scrollX !== savedX || window.scrollY !== savedY) window.scrollTo(savedX, savedY);
     };
+    const onViewportChange = () => {
+      apply();
+      holdPage();
+    };
+    const timers: number[] = [];
+    const onFocusChange = () => {
+      onViewportChange();
+      for (const delay of [50, 150, 350, 700]) timers.push(window.setTimeout(onViewportChange, delay));
+    };
+
+    let startY = 0;
+    const onTouchStart = (event: TouchEvent) => {
+      startY = event.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!event.cancelable) return;
+      const sheet = document.querySelector(".chat-sheet");
+      const target = event.target;
+      if (event.touches.length > 1) {
+        event.preventDefault();
+        return;
+      }
+      if (target instanceof HTMLInputElement) return;
+      const dy = (event.touches[0]?.clientY ?? startY) - startY;
+      if (sheet && target instanceof Node && sheet.contains(target) && canScrollWithin(target, sheet, dy)) return;
+      event.preventDefault();
+    };
+
     apply();
-    viewport.addEventListener("resize", schedule);
-    viewport.addEventListener("scroll", schedule);
+    viewport?.addEventListener("resize", onViewportChange);
+    viewport?.addEventListener("scroll", onViewportChange);
+    window.addEventListener("scroll", onViewportChange);
+    window.addEventListener("resize", onViewportChange);
+    document.addEventListener("focusin", onFocusChange);
+    document.addEventListener("focusout", onFocusChange);
+    document.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+    const poll = window.setInterval(onViewportChange, 300);
     return () => {
-      viewport.removeEventListener("resize", schedule);
-      viewport.removeEventListener("scroll", schedule);
-      if (frame) window.cancelAnimationFrame(frame);
+      viewport?.removeEventListener("resize", onViewportChange);
+      viewport?.removeEventListener("scroll", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange);
+      window.removeEventListener("resize", onViewportChange);
+      document.removeEventListener("focusin", onFocusChange);
+      document.removeEventListener("focusout", onFocusChange);
+      document.removeEventListener("touchstart", onTouchStart, { capture: true });
+      document.removeEventListener("touchmove", onTouchMove, { capture: true });
+      window.clearInterval(poll);
+      for (const timer of timers) window.clearTimeout(timer);
+      root.classList.remove("chat-sheet-open", "chat-kb");
       root.style.removeProperty("--vv-top");
       root.style.removeProperty("--vvh");
+      holdPage();
     };
   }, [active]);
 }
@@ -139,7 +213,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend, 
   const sheetRef = useRef<HTMLElement>(null);
   const stickToBottom = useRef(true);
   const unread = useUnreadCount(messages, !phone || sheetOpen, currentUserId);
-  useVisualViewportVars(phone && sheetOpen);
+  useChatSheetLock(phone && sheetOpen);
   // Owns the voice connection's lifecycle for this game. The chat is always mounted on the room and the table,
   // so this keeps working while the phone sheet is closed.
   const voiceGameId = voiceEnabled && sessionId ? sessionId : undefined;
@@ -236,6 +310,8 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend, 
           placeholder={connected ? "Message the table" : "Reconnect to chat"}
           aria-label="Chat message"
           disabled={!connected}
+          enterKeyHint="send"
+          autoComplete="off"
           onChange={(event) => setDraft(event.target.value)}
         />
         <button type="submit" className="button chat-send" disabled={!connected || draft.trim() === ""}>
