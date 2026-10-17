@@ -299,6 +299,9 @@
 .seat-table-view .seat-table-back {
   top: var(--stv-peek);
   transform: none;
+  /* Same blue back as the phone seat chips (seat-chip-deck.css .seat-chip-mini-back-down). */
+  border-color: #1d3a4a;
+  background: repeating-linear-gradient(135deg, #3f7289 0 2px, #2a5468 2px 4px);
 }
 
 .seat-table-view .face-up-card {

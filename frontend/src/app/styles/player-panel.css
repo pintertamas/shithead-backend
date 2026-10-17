@@ -74,3 +74,10 @@
 .game-board .game-seat .paired-card-stack .face-down-card {
   top: var(--back-peek);
 }
+
+/* Phone side seats (compact PlayerPanel, opponents only): face-down backs use the same blue back as the seat chips
+   (seat-chip-deck.css .seat-chip-mini-back-down). Hand fan and the viewer's own cards keep the red back. */
+.game-board .game-seat.game-seat-compact:not(.game-seat-own) .paired-card-stack .face-down-card {
+  border-color: #1d3a4a;
+  background: repeating-linear-gradient(135deg, #3f7289 0 2px, #2a5468 2px 4px);
+}
