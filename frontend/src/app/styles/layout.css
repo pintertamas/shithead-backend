@@ -60,9 +60,13 @@
   cursor: pointer;
 }
 
-.card-selectable:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
+/* Hover lift only for real mouse pointers: a touch tap leaves :hover stuck on the card after it is
+   deselected, which would keep it raised. Touch devices lift a card only through .card-selected. */
+@media (hover: hover) and (pointer: fine) {
+  .card-selectable:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
 }
 
 .card-selected {
@@ -365,7 +369,9 @@ button.playing-card { cursor: pointer; }
 
 .face-down-card.card-selected { z-index: 3; }
 
-.card-selectable:hover { transform: translateY(-3px); }
+@media (hover: hover) and (pointer: fine) {
+  .card-selectable:hover { transform: translateY(-3px); }
+}
 .card-selected {
   border-color: #f2c46f;
   box-shadow: 0 0 0 2px rgba(242, 196, 111, 0.72), 0 6px 12px rgba(0, 0, 0, 0.28);
@@ -387,7 +393,9 @@ button.playing-card { cursor: pointer; }
 
 .playing-hand .playing-card { width: 52px; height: 72px; flex-basis: 52px; }
 .playing-hand .playing-card + .playing-card { margin-left: -24px; }
-.playing-hand .playing-card:hover,
+@media (hover: hover) and (pointer: fine) {
+  .playing-hand .playing-card:hover { z-index: 4; }
+}
 .playing-hand .playing-card.card-selected { z-index: 4; }
 .empty-hand-hint { align-self: center; color: rgba(245, 237, 218, 0.65); font-size: 12px; }
 
