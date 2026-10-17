@@ -7,6 +7,7 @@ import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeBut
 import { ApiError } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { lastEventSeq, playTableTransitions } from "../lib/tableAnimations";
+import { BURN_HOLD_MS, isBurnTransition, pileBeforeBurn } from "../lib/burnHold";
 import { useSwapFlights } from "../lib/swapFlight";
 import { useBotDriver } from "../lib/useBotDriver";
 import { CardFaceContent, cardRank, isRedSuit, suitSymbol } from "../components/CardFace";
@@ -91,6 +92,9 @@ export default function GameTable() {
   // Reconnect status ("Reconnecting...", or the failure notice). Kept apart from error: the state poll clears error.
   const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState(false);
+  // True while a burn is shown in two steps (see applyState). Input is locked then, and the pile on screen is not the server state.
+  const burnHoldRef = useRef<{ next: GameStateView; queue: GameStateView[]; timer: number } | null>(null);
+  const [burnHold, setBurnHold] = useState(false);
   const pendingRef = useRef(false);
   const phoneChipsRef = useRef<HTMLDivElement>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -151,7 +155,8 @@ export default function GameTable() {
   // No legal move (see lib/rules.ts): the discard pile is selected automatically. The key changes only when the turn,
   // the pile top or the hand/face-up cards change; the effect below decides when the pile is (re)selected.
   const forcedMoveKey = useMemo(() => {
-    if (!state || !you) return null;
+    // During a burn hold the pile on screen is not the one the server will play on, so no forced pick-up is decided.
+    if (!state || !you || burnHold) return null;
     const input = {
       setupComplete: state.setupComplete,
       finished: state.finished,
@@ -163,7 +168,7 @@ export default function GameTable() {
       allowMixedHandAndFaceUpWhenDeckEmpty: state.allowMixedHandAndFaceUpWhenDeckEmpty
     };
     return mustPickUp(input) ? moveSignature({ ...input, currentPlayerId: state.currentPlayerId }) : null;
-  }, [state, you, yourTurn]);
+  }, [state, you, yourTurn, burnHold]);
   const autoPickupKeyRef = useRef<string | null>(null);
   const selectedCount = selected.length;
   // A new forced situation always selects the pile. Within the same situation it is selected again only when no card
@@ -225,19 +230,7 @@ export default function GameTable() {
   // Every state update (WebSocket push or 4s poll) goes through here. The selection is reconciled against the
   // previous state instead of being cleared, so updates that do not touch this player's cards or turn keep it.
   // A pending play/pickup/swap is cleared once the server acknowledges it with a change to this player's cards or turn.
-  const applyState = useCallback((incoming: GameStateView) => {
-    const previous = stateRef.current;
-    // A state older than the one on screen (a REST read sent before a socket update and answered after it) would roll the
-    // table back, and the next poll would replay the moves in between. Event numbers only grow, so a smaller one is stale.
-    if (previous && lastEventSeq(incoming) < lastEventSeq(previous)) return;
-    // A reveal in the update starts its window. An update without one (a 4s poll, or a socket update) keeps the
-    // reveal on screen until the window ends. The copy stops after that, so the reveal cannot come back on later polls.
-    let next = incoming;
-    if (incoming.revealedCard) {
-      revealRef.current = { card: incoming.revealedCard, shownAt: Date.now() };
-    } else if (revealRef.current && Date.now() - revealRef.current.shownAt < FAILED_FLIP_NOTICE_MS) {
-      next = { ...incoming, revealedCard: revealRef.current.card };
-    }
+  const showState = useCallback((previous: GameStateView | null, next: GameStateView) => {
     captureSwapStart(previous, next);
     stateRef.current = next;
     // flushSync: each update commits on its own, so the layout effect that animates the table sees every move. Without it,
@@ -253,6 +246,55 @@ export default function GameTable() {
       setSelection((current) => reconcileSelection(previous, next, current, pending));
     });
   }, [captureSwapStart]);
+
+  // A burn is shown in two steps (lib/burnHold.ts): the burning play lands on the pile, the pile holds for BURN_HOLD_MS,
+  // then the burned state is applied. Updates that arrive during the hold wait in `queue` and are applied in order after it.
+  const applyStateRef = useRef<(incoming: GameStateView) => void>(() => undefined);
+
+  const applyState = useCallback((incoming: GameStateView) => {
+    const hold = burnHoldRef.current;
+    if (hold) {
+      hold.queue.push(incoming);
+      return;
+    }
+    const previous = stateRef.current;
+    // A state older than the one on screen (a REST read sent before a socket update and answered after it) would roll the
+    // table back, and the next poll would replay the moves in between. Event numbers only grow, so a smaller one is stale.
+    if (previous && lastEventSeq(incoming) < lastEventSeq(previous)) return;
+    // A reveal in the update starts its window. An update without one (a 4s poll, or a socket update) keeps the
+    // reveal on screen until the window ends. The copy stops after that, so the reveal cannot come back on later polls.
+    let next = incoming;
+    if (incoming.revealedCard) {
+      revealRef.current = { card: incoming.revealedCard, shownAt: Date.now() };
+    } else if (revealRef.current && Date.now() - revealRef.current.shownAt < FAILED_FLIP_NOTICE_MS) {
+      next = { ...incoming, revealedCard: revealRef.current.card };
+    }
+    if (previous && isBurnTransition(previous, next)) {
+      const beforeBurn = pileBeforeBurn(previous, next);
+      if (beforeBurn) {
+        showState(previous, beforeBurn);
+        const timer = window.setTimeout(() => {
+          const finished = burnHoldRef.current;
+          if (!finished) return;
+          burnHoldRef.current = null;
+          setBurnHold(false);
+          applyStateRef.current(finished.next);
+          for (const queued of finished.queue) applyStateRef.current(queued);
+        }, BURN_HOLD_MS);
+        burnHoldRef.current = { next, queue: [], timer };
+        setBurnHold(true);
+        return;
+      }
+    }
+    showState(previous, next);
+  }, [showState]);
+
+  useLayoutEffect(() => { applyStateRef.current = applyState; }, [applyState]);
+  useEffect(() => () => {
+    const hold = burnHoldRef.current;
+    if (hold) window.clearTimeout(hold.timer);
+    burnHoldRef.current = null;
+  }, []);
   // Plays the bots' moves while a human is still in the game (client-paced; see lib/useBotDriver.ts).
   useBotDriver(sessionId, token, state, applyState);
 
@@ -268,7 +310,7 @@ export default function GameTable() {
   }, []);
 
   const playSelected = useCallback(() => {
-    if (!sessionId || !you) return;
+    if (!sessionId || !you || burnHoldRef.current) return;
     if (pickupSelected) {
       if (!yourTurn || !pileHasCards) return;
       setError(null);
@@ -536,7 +578,7 @@ export default function GameTable() {
               cards={state.discardPile}
               selectable={!setupStage}
               selected={pickupSelected}
-              disabled={!yourTurn || !pileHasCards || pendingAction}
+              disabled={!yourTurn || !pileHasCards || pendingAction || burnHold}
               onClick={() => { setSelected([]); setPickupSelected(true); }}
               fxAnchor="discard"
             />
@@ -587,7 +629,7 @@ export default function GameTable() {
         />
         {!setupStage && (
           <div className="game-actions game-actions-play">
-            <button className="button" disabled={(!pickupSelected && (selected.length === 0 || mixedSelectionIncomplete)) || pendingAction || !yourTurn || (pickupSelected && !pileHasCards)} onClick={playSelected}>
+            <button className="button" disabled={(!pickupSelected && (selected.length === 0 || mixedSelectionIncomplete)) || pendingAction || burnHold || !yourTurn || (pickupSelected && !pileHasCards)} onClick={playSelected}>
               {pendingAction ? "Sending..." : pickupSelected ? "Pick Up" : `Play${selected.length > 0 ? ` (${selected.length})` : ""}`}
             </button>
             {!phone && (!yourTurn || pickupSelected || selected.length === 0) && (
