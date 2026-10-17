@@ -659,6 +659,7 @@ button.playing-card { cursor: pointer; }
   grid-template-columns: 250px minmax(0, 1fr);
   gap: 0;
   min-height: 100vh;
+  min-height: 100svh;
   max-width: none;
   padding: 0;
   color: #f5edda;
@@ -862,7 +863,7 @@ button.playing-card { cursor: pointer; }
 }
 
 @media (max-width: 650px) {
-  .lobby-page.page { display: flex; flex-direction: column; min-height: 100vh; }
+  .lobby-page.page { display: flex; flex-direction: column; min-height: 100vh; min-height: 100svh; }
   .lobby-sidebar { position: sticky; z-index: 10; top: 0; flex-direction: row; align-items: center; gap: 10px; width: 100%; height: auto; min-height: 0; padding: 8px 10px; }
   .lobby-brand { flex: 0 0 42px; width: 42px; height: 42px; margin: 0; border-radius: 12px; font-size: 23px; }
   .lobby-nav { display: flex; flex: 1; gap: 4px; overflow: visible; }
