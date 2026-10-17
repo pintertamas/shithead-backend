@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { rematch } from "../api/game";
 import { startVoiceHandoff } from "../lib/voice";
+import SessionStandings from "./SessionStandings";
 import "../styles/results-panel.css";
 
 export const REMATCH_WINDOW_MS = 60_000;
@@ -47,6 +48,7 @@ export default function ResultsPanel({
 }: Props) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
+  const [view, setView] = useState<"timer" | "standings">("timer");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -120,6 +122,13 @@ export default function ResultsPanel({
         <span className="results-name">{shitheadName}{youAreShithead ? " (you)" : ""}</span>
       </h2>
 
+      {view === "standings" ? (
+        <div className="results-standings">
+          <h3 className="results-standings-title">Final standings</h3>
+          <SessionStandings token={token} sessionId={sessionId} />
+        </div>
+      ) : (
+        <>
       {joinable ? (
         <div className="results-countdown" role="timer" aria-live="off">
           <span className="results-time">{formatClock(remaining)}</span>
@@ -131,7 +140,9 @@ export default function ResultsPanel({
           </span>
         </div>
       ) : windowOpen ? null : (
-        <p className="results-note">Time to head to the leaderboard.</p>
+        <p className="results-note">The rematch window has closed.</p>
+      )}
+        </>
       )}
 
       {error && <p className="results-error" role="alert">{error}</p>}
@@ -144,10 +155,16 @@ export default function ResultsPanel({
             {playLabel}
           </button>
         )}
-        <button type="button" className={windowOpen ? "button secondary" : "button"}
-          onClick={() => navigate(`/leaderboard/${sessionId}`)}>
-          View leaderboard
-        </button>
+        <div className="results-actions-row">
+          <button type="button" className="button secondary"
+            aria-pressed={view === "standings"}
+            onClick={() => setView(view === "standings" ? "timer" : "standings")}>
+            {view === "standings" ? "Back to timer" : "View leaderboard"}
+          </button>
+          <button type="button" className="button secondary" onClick={() => navigate("/lobby")}>
+            Home
+          </button>
+        </div>
       </div>
     </section>
   );

@@ -1,16 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import { LeaderboardEntry } from "../api/leaderboard";
 import Pager from "../components/Pager";
-import Tabs from "../components/Tabs";
 import ErrorAlert from "../components/ErrorAlert";
 import Icon from "../components/Icon";
 import { RankingRowsSkeleton } from "../components/Skeleton";
-import { useGlobalLeaderboardQuery, useSessionLeaderboardQuery } from "../data/queries";
+import { useGlobalLeaderboardQuery } from "../data/queries";
 import "../styles/leaderboard.css";
 import "../styles/rankings.css";
-import "../styles/elo-change.css";
 import "../styles/leaderboard-bots.css";
 
 /** Players shown per page of the leaderboard, on every screen size. */
@@ -32,104 +29,22 @@ function messageOf(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
 
-/**
- * Shows how a player's rating moved in the session's game: a green up triangle with "+16", a red down triangle
- * with "-16", or a grey dash for no change, plus the rating it started from. Both values are rounded the same way
- * as the displayed rating, so the delta always matches the numbers shown.
- */
-function EloChangeIndicator({ before, after }: { before: number; after: number }) {
-  const from = Math.round(before);
-  const to = Math.round(after);
-  const delta = to - from;
-  const direction = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
-  const signed = delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "0";
-  const label = delta === 0
-    ? `Rating unchanged, ${to}`
-    : `Rating ${direction} ${Math.abs(delta)}, from ${from} to ${to}`;
-  return (
-    <>
-      <span className={`elo-change elo-change-${direction}`} role="img" aria-label={label}>
-        {direction === "flat" ? (
-          <svg className="elo-change-icon" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-            <rect x="1" y="4" width="8" height="2" />
-          </svg>
-        ) : (
-          <svg className="elo-change-icon" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
-            <path d={direction === "up" ? "M5 1 L9.5 8.5 H0.5 Z" : "M5 9 L9.5 1.5 H0.5 Z"} />
-          </svg>
-        )}
-        {signed}
-      </span>
-      {delta !== 0 && <span className="elo-change-from" aria-hidden="true">from {from}</span>}
-    </>
-  );
-}
-
-/**
- * Points a player won or lost in the session's game: the change shown on their row, computed from the same rounded
- * ratings as EloChangeIndicator, so equal numbers on screen always tie. Null when no change was recorded.
- */
-function sessionPoints(entry: LeaderboardEntry): number | null {
-  if (entry.eloBefore == null || entry.eloAfter == null) return null;
-  return Math.round(entry.eloAfter) - Math.round(entry.eloBefore);
-}
-
-/** Session rows may carry `shithead` (the seat that lost the game). A missing field counts as false. */
-function lostGame(entry: LeaderboardEntry): boolean {
-  return (entry as LeaderboardEntry & { shithead?: boolean }).shithead === true;
-}
-
-/** Hides the "Lost the game" text visually while keeping it for screen readers. */
-const visuallyHidden: CSSProperties = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  overflow: "hidden",
-  clip: "rect(0 0 0 0)",
-  whiteSpace: "nowrap",
-};
-
-/**
- * Session rows ranked by points, highest first. Rows without a recorded change go after all ranked rows. Ties and
- * unrecorded rows keep seat order: the sort is stable and runs on a copy, so the query data is not mutated.
- */
-function rankSessionRows(rows: LeaderboardEntry[]): LeaderboardEntry[] {
-  return [...rows].sort((a, b) => {
-    const pointsA = sessionPoints(a);
-    const pointsB = sessionPoints(b);
-    if (pointsA === null || pointsB === null) {
-      if (pointsA === pointsB) return 0;
-      return pointsA === null ? 1 : -1;
-    }
-    return pointsB - pointsA;
-  });
-}
-
 export default function Leaderboard() {
-  const { sessionId } = useParams();
   const { token } = useAuth();
-  const [tab, setTab] = useState(sessionId ? "Session" : "Global");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const listRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const sessionQuery = useSessionLeaderboardQuery(token, sessionId);
   const globalQuery = useGlobalLeaderboardQuery(token);
-  const sessionRows = useMemo(() => rankSessionRows(sessionQuery.data ?? []), [sessionQuery.data]);
   const globalData: LeaderboardEntry[] = globalQuery.data ?? [];
-  const sessionLoading = Boolean(sessionId) && sessionQuery.isPending;
   const globalLoading = globalQuery.isPending;
-
-  useEffect(() => {
-    if (sessionQuery.error) setError(messageOf(sessionQuery.error, "Couldn't load the session leaderboard."));
-  }, [sessionQuery.error]);
 
   useEffect(() => {
     if (globalQuery.error) setError(messageOf(globalQuery.error, "Couldn't load the global leaderboard."));
   }, [globalQuery.error]);
 
-  const rows = tab === "Session" ? sessionRows : globalData;
-  const loading = tab === "Session" ? sessionLoading : globalLoading;
+  const rows = globalData;
+  const loading = globalLoading;
 
   // Rank is the position in the full list, so filtering never renumbers players.
   const ranked = rows.map((entry, index) => ({ entry, rank: index + 1 }));
@@ -161,11 +76,6 @@ export default function Leaderboard() {
     setPage(1);
   };
 
-  const changeTab = (next: string) => {
-    setTab(next);
-    setPage(1);
-  };
-
   return (
     <div className="leaderboard-page fade-in">
       <div className="leaderboard-main">
@@ -183,12 +93,10 @@ export default function Leaderboard() {
               <TrophyIcon />
               <div>
                 <h2 id="leaderboard-title">Rankings</h2>
-                <p>{sessionId && tab === "Session" ? "Final standings for this game." : "Every player and their current ELO."}</p>
+                <p>Every player and their current ELO.</p>
               </div>
             </div>
           </div>
-
-          {sessionId && <Tabs tabs={["Session", "Global"]} active={tab} onChange={changeTab} />}
 
           {loading ? <RankingRowsSkeleton rows={8} />
             : rows.length === 0 ? <p className="lobby-rankings-message">{error ? "Rankings couldn't be loaded." : "No rankings are available yet."}</p>
@@ -240,21 +148,9 @@ export default function Leaderboard() {
                                     {entry.games != null && <span className="rankings-bot-games">{entry.games} games</span>}
                                   </>
                                 )}
-                                {tab === "Session" && lostGame(entry) && (
-                                  <>
-                                    {" "}
-                                    <span aria-hidden="true">💩</span>
-                                    <span style={visuallyHidden}>Lost the game</span>
-                                  </>
-                                )}
                               </td>
                               <td>
-                                {tab === "Session" && entry.eloBefore != null && entry.eloAfter != null ? (
-                                  <div className="elo-cell">
-                                    <span className="elo-value">{Math.round(entry.eloScore)}</span>
-                                    <EloChangeIndicator before={entry.eloBefore} after={entry.eloAfter} />
-                                  </div>
-                                ) : Math.round(entry.eloScore)}
+                                {Math.round(entry.eloScore)}
                               </td>
                             </tr>
                           ))}
