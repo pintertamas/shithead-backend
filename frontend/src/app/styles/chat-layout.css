@@ -134,20 +134,32 @@
   line-height: 1;
 }
 
-/* The backdrop covers the visual viewport (the area above the on-screen keyboard), not the layout viewport, which
-   iOS does not shrink when the keyboard opens. --vv-top and --vvh are set by ChatPanel while the sheet is open. */
+/* While the phone sheet is open, ChatPanel puts "chat-sheet-open" on <html>: the document cannot scroll or bounce.
+   iOS still pans the page for a focused input, so ChatPanel also cancels stray touchmoves and restores the scroll. */
+html.chat-sheet-open,
+html.chat-sheet-open body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* The backdrop is exactly the visual viewport (the area above the on-screen keyboard). It is anchored at the top of
+   the layout viewport and moved down by --vv-top with a transform, which iOS applies without a layout pass, so it
+   follows panning immediately. --vv-top and --vvh are written by ChatPanel on every visual viewport change. */
 .chat-sheet-backdrop {
   position: fixed;
-  top: var(--vv-top, 0px);
+  top: 0;
   left: 0;
   width: 100%;
   height: var(--vvh, 100dvh);
+  transform: translate3d(0, var(--vv-top, 0px), 0);
   z-index: 1000;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   background: rgba(5, 14, 10, 0.55);
+  overflow: hidden;
   overscroll-behavior: contain;
+  touch-action: none;
   animation: chat-backdrop-in 0.18s ease-out;
 }
 
@@ -158,16 +170,22 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 640px;
-  /* 100% is the visual viewport while the keyboard is open, so the sheet fills the space above it and its bottom
-     edge (the input row) stays on the keyboard. Without the keyboard it is 80% of the screen as before. */
+  /* Keyboard closed: 80% of the screen. Keyboard open (html.chat-kb): the whole visual viewport, so the input row
+     sits on the keyboard. */
   height: min(80dvh, 100%);
   max-height: 100%;
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: contain;
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
   border-radius: 18px 18px 0 0;
   outline: none;
   animation: chat-sheet-in 0.22s ease-out;
+}
+
+html.chat-kb .chat-sheet {
+  height: 100%;
+  padding-bottom: 12px;
 }
 
 .chat-sheet-header {
@@ -204,6 +222,10 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 16px stops iOS from zooming the page when the input is focused. */
