@@ -75,23 +75,38 @@ function useUnreadCount(messages: ChatMessage[], open: boolean, currentUserId?: 
   return unread;
 }
 
-/** Keeps the bottom sheet above the on-screen keyboard by tracking the visual viewport. */
-function useKeyboardInset(active: boolean): number {
-  const [inset, setInset] = useState(0);
+/**
+ * While the phone sheet is open, mirrors the visual viewport (the area above the on-screen keyboard) into
+ * --vv-top and --vvh on the root element. The sheet backdrop is positioned from them, so the sheet always ends at
+ * the top of the keyboard. iOS changes the visual viewport by resizing it (keyboard), panning it (offsetTop, when it
+ * scrolls the focused input into view) and scrolling; all three are tracked, coalesced to one update per frame.
+ * Without the visual viewport API the variables stay unset and the CSS fallbacks (full screen) apply.
+ */
+function useVisualViewportVars(active: boolean): void {
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!active || !viewport) {
-      setInset(0);
-      return undefined;
-    }
-    const update = () => setInset(Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop)));
-    update();
-    viewport.addEventListener("resize", update);
+    if (!active || !viewport) return undefined;
+    const root = document.documentElement;
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
+      root.style.setProperty("--vv-top", `${viewport.offsetTop}px`);
+      root.style.setProperty("--vvh", `${viewport.height}px`);
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(apply);
+    };
+    apply();
+    viewport.addEventListener("resize", schedule);
+    viewport.addEventListener("scroll", schedule);
     return () => {
-      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("resize", schedule);
+      viewport.removeEventListener("scroll", schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+      root.style.removeProperty("--vv-top");
+      root.style.removeProperty("--vvh");
     };
   }, [active]);
-  return inset;
 }
 
 type Props = {
@@ -124,7 +139,7 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend, 
   const sheetRef = useRef<HTMLElement>(null);
   const stickToBottom = useRef(true);
   const unread = useUnreadCount(messages, !phone || sheetOpen, currentUserId);
-  const keyboardInset = useKeyboardInset(phone && sheetOpen);
+  useVisualViewportVars(phone && sheetOpen);
   // Owns the voice connection's lifecycle for this game. The chat is always mounted on the room and the table,
   // so this keeps working while the phone sheet is closed.
   const voiceGameId = voiceEnabled && sessionId ? sessionId : undefined;
@@ -265,7 +280,6 @@ export default function ChatPanel({ messages, currentUserId, connected, onSend, 
       {sheetOpen && createPortal(
         <div
           className="chat-sheet-backdrop"
-          style={{ paddingBottom: keyboardInset }}
           onClick={(event) => { if (event.target === event.currentTarget) closeSheet(); }}
         >
           <section
