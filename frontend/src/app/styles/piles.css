@@ -222,6 +222,8 @@
 .seat-table-view {
   --stv-w: 58px;
   --stv-h: calc(var(--stv-w) * 7 / 5);
+  /* Same rule as the table's paired stacks (player-panel.css): backs sit under the face-up card and peek out below it. */
+  --stv-peek: calc(var(--stv-h) * 0.16);
   display: grid;
   gap: 12px;
   min-width: min(70vw, 300px);
@@ -277,8 +279,9 @@
 
 .seat-table-stack {
   position: relative;
+  flex: none;
   width: var(--stv-w);
-  height: calc(var(--stv-h) + 8px);
+  height: calc(var(--stv-h) + var(--stv-peek));
 }
 
 .seat-table-view .playing-card {
@@ -291,13 +294,17 @@
   flex: none;
 }
 
+/* Cards stay upright and on the same grid: the back is always --stv-peek below the top of its slot, and the
+   face-up card sits at the top of the slot on top of it. No rotation, so every slot lines up. */
 .seat-table-view .seat-table-back {
-  transform: translate(3px, 4px) rotate(-4deg);
+  top: var(--stv-peek);
+  transform: none;
 }
 
 .seat-table-view .face-up-card {
-  transform: translate(-1px, 0) rotate(2deg);
-  box-shadow: 0 4px 9px rgba(0, 0, 0, 0.4);
+  top: 0;
+  transform: none;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
 }
 
 .seat-table-view .playing-card-corner,
