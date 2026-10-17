@@ -2,6 +2,7 @@ import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef
 import { useNavigate, useParams } from "react-router-dom";
 import { flushSync } from "react-dom";
 import { Card, CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
+import type { GameEvent } from "../api/game";
 import { appendChatMessage } from "../lib/sessionChat";
 import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
 import { ApiError } from "../api/client";
@@ -37,6 +38,23 @@ const PHONE_QUERY = "(max-width: 700px)";
 
 /** How long a failed blind-flip reveal stays on screen: long enough to read the revealed card. */
 const FAILED_FLIP_NOTICE_MS = 2000;
+
+/** A failed flip by another player is shown only when its event is at most this old (server clock, see applyState). */
+const OTHER_FLIP_RECENT_MS = 15000;
+
+/**
+ * The revealed card of a failed blind flip by another player (FAILED_FLIP event) that is newer than `sinceSeq` and
+ * recent. Bot flips reach the table only as events, since the bot-turn update carries no revealedCard. Null otherwise.
+ */
+function otherPlayersFailedFlip(state: GameStateView, sinceSeq: number, now: number): Card | null {
+  const viewerId = state.players.find((player) => player.isYou)?.playerId;
+  let flip: GameEvent | null = null;
+  for (const event of state.events ?? []) {
+    if (event.seq > sinceSeq && event.type === "FAILED_FLIP" && event.playerId !== viewerId) flip = event;
+  }
+  if (!flip || flip.cards.length !== 1 || now - flip.ts > OTHER_FLIP_RECENT_MS) return null;
+  return flip.cards[0];
+}
 
 function usePhoneLayout(): boolean {
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -112,6 +130,9 @@ export default function GameTable() {
   const stateRef = useRef<GameStateView | null>(null);
   // The failed blind-flip reveal and when it arrived. State polls never carry one, so applyState keeps it for FAILED_FLIP_NOTICE_MS.
   const revealRef = useRef<{ card: Card; shownAt: number } | null>(null);
+  // Newest event seq the table has already processed. null until the first state, which only sets the baseline, so
+  // events that were already there on load, refresh or reconnect are never shown as new flips.
+  const eventSeenRef = useRef<number | null>(null);
   const boardRef = useRef<HTMLElement>(null);
   const fxLayerRef = useRef<HTMLDivElement>(null);
   const animatedStateRef = useRef<GameStateView | null>(null);
@@ -261,11 +282,19 @@ export default function GameTable() {
     // A state older than the one on screen (a REST read sent before a socket update and answered after it) would roll the
     // table back, and the next poll would replay the moves in between. Event numbers only grow, so a smaller one is stale.
     if (previous && lastEventSeq(incoming) < lastEventSeq(previous)) return;
+    // A failed flip by another player is new only if its event is newer than the newest one already seen. A reveal the
+    // server sent with the update (human flips) has already advanced the seen seq, so it is not shown twice.
+    const seenSeq = eventSeenRef.current;
+    eventSeenRef.current = Math.max(seenSeq ?? 0, lastEventSeq(incoming));
+    const otherFlip = seenSeq === null ? null : otherPlayersFailedFlip(incoming, seenSeq, Date.now());
     // A reveal in the update starts its window. An update without one (a 4s poll, or a socket update) keeps the
     // reveal on screen until the window ends. The copy stops after that, so the reveal cannot come back on later polls.
     let next = incoming;
     if (incoming.revealedCard) {
       revealRef.current = { card: incoming.revealedCard, shownAt: Date.now() };
+    } else if (otherFlip) {
+      revealRef.current = { card: otherFlip, shownAt: Date.now() };
+      next = { ...incoming, revealedCard: otherFlip };
     } else if (revealRef.current && Date.now() - revealRef.current.shownAt < FAILED_FLIP_NOTICE_MS) {
       next = { ...incoming, revealedCard: revealRef.current.card };
     }
