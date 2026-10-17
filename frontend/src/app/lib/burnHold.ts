@@ -9,12 +9,14 @@ import { lastEventSeq } from "./tableAnimations";
 export const BURN_HOLD_MS = 1000;
 
 /**
- * True when the update `next` clears the discard pile by a burn (BURNED event) that was caused by exactly one play since
- * `previous` (one PLAYED event). Pickups, failed plays and anything else that empties the pile do not qualify, and
+ * True when the update `next` leaves the discard pile empty after a burn (BURNED event) that was caused by exactly one
+ * play since `previous` (one PLAYED event). The pile before may be empty too: a burner (or a four of a kind) played onto
+ * an empty pile burns itself, and the server then sends an empty pile before and after, so the played cards are the
+ * only thing there is to show. Pickups, failed plays and anything else that empties the pile do not qualify, and
  * neither does an update whose events are missing.
  */
 export function isBurnTransition(previous: GameStateView, next: GameStateView): boolean {
-  if (!previous.started || previous.discardCount === 0 || next.discardCount !== 0) return false;
+  if (!previous.started || next.discardCount !== 0) return false;
   const since = lastEventSeq(previous);
   const fresh = (next.events ?? []).filter((event) => event.seq > since);
   const plays = fresh.filter((event) => event.type === "PLAYED").length;
