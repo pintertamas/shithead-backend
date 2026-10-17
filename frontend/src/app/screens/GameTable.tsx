@@ -10,7 +10,7 @@ import { useAuth } from "../auth/useAuth";
 import { lastEventSeq, playTableTransitions } from "../lib/tableAnimations";
 import { BURN_HOLD_MS, isBurnTransition, pileBeforeBurn } from "../lib/burnHold";
 import { useSwapFlights } from "../lib/swapFlight";
-import { useBotDriver } from "../lib/useBotDriver";
+import { revealsShown, useBotDriver } from "../lib/useBotDriver";
 import { CardFaceContent, cardRank, isRedSuit, suitSymbol } from "../components/CardFace";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
@@ -286,11 +286,16 @@ export default function GameTable() {
     // server sent with the update (human flips) has already advanced the seen seq, so it is not shown twice.
     const seenSeq = eventSeenRef.current;
     eventSeenRef.current = Math.max(seenSeq ?? 0, lastEventSeq(incoming));
-    const otherFlip = seenSeq === null ? null : otherPlayersFailedFlip(incoming, seenSeq, Date.now());
+    // No reveal is shown once no human is in play (the bots finish the game on their own) or for a spectator who is out.
+    const showReveal = revealsShown(incoming);
+    const otherFlip = seenSeq === null || !showReveal ? null : otherPlayersFailedFlip(incoming, seenSeq, Date.now());
     // A reveal in the update starts its window. An update without one (a 4s poll, or a socket update) keeps the
     // reveal on screen until the window ends. The copy stops after that, so the reveal cannot come back on later polls.
     let next = incoming;
-    if (incoming.revealedCard) {
+    if (!showReveal) {
+      revealRef.current = null;
+      if (incoming.revealedCard) next = { ...incoming, revealedCard: null };
+    } else if (incoming.revealedCard) {
       revealRef.current = { card: incoming.revealedCard, shownAt: Date.now() };
     } else if (otherFlip) {
       revealRef.current = { card: otherFlip, shownAt: Date.now() };

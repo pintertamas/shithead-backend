@@ -23,6 +23,15 @@ export function isOutPlayer(player: PlayerState): boolean {
   return player.handCount === 0 && player.faceUp.length === 0 && player.faceDownCount === 0;
 }
 
+/**
+ * True when failed-flip reveals may be shown on this table: the viewer is a human still in play. Once no human is in
+ * play (the bots finish the game on the server) and for a spectating human who is out, the table shows no reveal.
+ */
+export function revealsShown(state: GameStateView): boolean {
+  const you = state.players.find((player) => player.isYou);
+  return !!you && !you.isBot && !isOutPlayer(you) && state.players.some((player) => !player.isBot && !isOutPlayer(player));
+}
+
 function newestEventSeq(state: GameStateView): number {
   const events = state.events ?? [];
   return events.length === 0 ? 0 : events[events.length - 1].seq;
