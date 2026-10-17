@@ -2,7 +2,6 @@ import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef
 import { useNavigate, useParams } from "react-router-dom";
 import { flushSync } from "react-dom";
 import { Card, CardSelection, ChatMessage, fetchState, GameStateView, NudgeMessage, openGameSocket, PlayerState } from "../api/game";
-import type { GameEvent } from "../api/game";
 import { appendChatMessage } from "../lib/sessionChat";
 import NudgeButton, { NudgeBanner, useNudgeNotice } from "../components/NudgeButton";
 import { ApiError } from "../api/client";
@@ -11,6 +10,7 @@ import { lastEventSeq, playTableTransitions } from "../lib/tableAnimations";
 import { BURN_HOLD_MS, isBurnTransition, pileBeforeBurn } from "../lib/burnHold";
 import { useSwapFlights } from "../lib/swapFlight";
 import { revealsShown, useBotDriver } from "../lib/useBotDriver";
+import { FAILED_FLIP_NOTICE_MS, nextFailedFlipStep } from "../lib/failedFlipNotice";
 import { CardFaceContent, cardRank, isRedSuit, suitSymbol } from "../components/CardFace";
 import Pile from "../components/Pile";
 import PlayerPanel from "../components/PlayerPanel";
@@ -35,26 +35,6 @@ import "../styles/mobile-play-row.css";
 
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
-
-/** How long a failed blind-flip reveal stays on screen: long enough to read the revealed card. */
-const FAILED_FLIP_NOTICE_MS = 2000;
-
-/** A failed flip by another player is shown only when its event is at most this old (server clock, see applyState). */
-const OTHER_FLIP_RECENT_MS = 15000;
-
-/**
- * The revealed card of a failed blind flip by another player (FAILED_FLIP event) that is newer than `sinceSeq` and
- * recent. Bot flips reach the table only as events, since the bot-turn update carries no revealedCard. Null otherwise.
- */
-function otherPlayersFailedFlip(state: GameStateView, sinceSeq: number, now: number): Card | null {
-  const viewerId = state.players.find((player) => player.isYou)?.playerId;
-  let flip: GameEvent | null = null;
-  for (const event of state.events ?? []) {
-    if (event.seq > sinceSeq && event.type === "FAILED_FLIP" && event.playerId !== viewerId) flip = event;
-  }
-  if (!flip || flip.cards.length !== 1 || now - flip.ts > OTHER_FLIP_RECENT_MS) return null;
-  return flip.cards[0];
-}
 
 function usePhoneLayout(): boolean {
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function"
@@ -128,11 +108,10 @@ export default function GameTable() {
   const closePeek = useCallback(() => setPeekId(null), []);
   const socketRef = useRef<GameSocket | null>(null);
   const stateRef = useRef<GameStateView | null>(null);
-  // The failed blind-flip reveal and when it arrived. State polls never carry one, so applyState keeps it for FAILED_FLIP_NOTICE_MS.
-  const revealRef = useRef<{ card: Card; shownAt: number } | null>(null);
-  // Newest event seq the table has already processed. null until the first state, which only sets the baseline, so
-  // events that were already there on load, refresh or reconnect are never shown as new flips.
-  const eventSeenRef = useRef<number | null>(null);
+  // The failed blind-flip popup (see lib/failedFlipNotice.ts): one notice with one timer, keyed by its FAILED_FLIP seq.
+  const [flipNotice, setFlipNotice] = useState<{ seq: number; card: Card } | null>(null);
+  // Newest FAILED_FLIP seq already handled, per session. Null until the first state of a session sets the baseline.
+  const lastRevealRef = useRef<{ sessionId: string; seq: number } | null>(null);
   const boardRef = useRef<HTMLElement>(null);
   const fxLayerRef = useRef<HTMLDivElement>(null);
   const animatedStateRef = useRef<GameStateView | null>(null);
@@ -251,12 +230,23 @@ export default function GameTable() {
   // Every state update (WebSocket push or 4s poll) goes through here. The selection is reconciled against the
   // previous state instead of being cleared, so updates that do not touch this player's cards or turn keep it.
   // A pending play/pickup/swap is cleared once the server acknowledges it with a change to this player's cards or turn.
-  const showState = useCallback((previous: GameStateView | null, next: GameStateView) => {
+  // `announceFlips` is false for the pile-only state shown during a burn hold: the flips of that update are handled when
+  // the full state is shown, so they are not announced early.
+  const showState = useCallback((previous: GameStateView | null, next: GameStateView, announceFlips: boolean) => {
     captureSwapStart(previous, next);
     stateRef.current = next;
     // flushSync: each update commits on its own, so the layout effect that animates the table sees every move. Without it,
     // updates that arrive in one tick are batched and their moves are animated as one.
     flushSync(() => {
+      if (announceFlips) {
+        // The only source of the failed-flip popup is the FAILED_FLIP event, whoever flipped. Each flip is handled once.
+        const seen = lastRevealRef.current;
+        const showable = revealsShown(next);
+        const step = nextFailedFlipStep(next, seen && seen.sessionId === next.sessionId ? seen.seq : null, Date.now(), showable);
+        lastRevealRef.current = { sessionId: next.sessionId, seq: step.seq };
+        if (!showable) setFlipNotice(null);
+        else if (step.flip) setFlipNotice({ seq: step.flip.seq, card: step.flip.card });
+      }
       setState(next);
       if (!previous) return;
       const pending = pendingRef.current;
@@ -282,31 +272,10 @@ export default function GameTable() {
     // A state older than the one on screen (a REST read sent before a socket update and answered after it) would roll the
     // table back, and the next poll would replay the moves in between. Event numbers only grow, so a smaller one is stale.
     if (previous && lastEventSeq(incoming) < lastEventSeq(previous)) return;
-    // A failed flip by another player is new only if its event is newer than the newest one already seen. A reveal the
-    // server sent with the update (human flips) has already advanced the seen seq, so it is not shown twice.
-    const seenSeq = eventSeenRef.current;
-    eventSeenRef.current = Math.max(seenSeq ?? 0, lastEventSeq(incoming));
-    // No reveal is shown once no human is in play (the bots finish the game on their own) or for a spectator who is out.
-    const showReveal = revealsShown(incoming);
-    const otherFlip = seenSeq === null || !showReveal ? null : otherPlayersFailedFlip(incoming, seenSeq, Date.now());
-    // A reveal in the update starts its window. An update without one (a 4s poll, or a socket update) keeps the
-    // reveal on screen until the window ends. The copy stops after that, so the reveal cannot come back on later polls.
-    let next = incoming;
-    if (!showReveal) {
-      revealRef.current = null;
-      if (incoming.revealedCard) next = { ...incoming, revealedCard: null };
-    } else if (incoming.revealedCard) {
-      revealRef.current = { card: incoming.revealedCard, shownAt: Date.now() };
-    } else if (otherFlip) {
-      revealRef.current = { card: otherFlip, shownAt: Date.now() };
-      next = { ...incoming, revealedCard: otherFlip };
-    } else if (revealRef.current && Date.now() - revealRef.current.shownAt < FAILED_FLIP_NOTICE_MS) {
-      next = { ...incoming, revealedCard: revealRef.current.card };
-    }
-    if (previous && isBurnTransition(previous, next)) {
-      const beforeBurn = pileBeforeBurn(previous, next);
+    if (previous && isBurnTransition(previous, incoming)) {
+      const beforeBurn = pileBeforeBurn(previous, incoming);
       if (beforeBurn) {
-        showState(previous, beforeBurn);
+        showState(previous, beforeBurn, false);
         const timer = window.setTimeout(() => {
           const finished = burnHoldRef.current;
           if (!finished) return;
@@ -315,12 +284,12 @@ export default function GameTable() {
           applyStateRef.current(finished.next);
           for (const queued of finished.queue) applyStateRef.current(queued);
         }, BURN_HOLD_MS);
-        burnHoldRef.current = { next, queue: [], timer };
+        burnHoldRef.current = { next: incoming, queue: [], timer };
         setBurnHold(true);
         return;
       }
     }
-    showState(previous, next);
+    showState(previous, incoming, true);
   }, [showState]);
 
   useLayoutEffect(() => { applyStateRef.current = applyState; }, [applyState]);
@@ -487,13 +456,16 @@ export default function GameTable() {
     }
   }, [state]);
 
+  // One timer per notice. A new flip replaces the notice and this effect's cleanup clears the old timer; the timer only
+  // clears the seq it was started for.
   useEffect(() => {
-    if (!state?.revealedCard) return;
-    const timeout = window.setTimeout(() => {
-      setState((current) => current ? { ...current, revealedCard: null } : current);
+    if (!flipNotice) return undefined;
+    const { seq } = flipNotice;
+    const timer = window.setTimeout(() => {
+      setFlipNotice((current) => (current?.seq === seq ? null : current));
     }, FAILED_FLIP_NOTICE_MS);
-    return () => window.clearTimeout(timeout);
-  }, [state?.revealedCard]);
+    return () => window.clearTimeout(timer);
+  }, [flipNotice]);
 
   // Phone: the chip strip scrolls sideways when there are more chips than fit; keep the player whose turn it is in view.
   useEffect(() => {
@@ -580,17 +552,18 @@ export default function GameTable() {
         <NudgeButton onNudge={sendNudgeToTable} />
       </header>
       <main className="game-board" ref={boardRef} style={{ "--opponent-count": Math.max(1, others.length) } as CSSProperties}>
-        {state.revealedCard && (
-          <div className="failed-blind-reveal" role="status">
+        {flipNotice && (
+          // Keyed by seq: a new flip replaces the popup and plays its fade-in again; a re-render never does.
+          <div key={flipNotice.seq} className="failed-blind-reveal" role="status">
             <span className="blind-flip" aria-hidden="true">
               <span className="blind-flip-inner">
                 <span className="blind-flip-face blind-flip-back" />
-                <span className={`blind-flip-face blind-flip-front playing-card face-up-card${isRedSuit(state.revealedCard.suit) ? " red-card" : ""}`}>
-                  <CardFaceContent card={state.revealedCard} />
+                <span className={`blind-flip-face blind-flip-front playing-card face-up-card${isRedSuit(flipNotice.card.suit) ? " red-card" : ""}`}>
+                  <CardFaceContent card={flipNotice.card} />
                 </span>
               </span>
             </span>
-            Revealed {cardRank(state.revealedCard.value)}{suitSymbol(state.revealedCard.suit)}
+            Revealed {cardRank(flipNotice.card.value)}{suitSymbol(flipNotice.card.suit)}
           </div>
         )}
         {!phone && (
