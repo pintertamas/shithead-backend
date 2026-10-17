@@ -24,12 +24,20 @@ export function isOutPlayer(player: PlayerState): boolean {
 }
 
 /**
+ * True while some human is still in play (a seat that is neither a bot nor out). Once none is, the server plays the
+ * remaining bot turns at once (speed-up), and the table shows them without holds or reveals.
+ */
+export function humanInPlay(state: GameStateView): boolean {
+  return state.players.some((player) => !player.isBot && !isOutPlayer(player));
+}
+
+/**
  * True when failed-flip reveals may be shown on this table: the viewer is a human still in play. Once no human is in
  * play (the bots finish the game on the server) and for a spectating human who is out, the table shows no reveal.
  */
 export function revealsShown(state: GameStateView): boolean {
   const you = state.players.find((player) => player.isYou);
-  return !!you && !you.isBot && !isOutPlayer(you) && state.players.some((player) => !player.isBot && !isOutPlayer(player));
+  return !!you && !you.isBot && !isOutPlayer(you) && humanInPlay(state);
 }
 
 function newestEventSeq(state: GameStateView): number {

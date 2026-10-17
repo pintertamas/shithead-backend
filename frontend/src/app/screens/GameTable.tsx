@@ -9,7 +9,7 @@ import { useAuth } from "../auth/useAuth";
 import { lastEventSeq, playTableTransitions } from "../lib/tableAnimations";
 import { BURN_HOLD_MS, isBurnTransition, pileBeforeBurn } from "../lib/burnHold";
 import { useSwapFlights } from "../lib/swapFlight";
-import { revealsShown, useBotDriver } from "../lib/useBotDriver";
+import { humanInPlay, revealsShown, useBotDriver } from "../lib/useBotDriver";
 import { FAILED_FLIP_NOTICE_MS, nextFailedFlipStep } from "../lib/failedFlipNotice";
 import { CardFaceContent, cardRank, isRedSuit, suitSymbol } from "../components/CardFace";
 import Pile from "../components/Pile";
@@ -272,7 +272,8 @@ export default function GameTable() {
     // A state older than the one on screen (a REST read sent before a socket update and answered after it) would roll the
     // table back, and the next poll would replay the moves in between. Event numbers only grow, so a smaller one is stale.
     if (previous && lastEventSeq(incoming) < lastEventSeq(previous)) return;
-    if (previous && isBurnTransition(previous, incoming)) {
+    // No hold once no human is in play: the server's speed-up sends the bots' moves back-to-back, and holds would freeze them.
+    if (previous && humanInPlay(incoming) && isBurnTransition(previous, incoming)) {
       const beforeBurn = pileBeforeBurn(previous, incoming);
       if (beforeBurn) {
         showState(previous, beforeBurn, false);
