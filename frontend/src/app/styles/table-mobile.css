@@ -409,7 +409,7 @@
   }
 
   .phone-log-popover .game-feed-list {
-    max-height: 45dvh;
+    max-height: 45svh;
   }
 
   /* ---------- Phone-only peek dialog for a chip ---------- */
@@ -444,7 +444,7 @@
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
-    max-height: 60dvh;
+    max-height: 60svh;
     overflow: auto;
   }
 
@@ -601,7 +601,7 @@
    transparent card takes 15px more). Between the old 38px and 52px. */
 @media (max-width: 700px) and (orientation: portrait) {
   .game-page.phone-table:not(.setup-phase) .game-board .game-seat-own {
-    --own-card-w: clamp(38px, calc((100dvh - 530px) / 2.8), 52px);
+    --own-card-w: clamp(38px, calc((100svh - 530px) / 2.8), 52px);
     --card-w: var(--own-card-w);
     --card-h: calc(var(--card-w) * 7 / 5);
     --card-corner-fs: calc(var(--card-w) * 0.22);
@@ -644,7 +644,7 @@
   }
 
   .game-page.phone-table:not(.setup-phase) .game-board .game-seat-own {
-    --own-card-w: clamp(30px, calc((100dvh - 263px) / 2.8), 38px);
+    --own-card-w: clamp(30px, calc((100svh - 263px) / 2.8), 38px);
     --card-w: var(--own-card-w);
     --card-h: calc(var(--card-w) * 7 / 5);
     --card-corner-fs: calc(var(--card-w) * 0.22);
