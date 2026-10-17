@@ -32,6 +32,8 @@ type Props = {
 
 /** Opponent hands are drawn as a fan of backs; larger hands are capped, the header keeps the exact count. */
 const FAN_LIMIT = 10;
+/** Phone side seats (compact) draw the fan over the table cards, so it stays small; the exact count is in the text. */
+const COMPACT_FAN_LIMIT = 5;
 
 /**
  * An opponent with only a hand has no table slots, so the peek wrapper has no size and could not be hovered or
@@ -148,9 +150,9 @@ function VisibleCard({ card, index, selected, onToggle }: {
 }
 
 /** The fan always takes its height, so an empty hand leaves the rows below where they were. */
-function OpponentFan({ count, name }: { count: number; name: string }) {
+function OpponentFan({ count, name, limit = FAN_LIMIT }: { count: number; name: string; limit?: number }) {
   if (count <= 0) return <div className="seat-fan-row" aria-label={`${name} has no cards in hand`} />;
-  const drawn = Math.min(count, FAN_LIMIT);
+  const drawn = Math.min(count, limit);
   const middle = (drawn - 1) / 2;
   return (
     <div className="seat-fan-row">
@@ -221,7 +223,7 @@ export default function PlayerPanel({ player, isCurrentTurn = false, isNext = fa
         {speaking && <span className="seat-sr-only">Speaking</span>}
         {!player.isYou && <div className="seat-card-counts">{player.handCount} in hand</div>}
       </header>
-      {!player.isYou && <OpponentFan count={player.handCount} name={player.username} />}
+      {!player.isYou && <OpponentFan count={player.handCount} name={player.username} limit={compact ? COMPACT_FAN_LIMIT : FAN_LIMIT} />}
       <div className="game-seat-content">
         {player.isYou && (
           <div className="own-hand-area">

@@ -244,9 +244,26 @@
     font-size: 10px;
   }
 
-  /* The count line says how many cards are in hand; the fan of backs is for the chips. */
+  /* The fan of hand backs (up to 5) lies over the face-down and face-up stacks, centred in the card row, so a
+     seat with an empty table still shows its hand. It does not take part in layout and lets taps through to the
+     stacks. Five cards are a little wider than the box on purpose: it signals a big hand. */
+  .game-page.phone-table .game-board .game-seat-compact {
+    position: relative;
+  }
+
   .game-page.phone-table .game-board .game-seat-compact .seat-fan-row {
-    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 6px;
+    width: auto;
+    height: calc(var(--card-h) + var(--back-peek));
+    margin: 0;
+    padding-bottom: 2px;
+    box-sizing: border-box;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 3;
   }
 
   .game-page.phone-table .game-board .game-seat-compact .player-card-stacks {
