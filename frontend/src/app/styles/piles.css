@@ -124,7 +124,7 @@
   max-height: 75dvh;
   padding: 0;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .peek-overlay.pile-dialog-overlay .pile-dialog-head {
@@ -194,7 +194,7 @@
   z-index: 3;
   transform: translateX(-50%);
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: 4px;
   background: #e6c36a;
   color: #1d2a20;
   font-size: 10px;
