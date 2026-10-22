@@ -36,6 +36,9 @@ import "../styles/mobile-play-row.css";
 /** Phones (portrait and landscape): neighbours as full panels at the sides, other players as chips. */
 const PHONE_QUERY = "(max-width: 700px)";
 
+/** Phones: the "How swapping works" popover closes itself after this long. */
+const SWAP_HELP_MS = 3000;
+
 function usePhoneLayout(): boolean {
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function"
     && window.matchMedia(PHONE_QUERY).matches);
@@ -110,6 +113,7 @@ export default function GameTable() {
   const stateRef = useRef<GameStateView | null>(null);
   // The failed blind-flip popup (see lib/failedFlipNotice.ts): one notice with one timer, keyed by its FAILED_FLIP seq.
   const [flipNotice, setFlipNotice] = useState<{ seq: number; card: Card } | null>(null);
+  const [swapHelpOpen, setSwapHelpOpen] = useState(false);
   // Newest FAILED_FLIP seq already handled, per session. Null until the first state of a session sets the baseline.
   const lastRevealRef = useRef<{ sessionId: string; seq: number } | null>(null);
   const boardRef = useRef<HTMLElement>(null);
@@ -468,6 +472,13 @@ export default function GameTable() {
     return () => window.clearTimeout(timer);
   }, [flipNotice]);
 
+  // The swap help closes itself; closing it early clears the timer through the cleanup.
+  useEffect(() => {
+    if (!swapHelpOpen) return undefined;
+    const timer = window.setTimeout(() => setSwapHelpOpen(false), SWAP_HELP_MS);
+    return () => window.clearTimeout(timer);
+  }, [swapHelpOpen]);
+
   // Phone: the chip strip scrolls sideways when there are more chips than fit; keep the player whose turn it is in view.
   useEffect(() => {
     const strip = phoneChipsRef.current;
@@ -598,7 +609,7 @@ export default function GameTable() {
                 <StarterPicker players={state.players} currentPlayerId={state.currentPlayerId} isOwner={state.isOwner}
                   disabled={pendingAction} onPick={(starterId) => sendWs({ action: "setup", sessionId, setupAction: "starter", starterId })} />
                 {phone ? (
-                  <details className="setup-how">
+                  <details className="setup-how" open={swapHelpOpen} onToggle={(event) => setSwapHelpOpen(event.currentTarget.open)}>
                     <summary>How swapping works</summary>
                     <p>Select cards from your hand and the same number of face-up cards to swap them in pairs. You can change your choice until you’re ready.</p>
                   </details>
